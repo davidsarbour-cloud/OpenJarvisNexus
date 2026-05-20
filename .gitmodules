@@ -1,0 +1,3 @@
+[submodule "backend/vault/claude-mem"]
+	path = backend/vault/claude-mem
+	url = https://github.com/thedotmack/claude-mem.git

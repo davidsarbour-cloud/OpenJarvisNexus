@@ -101,3 +101,28 @@ def get_stats() -> dict:
         except Exception:
             stats[name] = 0
     return stats
+
+# Claude-Mem integration
+async def save_to_claude_mem(
+    memory_type: str,  # "conversation", "workflow", etc.
+    content: str,
+    metadata: dict | None = None,
+) -> str:
+    """Save memory to claude-mem for cross-session persistence"""
+    try:
+        import httpx
+        async with httpx.AsyncClient() as c:
+            r = await c.post(
+                "http://localhost:8084/api/memories",
+                json={
+                    "type": memory_type,
+                    "content": content,
+                    "metadata": metadata or {}
+                },
+                timeout=5,
+            )
+            if r.status_code == 200:
+                return r.json().get("id", "saved")
+    except Exception as e:
+        print(f"[WARN] Claude-Mem save failed: {e}")
+    return None
