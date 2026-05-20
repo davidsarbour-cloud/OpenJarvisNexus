@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-05-19T21:00:00.835294",
+  "thingiverse": [
+    {
+      "source": "thingiverse",
+      "error": "HTTP 401"
+    }
+  ],
+  "cults3d": [
+    {
+      "source": "cults3d",
+      "error": "HTTP 404"
+    }
+  ],
+  "etsy": [
+    {
+      "source": "etsy",
+      "error": "ETSYPUBLIC_KEY not set"
+    }
+  ],
+  "summary": {
+    "thingiverse_count": 0,
+    "cults3d_count": 0,
+    "etsy_count": 0
+  }
+}

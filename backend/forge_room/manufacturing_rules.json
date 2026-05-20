@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "fdm": {
+    "min_wall_thickness_mm": 1.2,
+    "max_overhang_angle_deg": 45.0,
+    "min_build_plate_contact_pct": 3.0,
+    "target_longest_dim_mm": 150.0,
+    "layer_height_default_mm": 0.2,
+    "layer_height_fine_mm": 0.1,
+    "nozzle_diameter_mm": 0.4,
+    "default_material": "PLA",
+    "printer": "Bambu Lab"
+  },
+  "mesh": {
+    "max_floating_components": 0,
+    "require_watertight": true,
+    "require_positive_volume": true,
+    "max_degenerate_faces_pct": 0.1,
+    "max_non_manifold_edges": 0,
+    "max_open_edges": 0
+  },
+  "repair": {
+    "auto_fix_normals": true,
+    "auto_fill_holes": true,
+    "auto_remove_floating": true,
+    "auto_merge_vertices": true,
+    "merge_threshold_mm": 0.01,
+    "voxel_pitch_mm": 0.5,
+    "max_repair_iterations": 3,
+    "use_pymeshfix": true
+  },
+  "scoring": {
+    "watertight_weight": 30,
+    "build_contact_weight": 20,
+    "wall_thickness_weight": 15,
+    "overhang_weight": 15,
+    "manifold_integrity_weight": 10,
+    "support_requirements_weight": 10
+  },
+  "orientation": {
+    "num_candidates": 8,
+    "prefer_flat_base": true,
+    "overhang_penalty_weight": 0.6,
+    "contact_reward_weight": 0.4
+  },
+  "print_estimation": {
+    "travel_speed_mm_s": 150,
+    "print_speed_mm_s": 60,
+    "infill_pct": 15,
+    "material_density_g_cm3": 1.24
+  }
+}

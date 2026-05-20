@@ -1,0 +1,52 @@
+{
+  "mission_id": "52DB29C1",
+  "generated_at": "2026-05-16T20:09:04.136669",
+  "printability_score": 55,
+  "bambu_ready": false,
+  "manifold_valid": true,
+  "floating_regions_detected": 0,
+  "repaired_geometry": true,
+  "repairs_applied": [
+    "Normales corrigées",
+    "pymeshfix: 59954 faces après réparation"
+  ],
+  "support_required": true,
+  "overhang_pct": 7.9,
+  "face_count": 59954,
+  "vertex_count": 29979,
+  "volume_cm3": 255.2798,
+  "surface_area_cm2": 450.8905,
+  "bounding_box_mm": {
+    "x": 113.33,
+    "y": 150.0,
+    "z": 112.56
+  },
+  "estimated_material_g": 104.51,
+  "estimated_print_time_min": 118.2,
+  "recommended_layer_height_mm": 0.2,
+  "recommended_material": "PLA",
+  "orientation_used": "+90°X",
+  "orientation_score": -3.42,
+  "structural_risk_score": 60,
+  "passed_checks": [
+    "✓ Watertight/Étanche",
+    "✓ Épaisseur de paroi (1.2mm min)",
+    "✓ Aucune géométrie flottante"
+  ],
+  "failed_checks": [
+    "✗ Contact build plate insuffisant (2.8%)",
+    "✗ Surplombs excessifs (7.9%)",
+    "✗ Supports requis (44.3cm³ estimé)"
+  ],
+  "all_issues": [
+    "89931 arêtes ouvertes (bordure)",
+    "Ray casting indisponible (rtree manquant — installer: pip install rtree) — parois assumées valides",
+    "7.9% de surface en surplomb (>45.0°) — supports probablement requis",
+    "5.7% de surplombs critiques (>60°)"
+  ],
+  "wall_thickness_min_mm": 1.2,
+  "overhang_max_angle_deg": 180.0,
+  "estimated_print_time_str": "1h58min",
+  "support_volume_cm3": 44.26,
+  "printability_grade": "D"
+}

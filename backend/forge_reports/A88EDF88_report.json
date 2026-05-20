@@ -1,0 +1,46 @@
+{
+  "mission_id": "A88EDF88",
+  "generated_at": "2026-05-16T18:43:30.452311",
+  "printability_score": 50,
+  "bambu_ready": false,
+  "manifold_valid": true,
+  "floating_regions_detected": 0,
+  "repaired_geometry": true,
+  "repairs_applied": [
+    "Normales corrigées",
+    "pymeshfix: 960 faces après réparation"
+  ],
+  "support_required": true,
+  "overhang_pct": 13.6,
+  "face_count": 960,
+  "vertex_count": 482,
+  "volume_cm3": 1207.5988,
+  "surface_area_cm2": 553.0892,
+  "bounding_box_mm": {
+    "x": 125.0,
+    "y": 125.0,
+    "z": 150.0
+  },
+  "estimated_material_g": 294.57,
+  "estimated_print_time_min": 151.0,
+  "recommended_layer_height_mm": 0.2,
+  "recommended_material": "PLA",
+  "orientation_used": "identité",
+  "orientation_score": -58.147,
+  "structural_risk_score": 50,
+  "passed_checks": [
+    "✓ Manifold/Watertight",
+    "✓ Aucune géométrie flottante"
+  ],
+  "failed_checks": [
+    "✗ Parois trop fines (0.0mm — min 1.2mm)",
+    "✗ Surplombs excessifs (13.6%)",
+    "✗ Contact build plate insuffisant (0.0%)"
+  ],
+  "all_issues": [
+    "1440 arêtes ouvertes (bordure)",
+    "Impossible de calculer l'épaisseur — mesh potentiellement invalide",
+    "13.6% de surface en surplomb (>45.0°) — supports probablement requis",
+    "3.4% de surplombs critiques (>60°)"
+  ]
+}

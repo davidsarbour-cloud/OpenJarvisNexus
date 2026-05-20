@@ -1,0 +1,46 @@
+{
+  "mission_id": "301C4027",
+  "generated_at": "2026-05-16T18:29:43.241980",
+  "printability_score": 65,
+  "bambu_ready": false,
+  "manifold_valid": true,
+  "floating_regions_detected": 0,
+  "repaired_geometry": true,
+  "repairs_applied": [
+    "Normales corrigées",
+    "pymeshfix: 12 faces après réparation"
+  ],
+  "support_required": true,
+  "overhang_pct": 15.4,
+  "face_count": 12,
+  "vertex_count": 8,
+  "volume_cm3": 2700.0017,
+  "surface_area_cm2": 1170.0005,
+  "bounding_box_mm": {
+    "x": 150.0,
+    "y": 120.0,
+    "z": 150.0
+  },
+  "estimated_material_g": 650.18,
+  "estimated_print_time_min": 162.1,
+  "recommended_layer_height_mm": 0.2,
+  "recommended_material": "PLA",
+  "orientation_used": "-90°X",
+  "orientation_score": -3.077,
+  "structural_risk_score": 50,
+  "passed_checks": [
+    "✓ Manifold/Watertight",
+    "✓ Aucune géométrie flottante",
+    "✓ Contact build plate (16.7%)"
+  ],
+  "failed_checks": [
+    "✗ Parois trop fines (0.0mm — min 1.2mm)",
+    "✗ Surplombs excessifs (15.4%)"
+  ],
+  "all_issues": [
+    "18 arêtes ouvertes (bordure)",
+    "Impossible de calculer l'épaisseur — mesh potentiellement invalide",
+    "15.4% de surface en surplomb (>45.0°) — supports probablement requis",
+    "15.4% de surplombs critiques (>60°)"
+  ]
+}

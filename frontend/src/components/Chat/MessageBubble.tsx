@@ -1,11 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import 'katex/dist/katex.min.css';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Volume2, VolumeX } from 'lucide-react';
 import { AudioPlayer } from './AudioPlayer';
 import { ToolCallCard } from './ToolCallCard';
 import { XRayFooter } from './XRayFooter';
@@ -97,6 +97,50 @@ function CopyMessageButton({ content }: { content: string }) {
   );
 }
 
+function SpeakButton({ content }: { content: string }) {
+  const [speaking, setSpeaking] = useState(false);
+
+  const handleSpeak = useCallback(() => {
+    if (!('speechSynthesis' in window)) return;
+
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(content);
+    utterance.lang = 'fr-FR';
+    utterance.rate = 1.05;
+    utterance.pitch = 0.95;
+
+    // Prefer a French voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const frVoice = voices.find((v) => v.lang.startsWith('fr') && v.localService)
+      ?? voices.find((v) => v.lang.startsWith('fr'));
+    if (frVoice) utterance.voice = frVoice;
+
+    utterance.onstart  = () => setSpeaking(true);
+    utterance.onend    = () => setSpeaking(false);
+    utterance.onerror  = () => setSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  }, [content, speaking]);
+
+  if (!('speechSynthesis' in window)) return null;
+
+  return (
+    <button
+      onClick={handleSpeak}
+      className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+      style={{ color: speaking ? 'var(--color-accent)' : 'var(--color-text-tertiary)' }}
+      title={speaking ? 'Arrêter' : 'Écouter Jarvis'}
+    >
+      {speaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
+    </button>
+  );
+}
+
 export function MessageBubble({ message }: Props) {
   const isUser = message.role === 'user';
 
@@ -150,9 +194,10 @@ export function MessageBubble({ message }: Props) {
         </div>
       )}
 
-      {/* Footer: copy + x-ray */}
+      {/* Footer: copy + speak + x-ray */}
       <div className="flex items-center gap-2 mt-1.5">
         <CopyMessageButton content={cleanContent} />
+        <SpeakButton content={cleanContent} />
       </div>
       <XRayFooter usage={message.usage} telemetry={message.telemetry} />
     </div>

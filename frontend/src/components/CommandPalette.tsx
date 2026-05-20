@@ -38,16 +38,16 @@ const CLOUD_PROVIDERS: CloudProvider[] = [
       { id: 'o3-mini', desc: 'o3-mini — reasoning' },
     ],
   },
-  {
+{
     name: 'Anthropic',
     envKey: 'ANTHROPIC_API_KEY',
     storageKey: 'openjarvis-anthropic-key',
-    models: [
-      { id: 'claude-sonnet-4-6', desc: 'Claude Sonnet 4.6 — balanced' },
-      { id: 'claude-opus-4-6', desc: 'Claude Opus 4.6 — most capable' },
-      { id: 'claude-haiku-4-5', desc: 'Claude Haiku 4.5 — fastest' },
+    models: [                                    
+        { id: 'claude-haiku-4-5', desc: 'Claude Haiku 4.5 – fastest ✅ défaut' },
+        { id: 'claude-sonnet-4-6', desc: 'Claude Sonnet 4.6 – balanced' },
+        { id: 'claude-opus-4-6',   desc: 'Claude Opus 4.6 – most capable' },
     ],
-  },
+},
   {
     name: 'Google',
     envKey: 'GEMINI_API_KEY',

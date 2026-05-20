@@ -1,0 +1,52 @@
+{
+  "mission_id": "31CEC585",
+  "generated_at": "2026-05-16T19:11:42.398570",
+  "printability_score": 75,
+  "bambu_ready": true,
+  "manifold_valid": true,
+  "floating_regions_detected": 0,
+  "repaired_geometry": true,
+  "repairs_applied": [
+    "Normales corrigées",
+    "pymeshfix: 124 faces après réparation"
+  ],
+  "support_required": true,
+  "overhang_pct": 19.2,
+  "face_count": 124,
+  "vertex_count": 64,
+  "volume_cm3": 2106.9753,
+  "surface_area_cm2": 915.7413,
+  "bounding_box_mm": {
+    "x": 150.0,
+    "y": 150.0,
+    "z": 120.0
+  },
+  "estimated_material_g": 507.72,
+  "estimated_print_time_min": 145.0,
+  "recommended_layer_height_mm": 0.2,
+  "recommended_material": "PLA",
+  "orientation_used": "180°X",
+  "orientation_score": -3.835,
+  "structural_risk_score": 40,
+  "passed_checks": [
+    "✓ Watertight/Étanche",
+    "✓ Contact build plate (24.2%)",
+    "✓ Épaisseur de paroi (120.0mm min)",
+    "✓ Aucune géométrie flottante"
+  ],
+  "failed_checks": [
+    "✗ Surplombs excessifs (19.2%)",
+    "✗ Supports requis (0.0cm³ estimé)"
+  ],
+  "all_issues": [
+    "186 arêtes ouvertes (bordure)",
+    "Objet solide détecté (épaisseur: 120.0mm) — parois FDM non mesurables séparément",
+    "19.2% de surface en surplomb (>45.0°) — supports probablement requis",
+    "19.2% de surplombs critiques (>60°)"
+  ],
+  "wall_thickness_min_mm": 120.0,
+  "overhang_max_angle_deg": 180.0,
+  "estimated_print_time_str": "2h25min",
+  "support_volume_cm3": 0.0,
+  "printability_grade": "B"
+}

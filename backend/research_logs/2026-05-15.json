@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-05-15T21:00:00.848727",
+  "thingiverse": [
+    {
+      "source": "thingiverse",
+      "error": "HTTP 401"
+    }
+  ],
+  "cults3d": [
+    {
+      "source": "cults3d",
+      "error": "HTTP 404"
+    }
+  ],
+  "etsy": [
+    {
+      "source": "etsy",
+      "error": "HTTP 403: {\"error\":\"API key not found or not active, or incorrect shared secret for API key.\"}\n"
+    }
+  ],
+  "summary": {
+    "thingiverse_count": 0,
+    "cults3d_count": 0,
+    "etsy_count": 0
+  }
+}

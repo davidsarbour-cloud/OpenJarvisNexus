@@ -1,0 +1,153 @@
+services:
+
+  # ═══════════════════════════════════════════════
+  # OLLAMA — IA locale (Qwen3:14b, etc.)
+  # ═══════════════════════════════════════════════
+  ollama:
+    image: ollama/ollama:latest
+    container_name: nexus_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: unless-stopped
+    # ── GPU RTX 4070 Super ──
+    # Décommente si nvidia-container-toolkit est installé :
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ═══════════════════════════════════════════════
+  # BACKEND — FastAPI + Claude + CrewAI + Whisper
+  # ═══════════════════════════════════════════════
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nexus_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Données persistantes (générées à l'usage)
+      - ./backend/memory.json:/app/memory.json
+      - ./backend/sessions.json:/app/sessions.json
+      - ./backend/config.json:/app/config.json
+      - ./backend/mission_logs:/app/mission_logs
+      - ./backend/stl_output:/app/stl_output
+      - ./backend/research_logs:/app/research_logs
+      - ./backend/session_logs:/app/session_logs
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override localhost → nom du service Docker
+      - OLLAMA_HOST=http://ollama:11434
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:80,http://frontend:80
+    depends_on:
+      - ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ═══════════════════════════════════════════════
+  # FRONTEND — React/Vite → nginx
+  # ═══════════════════════════════════════════════
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nexus_frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════
+  # TELEGRAM BOT — partage l'image backend
+  # ═══════════════════════════════════════════════
+  telegram:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nexus_telegram
+    command: python telegram_bot.py
+    volumes:
+      - ./backend/memory.json:/app/memory.json
+      - ./backend/sessions.json:/app/sessions.json
+    env_file:
+      - ./backend/.env
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════
+  # BRUCE — Agent Autonome OpenHands
+  # Interface web : http://localhost:3000
+  # Démarre automatiquement avec docker compose up
+  # ═══════════════════════════════════════════════
+  bruce:
+    image: ghcr.io/all-hands-ai/openhands:latest
+    container_name: nexus_bruce
+    ports:
+      - "3000:3000"
+    environment:
+      - SANDBOX_RUNTIME_CONTAINER_IMAGE=ghcr.io/all-hands-ai/runtime:latest
+      - LOG_ALL_EVENTS=true
+      - LLM_MODEL=ollama/qwen3:14b
+      - LLM_BASE_URL=http://host.docker.internal:11434
+      - LLM_API_KEY=ollama
+      - WORKSPACE_BASE=/workspace
+      - SANDBOX_USER_ID=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/workspace
+      - bruce_state:/.openhands-state
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════
+  # CRUSH AI — Terminal AI coding assistant (port 8080)
+  # Web UI (ttyd) : http://localhost:8080
+  # ON  : docker compose --profile crush up -d crush
+  # OFF : docker compose --profile crush stop crush
+  # ═══════════════════════════════════════════════
+  crush:
+    build:
+      context: ./services/crush_ai
+      dockerfile: Dockerfile
+    container_name: nexus_crush
+    profiles:
+      - crush
+    ports:
+      - "8080:8080"
+    environment:
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    volumes:
+      # Workspace partagé avec le projet
+      - ./:/workspace
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+volumes:
+  ollama_models:
+    name: nexus_ollama_models
+  bruce_state:
+    name: nexus_bruce_state

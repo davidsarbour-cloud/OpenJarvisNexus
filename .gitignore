@@ -115,3 +115,18 @@ learning.db
 **/learning/benchmarks/
 **/teacher_traces/
 *.session.json
+
+.env
+backend/.env
+*.env
+__pycache__/
+*.pyc
+backend/.venv/
+.venv/
+node_modules/
+sessions.json
+memory.json
+overnight_results/# STL outputs - trop gros pour GitHub
+backend/stl_output/
+backend/forge_output/
+backend/vault_data/chromadb/  # ChromaDB est local, pas de backup

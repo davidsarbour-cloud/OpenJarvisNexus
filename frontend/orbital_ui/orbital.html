@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS9 — Orbital Interface</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/orbital_ui/styles/galaxy.css">
+<link rel="stylesheet" href="/orbital_ui/styles/orbit.css">
+<link rel="stylesheet" href="/orbital_ui/styles/planets.css">
+<link rel="stylesheet" href="/orbital_ui/styles/comm.css">
+<link rel="stylesheet" href="/orbital_ui/styles/pipeline.css">
+<link rel="stylesheet" href="/orbital_ui/styles/forge_hub.css">
+</head>
+<body>
+
+<!-- Nebula layers -->
+<div class="nebula nebula-1"></div>
+<div class="nebula nebula-2"></div>
+<div class="nebula nebula-3"></div>
+
+<!-- Galaxy star field (canvas) -->
+<canvas id="galaxy-canvas"></canvas>
+
+<!-- HUD — Top bar -->
+<div class="hud-bar hud-top">
+  <div>
+    <div class="hud-logo">NEXUS9</div>
+    <div class="hud-sub">ORBITAL INTERFACE</div>
+  </div>
+  <div class="hud-pills">
+    <div class="hud-pill warning" id="hud-backend">
+      <div class="hud-dot"></div>CONNECTING...
+    </div>
+    <div class="hud-pill online">
+      <div class="hud-dot"></div>JARVIS CORE
+    </div>
+    <div class="hud-pill online">
+      <div class="hud-dot"></div>OLLAMA LOCAL
+    </div>
+  </div>
+  <div class="hud-clock" id="hud-clock">00:00:00</div>
+  <a href="http://localhost:8000/" class="hud-btn" style="margin-left:8px;text-decoration:none;">⬡ NEXUS9 HUB</a>
+</div>
+
+<!-- Orbital stage -->
+<div id="orbital-stage">
+  <!-- Orbit ring canvas overlay -->
+  <canvas id="orbit-canvas" style="position:absolute;inset:0;pointer-events:none;z-index:5;"></canvas>
+  <!-- Star core + planets injected by JS -->
+</div>
+
+<!-- HUD — Bottom bar -->
+<div class="hud-bar hud-bottom">
+  <div style="display:flex;gap:16px;">
+    <div class="hud-stat"><div class="hud-stat-v" id="stat-agents">—</div><div class="hud-stat-l">AGENTS</div></div>
+    <div class="hud-stat"><div class="hud-stat-v" id="stat-missions">—</div><div class="hud-stat-l">MISSIONS</div></div>
+    <div class="hud-stat"><div class="hud-stat-v" id="stat-budget">—</div><div class="hud-stat-l">BUDGET</div></div>
+  </div>
+  <div style="margin:0 auto;font-size:8px;color:rgba(0,212,255,.25);letter-spacing:2px;">
+    CLICK PLANET → OPEN MODULE · ESC → CLOSE · ⬡ HUB → NEXUS9 COMMAND CENTER
+  </div>
+  <div style="font-size:8px;color:rgba(0,212,255,.3);letter-spacing:1px;">
+    NEXUS9 v0.8 · ORBITAL UI
+  </div>
+</div>
+
+<!-- Module Panel (slides in from right) -->
+<div id="module-panel">
+  <div class="panel-hdr">
+    <div class="panel-icon">⬡</div>
+    <div>
+      <div class="panel-title">MODULE</div>
+      <div class="panel-sub">NEXUS9 BACKEND</div>
+    </div>
+    <button class="panel-close" id="panel-close">✕</button>
+  </div>
+  <div class="panel-status">
+    <div class="panel-status-dot offline"></div>
+    <div class="panel-status-txt">INITIALISATION...</div>
+  </div>
+  <div class="panel-body">
+    <!-- Filled by ModulePanel.js -->
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div class="planet-tooltip" id="planet-tooltip">
+  <div class="tooltip-name" id="tooltip-name">—</div>
+  <div class="tooltip-desc" id="tooltip-desc">—</div>
+  <div class="tooltip-status" id="tooltip-status">—</div>
+</div>
+
+<script type="module" src="/orbital_ui/orbital_ui_main.js"></script>
+</body>
+</html>

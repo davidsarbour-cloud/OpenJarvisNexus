@@ -1,0 +1,52 @@
+{
+  "mission_id": "0837D141",
+  "generated_at": "2026-05-16T20:33:51.174969",
+  "printability_score": 75,
+  "bambu_ready": true,
+  "manifold_valid": true,
+  "floating_regions_detected": 0,
+  "repaired_geometry": true,
+  "repairs_applied": [
+    "Normales corrigées",
+    "pymeshfix: 59974 faces après réparation"
+  ],
+  "support_required": true,
+  "overhang_pct": 10.2,
+  "face_count": 59974,
+  "vertex_count": 29989,
+  "volume_cm3": 78.521,
+  "surface_area_cm2": 170.0376,
+  "bounding_box_mm": {
+    "x": 32.16,
+    "y": 150.0,
+    "z": 103.7
+  },
+  "estimated_material_g": 36.11,
+  "estimated_print_time_min": 58.0,
+  "recommended_layer_height_mm": 0.2,
+  "recommended_material": "PLA",
+  "orientation_used": "+90°X",
+  "orientation_score": -5.43,
+  "structural_risk_score": 40,
+  "passed_checks": [
+    "✓ Watertight/Étanche",
+    "✓ Contact build plate (7.3%)",
+    "✓ Épaisseur de paroi (0.632mm min)",
+    "✓ Aucune géométrie flottante"
+  ],
+  "failed_checks": [
+    "✗ Surplombs excessifs (10.2%)",
+    "✗ Supports requis (18.7cm³ estimé)"
+  ],
+  "all_issues": [
+    "89961 arêtes ouvertes (bordure)",
+    "1.3% des parois potentiellement trop fines (0.632mm min)",
+    "10.2% de surface en surplomb (>45.0°) — supports probablement requis",
+    "5.3% de surplombs critiques (>60°)"
+  ],
+  "wall_thickness_min_mm": 0.632,
+  "overhang_max_angle_deg": 180.0,
+  "estimated_print_time_str": "58min",
+  "support_volume_cm3": 18.723,
+  "printability_grade": "B"
+}

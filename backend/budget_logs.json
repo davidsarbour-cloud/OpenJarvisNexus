@@ -1,0 +1,34 @@
+{
+  "daily": {
+    "2026-05-16": {
+      "cost_usd": 1.247977,
+      "calls_claude": 83,
+      "calls_ollama": 4,
+      "tokens_in": 506960,
+      "tokens_out": 19194,
+      "models": {
+        "claude-haiku-4-5": 47,
+        "claude-sonnet-4-6": 36
+      }
+    },
+    "2026-05-17": {
+      "cost_usd": 0.0676268,
+      "calls_claude": 7,
+      "calls_ollama": 12,
+      "tokens_in": 29831,
+      "tokens_out": 1123,
+      "models": {
+        "claude-haiku-4-5": 4,
+        "claude-sonnet-4-6": 3
+      }
+    },
+    "2026-05-18": {
+      "cost_usd": 0.0,
+      "calls_claude": 0,
+      "calls_ollama": 1,
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "models": {}
+    }
+  }
+}

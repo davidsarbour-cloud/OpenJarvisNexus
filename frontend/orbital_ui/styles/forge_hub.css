@@ -1,0 +1,405 @@
+/* ════ FORGE HUB — Right retractable panel — Silver/Steel theme ════ */
+
+#fhub {
+  position: fixed;
+  bottom: 52px;
+  right: 16px;
+  width: 520px;
+  max-width: calc(50vw - 24px);
+  z-index: 500;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  color: #b8c4d8;
+  border-radius: 12px 12px 4px 4px;
+  border: 1px solid rgba(192, 200, 216, .18);
+  background: rgba(2, 6, 18, .96);
+  backdrop-filter: blur(18px);
+  box-shadow:
+    0 4px 40px rgba(192, 200, 216, .07),
+    0 0 0 1px rgba(192, 200, 216, .04);
+  overflow: hidden;
+}
+
+#fhub.collapsed .fh-body { display: none; }
+#fhub.expanded  .fh-body { display: block; }
+
+/* ── Toolbar ──────────────────────────────────────────────── */
+
+.fh-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  height: 62px;
+  user-select: none;
+  cursor: default;
+  background: rgba(192, 200, 216, .03);
+  border-bottom: 1px solid rgba(192, 200, 216, .10);
+}
+
+.fh-icon {
+  font-size: 22px;
+  color: #c0c8d8;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 6px rgba(192, 200, 216, .45));
+}
+
+.fh-label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: rgba(192, 200, 216, .9);
+  text-transform: uppercase;
+}
+
+.fh-activity {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.fh-adot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(192, 200, 216, .22);
+  transition: background .3s;
+}
+
+.fh-activity.live .fh-adot {
+  background: #c0c8d8;
+  animation: fh-adot-pulse .55s ease infinite alternate;
+}
+
+@keyframes fh-adot-pulse {
+  from { opacity: .35; transform: scale(.8); }
+  to   { opacity: 1;   transform: scale(1.3); }
+}
+
+.fh-score {
+  min-width: 44px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-align: right;
+  color: rgba(192, 200, 216, .50);
+  transition: color .3s;
+}
+
+.fh-ctrl {
+  background: none;
+  border: none;
+  color: rgba(192, 200, 216, .45);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.fh-ctrl:hover {
+  color: #c0c8d8;
+  background: rgba(192, 200, 216, .10);
+}
+
+/* ── Body ─────────────────────────────────────────────────── */
+
+.fh-body {
+  max-height: 72vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(192, 200, 216, .18) transparent;
+}
+.fh-body::-webkit-scrollbar { width: 4px; }
+.fh-body::-webkit-scrollbar-thumb { background: rgba(192, 200, 216, .18); border-radius: 2px; }
+
+.fh-section {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid rgba(192, 200, 216, .07);
+}
+
+.fh-section-last { border-bottom: none; }
+
+.fh-hdr {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: rgba(192, 200, 216, .40);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.fh-muted     { color: rgba(184, 196, 216, .35); }
+.fh-placeholder { font-size: 12px; }
+
+/* ── VIP STL_PIPELINE Button ──────────────────────────────── */
+
+.fh-vip-section {
+  padding: 12px 16px 10px;
+  background: rgba(192, 200, 216, .025);
+  border-bottom: 1px solid rgba(192, 200, 216, .14);
+}
+
+.fh-vip-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-radius: 10px;
+  background: linear-gradient(
+    135deg,
+    rgba(192, 200, 216, .10) 0%,
+    rgba(138, 154, 181, .07) 50%,
+    rgba(192, 200, 216, .10) 100%
+  );
+  border: 1px solid rgba(192, 200, 216, .45);
+  cursor: pointer;
+  font-family: 'Share Tech Mono', monospace;
+  text-align: left;
+  transition: all .2s;
+  box-shadow:
+    0 0 18px rgba(192, 200, 216, .10),
+    inset 0 0 30px rgba(192, 200, 216, .03);
+  position: relative;
+  overflow: hidden;
+}
+
+.fh-vip-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(192, 200, 216, .07) 50%, transparent 100%);
+  transform: translateX(-100%);
+  transition: transform .6s ease;
+}
+
+.fh-vip-btn:hover::before {
+  transform: translateX(100%);
+}
+
+.fh-vip-btn:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(192, 200, 216, .18) 0%,
+    rgba(138, 154, 181, .12) 50%,
+    rgba(192, 200, 216, .18) 100%
+  );
+  border-color: rgba(192, 200, 216, .80);
+  box-shadow:
+    0 0 28px rgba(192, 200, 216, .22),
+    0 0 60px rgba(192, 200, 216, .08),
+    inset 0 0 20px rgba(192, 200, 216, .05);
+  transform: translateY(-1px);
+}
+
+.fh-vip-btn:disabled,
+.fh-vip-btn.running {
+  opacity: .65;
+  cursor: not-allowed;
+  transform: none;
+  animation: fh-silver-pulse 1.4s ease infinite;
+}
+
+@keyframes fh-silver-pulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(192, 200, 216, .12); border-color: rgba(192,200,216,.28); }
+  50%       { box-shadow: 0 0 32px rgba(192, 200, 216, .38); border-color: rgba(192,200,216,.72); }
+}
+
+.fh-vip-icon {
+  font-size: 24px;
+  color: #c0c8d8;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 8px rgba(192, 200, 216, .65));
+  line-height: 1;
+}
+
+.fh-vip-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.fh-vip-name {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: #dde4f0;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 12px rgba(192, 200, 216, .55),
+    0 0 24px rgba(192, 200, 216, .18);
+}
+
+.fh-vip-sub {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: rgba(192, 200, 216, .42);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ── STL Input ────────────────────────────────────────────── */
+
+.fh-stl-wrap {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(192, 200, 216, .03);
+  border: 1px solid rgba(192, 200, 216, .20);
+  border-radius: 8px;
+}
+
+.fh-stl-wrap textarea {
+  width: 100%;
+  background: rgba(0, 0, 0, .35);
+  border: 1px solid rgba(192, 200, 216, .18);
+  border-radius: 6px;
+  color: #ccd8ee;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  padding: 10px 12px;
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+
+.fh-stl-wrap textarea:focus {
+  border-color: rgba(192, 200, 216, .45);
+  box-shadow: 0 0 0 2px rgba(192, 200, 216, .09);
+}
+
+.fh-stl-wrap textarea::placeholder {
+  color: rgba(192, 200, 216, .30);
+}
+
+.fh-stl-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.fh-stl-row #fh-stl-go {
+  flex: 1;
+  background: rgba(192, 200, 216, .09);
+  border: 1px solid rgba(192, 200, 216, .38);
+  border-radius: 6px;
+  color: #c0c8d8;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding: 8px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.fh-stl-row #fh-stl-go:hover {
+  background: rgba(192, 200, 216, .20);
+  color: #dde4f0;
+}
+
+.fh-stl-row #fh-stl-cancel {
+  background: none;
+  border: 1px solid rgba(255, 50, 70, .32);
+  border-radius: 6px;
+  color: rgba(255, 50, 70, .65);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.fh-stl-row #fh-stl-cancel:hover {
+  border-color: rgba(255, 50, 70, .65);
+  color: #ff3246;
+}
+
+/* ── Forge Pipeline Buttons ───────────────────────────────── */
+
+.fh-pipelines {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.fh-pipe-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .28);
+  border: 1px solid color-mix(in srgb, var(--fc) 22%, transparent);
+  color: rgba(184, 196, 216, .78);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-align: left;
+  transition: all .15s;
+}
+
+.fh-pipe-btn:hover {
+  background: color-mix(in srgb, var(--fc) 11%, transparent);
+  border-color: var(--fc);
+  color: var(--fc);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--fc) 18%, transparent);
+  transform: translateY(-2px);
+}
+
+.fh-pipe-btn:disabled,
+.fh-pipe-btn.running {
+  opacity: .45;
+  cursor: not-allowed;
+  transform: none;
+  animation: fh-blink-border 1.2s ease infinite;
+}
+
+@keyframes fh-blink-border {
+  0%, 100% { border-color: color-mix(in srgb, var(--fc) 10%, transparent); }
+  50%       { border-color: color-mix(in srgb, var(--fc) 48%, transparent); }
+}
+
+.fh-pipe-ico {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+/* ── Log ──────────────────────────────────────────────────── */
+
+.fh-log {
+  max-height: 100px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(192, 200, 216, .14) transparent;
+}
+.fh-log::-webkit-scrollbar { width: 3px; }
+.fh-log::-webkit-scrollbar-thumb { background: rgba(192, 200, 216, .18); }
+
+.fh-log-line {
+  font-size: 12px;
+  color: rgba(184, 196, 216, .58);
+  line-height: 1.5;
+  animation: fh-log-in .18s ease;
+}
+
+.fh-log-line.err  { color: rgba(255, 60, 80, .85); }
+.fh-log-line.warn { color: rgba(255, 200, 50, .80); }
+
+.fh-log-ts {
+  color: rgba(192, 200, 216, .38);
+  margin-right: 6px;
+}
+
+@keyframes fh-log-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}

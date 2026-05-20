@@ -1,0 +1,15 @@
+.venv
+__pycache__
+*.pyc
+*.pyo
+.env
+*.json
+!config.json
+*.mp3
+*.wav
+stl_output/
+mission_logs/
+research_logs/
+session_logs/
+overnight_results/
+.git

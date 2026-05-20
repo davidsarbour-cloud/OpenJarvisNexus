@@ -1,0 +1,97 @@
+﻿{
+  "systematic-debugging": {
+    "source": "superpowers",
+    "keywords_fr": ["bug", "erreur", "probleme", "plante", "marche pas", "fonctionne pas", "casse", "crash", "deboguer", "depanner", "reparer", "fixer", "analyser", "investiguer", "diagnostiquer", "issue", "fault", "broken"],
+    "keywords_en": ["bug", "error", "broken", "crash", "fault", "issue", "problem", "fix", "debug", "troubleshoot", "diagnose", "investigate", "broken code", "not working", "error handling"]
+  },
+  "writing-plans": {
+    "source": "superpowers",
+    "keywords_fr": ["plan", "planning", "roadmap", "strategie", "etapes", "schedule", "timeline", "jalons", "objetifs", "structure", "sequence", "ordre", "logique", "organisation"],
+    "keywords_en": ["plan", "planning", "roadmap", "strategy", "steps", "timeline", "goals", "structure", "sequence", "organize", "outline", "blueprint"]
+  },
+  "executing-plans": {
+    "source": "superpowers",
+    "keywords_fr": ["executer", "lancer", "faire", "appliquer", "realiser", "implementer", "action", "accomplir", "completion", "aller de l'avant"],
+    "keywords_en": ["execute", "run", "implement", "action", "do", "accomplish", "carry out", "follow through", "complete"]
+  },
+  "test-driven-development": {
+    "source": "superpowers",
+    "keywords_fr": ["test", "TDD", "unittest", "testing", "verification", "qualite", "QA", "assertion", "couverture", "tester d'abord"],
+    "keywords_en": ["test", "TDD", "unit test", "testing", "verify", "quality", "QA", "test first", "coverage", "assertion"]
+  },
+  "brainstorming": {
+    "source": "superpowers",
+    "keywords_fr": ["brainstorm", "idees", "creatif", "innovation", "penser", "concevoir", "imaginer", "generer", "ideation", "concepts"],
+    "keywords_en": ["brainstorm", "ideas", "creative", "think", "innovate", "ideate", "generate", "imagine", "concepts"]
+  },
+  "dispatching-parallel-agents": {
+    "source": "superpowers",
+    "keywords_fr": ["parallele", "async", "delegation", "agents", "distribuer", "simultane", "multi-tache", "parallel execution", "concurrency"],
+    "keywords_en": ["parallel", "async", "delegation", "agents", "distribute", "concurrent", "multi-task", "parallel execution"]
+  },
+  "subagent-driven-development": {
+    "source": "superpowers",
+    "keywords_fr": ["sous-agents", "delegation", "sous-taches", "distribue", "equipe", "hierarchie", "orchestration"],
+    "keywords_en": ["sub-agents", "delegation", "sub-tasks", "distributed", "team", "hierarchy", "orchestration"]
+  },
+  "verification-before-completion": {
+    "source": "superpowers",
+    "keywords_fr": ["verifier", "valider", "checker", "confirmer", "controle", "audit", "assurance qualite", "double-check"],
+    "keywords_en": ["verify", "validate", "check", "confirm", "audit", "ensure", "quality assurance", "double-check"]
+  },
+  "finishing-a-development-branch": {
+    "source": "superpowers",
+    "keywords_fr": ["finir", "completer", "merger", "pull request", "fermer", "finaliser", "terminer", "git merge"],
+    "keywords_en": ["finish", "complete", "merge", "pull request", "close", "finalize", "wrap up"]
+  },
+  "receiving-code-review": {
+    "source": "superpowers",
+    "keywords_fr": ["review", "feedback", "critique", "ameliorer", "reviser", "suggestions", "commentaires", "peer review"],
+    "keywords_en": ["review", "feedback", "critique", "improve", "revise", "suggestions", "comments", "peer review"]
+  },
+  "requesting-code-review": {
+    "source": "superpowers",
+    "keywords_fr": ["demander review", "code review", "feedback", "validation", "check", "peer", "approbation"],
+    "keywords_en": ["request review", "code review", "feedback", "validation", "peer", "approval", "check"]
+  },
+  "using-git-worktrees": {
+    "source": "superpowers",
+    "keywords_fr": ["git", "worktree", "branche", "version control", "workspace", "vcs", "repository", "checkout"],
+    "keywords_en": ["git", "worktree", "branch", "version control", "workspace", "VCS", "repository", "checkout"]
+  },
+  "using-superpowers": {
+    "source": "superpowers",
+    "keywords_fr": ["superpowers", "framework", "outil", "utiliser", "leverager", "capacites", "features"],
+    "keywords_en": ["superpowers", "framework", "tool", "use", "leverage", "capabilities", "features"]
+  },
+  "writing-skills": {
+    "source": "superpowers",
+    "keywords_fr": ["skill", "documentation", "guide", "tutorial", "enseigner", "expliquer", "ecrire", "creer skill"],
+    "keywords_en": ["skill", "documentation", "guide", "tutorial", "teach", "explain", "write", "create skill"]
+  },
+  "defuddle": {
+    "source": "obsidian",
+    "keywords_fr": ["clarte", "comprendre", "confus", "simplifier", "clair", "redresser", "demeler", "expliquer", "clarifier"],
+    "keywords_en": ["clarity", "understand", "confusing", "simplify", "clear", "straighten", "explain", "clarify"]
+  },
+  "json-canvas": {
+    "source": "obsidian",
+    "keywords_fr": ["JSON", "canvas", "donnees", "structure", "format", "visualisation", "diagramme", "schema"],
+    "keywords_en": ["JSON", "canvas", "data", "structure", "format", "visualization", "diagram", "schema"]
+  },
+  "obsidian-bases": {
+    "source": "obsidian",
+    "keywords_fr": ["base de donnees", "base", "obsidian", "structure donnees", "records", "tables", "database"],
+    "keywords_en": ["database", "base", "obsidian", "data structure", "records", "tables"]
+  },
+  "obsidian-cli": {
+    "source": "obsidian",
+    "keywords_fr": ["CLI", "command line", "terminal", "shell", "commande", "scripting", "console", "bash"],
+    "keywords_en": ["CLI", "command line", "terminal", "shell", "command", "scripting", "console"]
+  },
+  "obsidian-markdown": {
+    "source": "obsidian",
+    "keywords_fr": ["markdown", "md", "formatage", "texte", "ecriture", "syntaxe", "formatting"],
+    "keywords_en": ["markdown", "md", "formatting", "text", "writing", "syntax", "format"]
+  }
+}
