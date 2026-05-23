@@ -4,7 +4,8 @@ import { Layout } from './components/Layout';
 import { HudLayout } from './components/Layout/HudLayout';
 import { CommandCenterPage } from './pages/CommandCenterPage';
 import { OrbitalPage } from './pages/OrbitalPage';
-import { ChatPage } from './pages/ChatPage';
+import { JarvisChatPage } from './pages/JarvisChatPage';
+import { BrainPage } from './pages/BrainPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { GetStartedPage } from './pages/GetStartedPage';
@@ -179,6 +180,7 @@ export default function App() {
         <Route element={<HudLayout />}>
           <Route index element={<CommandCenterPage />} />
           <Route path="orbital" element={<OrbitalPage />} />
+          <Route path="chat" element={<JarvisChatPage />} />
           <Route
             path="agent-network"
             element={
@@ -198,7 +200,6 @@ export default function App() {
           />
         </Route>
         <Route element={<Layout />}>
-          <Route path="chat" element={<ChatPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="get-started" element={<GetStartedPage />} />
@@ -206,6 +207,7 @@ export default function App() {
           <Route path="agents" element={<AgentsPage />} />
           <Route path="logs" element={<LogsPage />} />
         </Route>
+        <Route path="vault-graph" element={<BrainPage />} />
       </Routes>
       <Toaster position="bottom-right" />
       {commandPaletteOpen && <CommandPalette />}

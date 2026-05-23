@@ -29,6 +29,7 @@ import { TacticalOverlay } from '../../systems/TacticalOverlay';
 export function HudLayout() {
   const location = useLocation();
   const isOrbital = location.pathname.startsWith('/orbital');
+  const fullBleed = isOrbital || location.pathname.startsWith('/chat');
   useAlertGc(); // prune acknowledged alerts > 5min, once per HUD mount
 
   return (
@@ -49,30 +50,30 @@ export function HudLayout() {
       <TopBar />
 
       <div className="flex flex-1 min-h-0 relative">
-        {/* Left sidebar — hidden on the orbital view to maximise canvas */}
-        {!isOrbital && <HudSidebar />}
+        {/* Left sidebar — hidden on full-bleed views (orbital, chat) */}
+        {!fullBleed && <HudSidebar />}
 
         {/* Central viewport */}
         <main
           className="flex-1 flex flex-col min-w-0 min-h-0 relative overflow-hidden"
           style={{
-            borderLeft: !isOrbital ? '1px solid var(--hud-border)' : 'none',
-            borderRight: !isOrbital ? '1px solid var(--hud-border)' : 'none',
+            borderLeft: !fullBleed ? '1px solid var(--hud-border)' : 'none',
+            borderRight: !fullBleed ? '1px solid var(--hud-border)' : 'none',
           }}
         >
           <Outlet />
         </main>
 
-        {/* Right panel — alerts + events. Hidden on orbital. */}
-        {!isOrbital && <RightPanel />}
+        {/* Right panel — alerts + events. Hidden on full-bleed views. */}
+        {!fullBleed && <RightPanel />}
       </div>
 
-      {/* Bottom strip — graphs / quick stats. Hidden on orbital. */}
-      {!isOrbital && <BottomPanel />}
+      {/* Bottom strip — graphs / quick stats. Hidden on full-bleed views. */}
+      {!fullBleed && <BottomPanel />}
 
       {/* Tactical polish — scanlines + vignette + radar sweep.
           Radar disabled on /orbital (3D scene already provides motion). */}
-      <TacticalOverlay radar={!isOrbital} />
+      <TacticalOverlay radar={!fullBleed} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { Hexagon, Orbit, LayoutDashboard, Activity } from 'lucide-react';
+import { Hexagon, Orbit, LayoutDashboard, Activity, Share2, MessageSquare } from 'lucide-react';
 
 type Pill = {
   label: string;
@@ -17,7 +17,7 @@ export function TopBar() {
   const navigate = useNavigate();
   const location = useLocation();
   const isOrbital = location.pathname.startsWith('/orbital');
-  const isCommand = !isOrbital;
+  const path = location.pathname;
 
   const [now, setNow] = useState<string>(() => formatClock(new Date()));
   useEffect(() => {
@@ -67,23 +67,15 @@ export function TopBar() {
         </div>
       </div>
 
-      {/* MID — switch */}
+      {/* MID — view nav (boutons uniformes) */}
       <div
         className="flex items-stretch rounded-sm overflow-hidden"
         style={{ border: '1px solid var(--hud-border)' }}
       >
-        <ViewButton
-          active={isCommand}
-          icon={<LayoutDashboard size={13} />}
-          label="COMMAND CENTER"
-          onClick={() => navigate('/')}
-        />
-        <ViewButton
-          active={isOrbital}
-          icon={<Orbit size={13} />}
-          label="ORBITAL VIEW"
-          onClick={() => navigate('/orbital')}
-        />
+        <ViewButton active={path === '/'}                     icon={<LayoutDashboard size={13} />} label="COMMAND CENTER" onClick={() => navigate('/')} />
+        <ViewButton active={path.startsWith('/orbital')}      icon={<Orbit size={13} />}           label="ORBITAL"        onClick={() => navigate('/orbital')} />
+        <ViewButton active={path.startsWith('/vault-graph')}  icon={<Share2 size={13} />}          label="BRAIN"          onClick={() => navigate('/vault-graph')} />
+        <ViewButton active={path.startsWith('/chat')}         icon={<MessageSquare size={13} />}   label="CHAT"           onClick={() => navigate('/chat')} />
       </div>
 
       {/* RIGHT — pills + clock */}
@@ -128,7 +120,7 @@ function ViewButton({
         color: active ? 'var(--hud-bg)' : 'var(--hud-text)',
         background: active ? 'var(--color-jarvis)' : 'transparent',
         boxShadow: active ? '0 0 12px var(--color-jarvis-glow)' : 'none',
-        minWidth: 160,
+        minWidth: 130,
         justifyContent: 'center',
       }}
       onMouseEnter={(e) => {

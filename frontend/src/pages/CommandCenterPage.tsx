@@ -1,4 +1,3 @@
-import { lazy, Suspense } from 'react';
 import { SystemHealthCard }   from '../components/CommandCenter/SystemHealthCard';
 import { AgentActivityCard }  from '../components/CommandCenter/AgentActivityCard';
 import { OllamaStatusCard }   from '../components/CommandCenter/OllamaStatusCard';
@@ -12,9 +11,6 @@ import { GrafanaLiveCard }    from '../components/CommandCenter/GrafanaLiveCard'
 import { SystemHealthGauge }  from '../components/CommandCenter/SystemHealthGauge';
 import { ResourceMonitorCard } from '../components/CommandCenter/ResourceMonitorCard';
 import { CardSlot }           from '../systems/CardSlot';
-
-// Lazy-load chat panel so its bundle doesn't block the HUD first paint.
-const ChatPage = lazy(() => import('./ChatPage').then(m => ({ default: m.ChatPage })));
 
 /**
  * CommandCenterPage — route `/`.
@@ -46,39 +42,6 @@ export function CommandCenterPage() {
         <CardSlot serviceId="backend"><ResourceMonitorCard /></CardSlot>
       </div>
 
-      <SectionTitle text="OPERATIONAL CONSOLE" />
-      <div
-        className="flex flex-col min-h-[320px]"
-        style={{
-          background: 'rgba(0,0,0,0.25)',
-          border: '1px solid var(--hud-border)',
-          borderTop: '2px solid var(--color-jarvis)',
-          boxShadow: 'inset 0 0 24px rgba(0,0,0,0.4)',
-        }}
-      >
-        <div
-          className="px-3 py-1.5 text-[9px] font-bold tracking-[0.25em] flex items-center gap-2"
-          style={{
-            color: 'var(--color-jarvis)',
-            borderBottom: '1px solid var(--hud-border)',
-            background: 'rgba(0,0,0,0.35)',
-          }}
-        >
-          <span>◆ JARVIS · CHAT</span>
-          <span style={{ marginLeft: 'auto', color: 'var(--hud-text-dim)' }}>EMBEDDED</span>
-        </div>
-        <Suspense
-          fallback={
-            <div className="flex-1 flex items-center justify-center text-[11px] tracking-[0.18em]" style={{ color: 'var(--hud-text-dim)' }}>
-              loading chat panel…
-            </div>
-          }
-        >
-          <div className="flex-1 relative" style={{ minHeight: 280 }}>
-            <ChatPage />
-          </div>
-        </Suspense>
-      </div>
     </div>
   );
 }
