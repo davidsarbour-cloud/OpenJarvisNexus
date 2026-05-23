@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## NEXUS9 (fork de David Arbour) — 2026-05-23
+
+Surcouche NEXUS9 (Command Center React + agents) au-dessus d'OpenJarvis.
+
+### Performance
+- qwen3:14b maintenu 100% GPU via `num_ctx=4096` (24 → 44 tok/s sur RTX 4070 SUPER)
+- `OLLAMA_HOST` forcé en IPv4 (127.0.0.1) — évite le stall ~2s de résolution `::1`
+- Config Ollama centralisée dans `backend/config.py`
+
+### Added
+- Bridge **Brain → Vault** : indexe les notes Obsidian dans ChromaDB ; `vault_query` cherche le brain ; ré-index quotidien (04:30)
+- Hub **WebSocket** `/ws/events` relié au Command Center React
+- **Smoke tests Playwright** sur `/` (Command Center) et `/orbital`
+
+### Changed
+- **Forge fusionné** dans le pipeline Commerce en in-process (plus de self-HTTP/polling)
+- `docker-compose` : service `ollama` retiré (Ollama natif via `host.docker.internal`) ; profiles `monitoring`/`quality`/`agents`
+- `START_ALL.bat` réécrit pour le stack natif (attentes bornées)
+
+### Removed
+- Legacy : `orbital_ui` (vanilla JS), `Nexus9.html`, `Nexusx9`, `vault_notes`, `desktop/`, scripts one-off morts, `agent_logger`, ancien `index_skills`, binaire macOS 77 Mo, submodules crush cassés
+- `.gitignore` : brain perso (`backend/BRAIN`) + données locales
+
+---
+
 ## [Unreleased]
 
 ### Added

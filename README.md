@@ -14,6 +14,24 @@
 
 ---
 
+## ⬡ NEXUS9 — fork de David Arbour
+
+**NEXUS9** est un QG IA multi-agents (JARVIS · ULTRON · QWEN · CORTANA · NOVA · BRUCE · FORGE) bâti au-dessus d'OpenJarvis pour le business d'impression 3D **D3Dprintix** (Etsy). Il ajoute un **Command Center** tactique React, une **Orbital View** 3D (React Three Fiber), un pipeline **FORGE** (texte → STL imprimable) et **Commerce** (→ listing Etsy).
+
+| Command Center (`/`) | Orbital View (`/orbital`) |
+|:---:|:---:|
+| ![Command Center](frontend/e2e/screenshots/command-center.png) | ![Orbital View](frontend/e2e/screenshots/orbital.png) |
+
+**Démarrage (stack natif, Windows) :**
+
+```bat
+START_ALL.bat
+```
+
+→ Ollama natif + backend FastAPI (`:8000`) + Vite (`:5173`) + sidecar Vault Graph. Voir `CLAUDE.md` et `PLAN_NEXUS9.md` pour l'architecture et la roadmap.
+
+---
+
 > **[Documentation](https://open-jarvis.github.io/OpenJarvis/)**
 >
 > **[Project Site](https://scalingintelligence.stanford.edu/blogs/openjarvis/)**
