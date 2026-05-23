@@ -137,3 +137,10 @@ backend/vault_data/chromadb/  # ChromaDB est local, pas de backup
 backend/BRAIN/
 vault_notes/
 backend/vault_data/
+
+# Local data / generated reports / archive (jamais commités)
+archive/
+backend/research_logs/
+dependency-report.txt
+dependency-audit-report.txt
+AUDIT_REPORT.md
