@@ -156,3 +156,5 @@ frontend/e2e/*.png
 
 # Runtime state (écrit par l'app à chaque run — pas du code source)
 backend/budget_logs.json
+backend/forge_missions_cache.json
+backend/error_logs/
