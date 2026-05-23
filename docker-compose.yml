@@ -1,6 +1,7 @@
 # ----------------------------------------------------------------------
 # Compose profiles (run only what you need):
-#   core (always up) : ollama, backend, frontend, traefik, postgres, redis, chromadb
+#   core (always up) : backend, frontend, traefik, postgres, redis, chromadb
+#   (Ollama = natif sur l'hote, joignable via host.docker.internal:11434)
 #   monitoring       : grafana, prometheus, cadvisor
 #   quality          : sonarqube, sonarqube-db
 #   agents           : telegram, bruce, superpowers, obsidian-skills
@@ -10,22 +11,6 @@
 #   COMPOSE_PROFILES=monitoring,quality,agents docker compose up   # everything
 # ----------------------------------------------------------------------
 services:
-  ollama:
-    image: ollama/ollama:latest
-    container_name: nexus_ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_models:/root/.ollama
-    restart: unless-stopped
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-
   backend:
     build:
       context: ./backend
@@ -49,13 +34,14 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_HOST=http://host.docker.internal:11434
       - CHROMA_HOST=http://chromadb:8000
       - POSTGRES_URL=postgresql://nexus:nexus@postgres:5432/nexus
       - REDIS_URL=redis://redis:6379/0
       - CORS_ORIGINS=http://localhost:5173,http://localhost:80,http://frontend:80
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      - ollama
       - chromadb
       - postgres
       - redis
@@ -98,8 +84,10 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_HOST=http://host.docker.internal:11434
       - BACKEND_URL=http://backend:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       backend:
         condition: service_healthy
@@ -283,7 +271,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  ollama_models:
   bruce_state:
   nexus_grafana_data:
   nexus_prometheus_data:
