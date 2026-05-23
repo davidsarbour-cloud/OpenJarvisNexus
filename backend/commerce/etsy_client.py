@@ -12,12 +12,12 @@ from pathlib import Path
 
 import httpx
 
-ETSY_API_KEY        = os.getenv("ETSYPUBLIC_KEY", "")
-ETSY_API_SECRET     = os.getenv("ETSYYOUR_SECRET", "")
-ETSY_ACCESS_TOKEN   = os.getenv("ETSYYOAUTH_ACCESS_TOKEN", "")
-ETSY_REFRESH_TOKEN  = os.getenv("ETSYYOAUTH_REFRESH_TOKEN", "")
-ETSY_SHOP_ID        = os.getenv("ETSYSHOP_ID", "")
-ETSY_SHOP_NAME      = os.getenv("ETSYSHOP_NAME", "D3Dprintix")
+ETSY_API_KEY        = os.getenv("ETSY_API_KEY", "")
+ETSY_API_SECRET     = os.getenv("ETSY_SHARED_SECRET", "")
+ETSY_ACCESS_TOKEN   = os.getenv("ETSY_ACCESS_TOKEN", "")
+ETSY_REFRESH_TOKEN  = os.getenv("ETSY_REFRESH_TOKEN", "")
+ETSY_SHOP_ID        = os.getenv("ETSY_SHOP_ID", "")
+ETSY_SHOP_NAME      = os.getenv("ETSY_SHOP_NAME", "D3Dprintix")
 ETSY_REDIRECT_URI   = os.getenv("ETSY_OAUTH_REDIRECT_URI", "http://localhost:8000/callback")
 ETSY_BASE           = "https://openapi.etsy.com/v3"
 
@@ -50,7 +50,7 @@ def store_verifier(state: str, verifier: str) -> None:
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 def is_authenticated() -> bool:
-    """Vrai si ETSYYOAUTH_ACCESS_TOKEN est configuré."""
+    """Vrai si ETSY_ACCESS_TOKEN est configuré."""
     return bool(ETSY_ACCESS_TOKEN)
 
 
@@ -90,7 +90,7 @@ def _headers(json_content: bool = True) -> dict:
 
 def _auth_error() -> dict:
     return {
-        "error": "Non authentifié — configure ETSYYOAUTH_ACCESS_TOKEN dans .env",
+        "error": "Non authentifié — configure ETSY_ACCESS_TOKEN dans .env",
         "auth_url": "/v1/etsy/auth",
     }
 

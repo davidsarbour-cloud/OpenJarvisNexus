@@ -35,12 +35,12 @@ class EtsyClient:
     TOKEN_FILE = Path("etsy/config/oauth-tokens.json")
 
     def __init__(self):
-        self.api_key    = os.getenv("ETSYPUBLIC_KEY")
-        self.secret     = os.getenv("ETSYYOUR_SECRET")
-        self.shop_id    = os.getenv("ETSYSHOP_ID")
-        self.shop_name  = os.getenv("ETSYSHOP_NAME")
-        self.access_token  = os.getenv("ETSYYOAUTH_ACCESS_TOKEN", "")
-        self.refresh_token = os.getenv("ETSYYOAUTH_REFRESH_TOKEN", "")
+        self.api_key    = os.getenv("ETSY_API_KEY")
+        self.secret     = os.getenv("ETSY_SHARED_SECRET")
+        self.shop_id    = os.getenv("ETSY_SHOP_ID")
+        self.shop_name  = os.getenv("ETSY_SHOP_NAME")
+        self.access_token  = os.getenv("ETSY_ACCESS_TOKEN", "")
+        self.refresh_token = os.getenv("ETSY_REFRESH_TOKEN", "")
 
         # Charger tokens depuis fichier si disponibles
         self._load_tokens_from_file()
