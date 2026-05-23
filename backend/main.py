@@ -499,7 +499,7 @@ def _get_session_id(req: ChatRequest, request: Request) -> str:
     ip = request.client.host if request.client else "local"
     return f"ip:{ip}"
 
-def _stream_text(text: str, model_used: str, req_id: str):
+def _stream_text(text: str, model_used: str, req_id: str, memory: dict | None = None):
     yield _sse({
         "id": req_id, "object": "chat.completion.chunk",
         "model": model_used,
@@ -516,11 +516,14 @@ def _stream_text(text: str, model_used: str, req_id: str):
                          "finish_reason": None}]
         })
         time.sleep(0.01)
-    yield _sse({
+    _final = {
         "id": req_id, "object": "chat.completion.chunk",
         "model": model_used,
-        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
-    })
+        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+    }
+    if memory:
+        _final["memory"] = memory
+    yield _sse(_final)
     yield "data: [DONE]\n\n"
 
 # ════════════════════════════════════════════════════════
@@ -1367,6 +1370,25 @@ def get_crew_job(job_id: str):
 # CHAT PRINCIPAL
 # ════════════════════════════════════════════════════════
 
+_MEM_MIN_CHARS = 140
+_DEBUG_KEYWORDS = (
+    "debug", "erreur", "error", "bug", "traceback", "exception",
+    "stack trace", "stacktrace", "crash", "plante", "marche pas",
+    "fails", "failing", "not working",
+)
+
+
+def _needs_memory(msg: str) -> bool:
+    """Déclenche l'injection brain/vault : message long, complexe, ou debug."""
+    m = (msg or "").strip()
+    if len(m) > _MEM_MIN_CHARS:
+        return True
+    if should_use_claude(m):
+        return True
+    low = m.lower()
+    return any(k in low for k in _DEBUG_KEYWORDS)
+
+
 @app.post("/v1/chat/completions")
 def chat_completion(req: ChatRequest, request: Request):
     session_id = _get_session_id(req, request)
@@ -1474,6 +1496,29 @@ def chat_completion(req: ChatRequest, request: Request):
     system     = build_system_prompt(req.system or BASE_SYSTEM, facts)
     # Rappel langue injecté à la fin du system prompt — modèles suivent mieux la dernière instruction
     system    += "\n\n[MANDATORY] Your response language is ENGLISH. Write ONLY in English. No French words."
+
+    # ── Brain/Vault contextuel (option 2 — triggers: long / complexe / debug) ──
+    memory_meta = {"retrieved": False, "fragments": 0, "ms": 0, "confidence": 0}
+    if _needs_memory(last_user_msg):
+        import asyncio as _aio_mem, time as _t_mem
+        _m0 = _t_mem.perf_counter()
+        try:
+            from vault.memory_manager import vault_query
+            _hits = _aio_mem.run(vault_query(last_user_msg))[:5]
+        except Exception:
+            _hits = []
+        if _hits:
+            system += "\n\n[Memory Retrieved — brain & vault]\n" + "\n".join(
+                f"- [{h.get('collection','?')}] {h['text'][:160]}" for h in _hits
+            )
+            _top = max((h.get("score", 0) for h in _hits), default=0)
+            memory_meta = {
+                "retrieved":  True,
+                "fragments":  len(_hits),
+                "ms":         round((_t_mem.perf_counter() - _m0) * 1000),
+                "confidence": round(max(0.0, min(1.0, _top)) * 100),
+            }
+
     req_id     = f"chatcmpl-{int(time.time())}"
     text       = ""
     model_used = ""
@@ -1540,7 +1585,7 @@ def chat_completion(req: ChatRequest, request: Request):
 
     if req.stream:
         return StreamingResponse(
-            _stream_text(text, model_used, req_id),
+            _stream_text(text, model_used, req_id, memory=memory_meta),
             media_type="text/event-stream",
             headers={
                 "Cache-Control":     "no-cache",
@@ -1554,6 +1599,7 @@ def chat_completion(req: ChatRequest, request: Request):
         "object":  "chat.completion",
         "model":   model_used,
         "created": int(time.time()),
+        "memory": memory_meta,
         "choices": [{
             "index":         0,
             "message":       {"role": "assistant", "content": text},

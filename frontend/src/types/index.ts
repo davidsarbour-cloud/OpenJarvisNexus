@@ -59,6 +59,12 @@ export interface MessageTelemetry {
   complexity_score?: number;
   complexity_tier?: string;
   suggested_max_tokens?: number;
+  memory?: {
+    retrieved: boolean;
+    fragments: number;
+    ms: number;
+    confidence: number;
+  };
 }
 
 export interface ChatMessage {

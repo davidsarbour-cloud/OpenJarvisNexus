@@ -133,6 +133,7 @@ export function InputArea() {
     const toolCalls: ToolCallInfo[] = [];
     let lastFlush = 0;
     let ttftMs: number | undefined;
+    let memoryMeta: MessageTelemetry['memory'] | undefined;
 
     setStreamState({
       isStreaming: true,
@@ -206,6 +207,7 @@ export function InputArea() {
             const delta = data.choices?.[0]?.delta;
             if (data.usage) usage = data.usage;
             if (data.complexity) complexity = data.complexity;
+            if (data.memory) memoryMeta = data.memory;
             if (delta?.content) {
               if (!ttftMs) ttftMs = Date.now() - startTime;
               accumulatedContent += delta.content;
@@ -256,6 +258,7 @@ export function InputArea() {
         complexity_score: complexity?.score,
         complexity_tier: complexity?.tier,
         suggested_max_tokens: complexity?.suggested_max_tokens,
+        memory: memoryMeta,
       };
       // Check if the response has digest audio available
       let audioMeta: { url: string } | undefined;
