@@ -209,7 +209,7 @@ async def notify_tts(message: str):
     try:
         import edge_tts
         communicate = edge_tts.Communicate(message, TTS_VOICE)
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")  # NOSONAR - instant sync before async TTS save
         tmp_path = tmp.name
         tmp.close()
         await communicate.save(tmp_path)
@@ -219,7 +219,7 @@ async def notify_tts(message: str):
             f"$mp.Open([uri]'{tmp_path}'); $mp.Play(); "
             f"Start-Sleep -Seconds 7; Remove-Item '{tmp_path}' -Force"
         )
-        subprocess.Popen(
+        subprocess.Popen(  # NOSONAR - fire-and-forget TTS playback
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -280,7 +280,7 @@ async def run_cheat_code(voice: bool = True) -> dict:
     _last_report = report
 
     # Save to OneDrive report folder
-    save_report("cheat_code", report)
+    report_path = save_report("cheat_code", report)
 
     eco_score = ecosystem.get("score")
     eco_grade = ecosystem.get("grade", "—")
@@ -290,6 +290,45 @@ async def run_cheat_code(voice: bool = True) -> dict:
         f"{daily['passed']} sur {daily['total']} tâches complétées."
     )
     print(f"=== VAULT CENTRAL OPTIMISÉ ✅ ===\n{msg}")
+
+    # ── Rapport texte lisible + Notepad ──────────────────────
+    try:
+        today     = started_at.strftime("%Y-%m-%d")
+        ts_label  = started_at.strftime("%Y-%m-%d %H:%M")
+        txt_lines = [
+            "=" * 60,
+            "  ONE-CLICK CHEAT CODE — RAPPORT NEXUS9",
+            f"  {ts_label}  |  David Arbour",
+            "=" * 60, "",
+            f"  AGENTS  :  {agents_ok}/{agents_total} en ligne",
+        ]
+        for a in agents:
+            txt_lines.append(f"    {'✅' if a['ok'] else '❌'}  {a['agent']}")
+        eco_str = f"{eco_score}/100 Grade {eco_grade}" if eco_score is not None else "—"
+        txt_lines += [
+            "",
+            f"  ECOSYSTEM :  {eco_str}",
+            "",
+            f"  DAILY TASKS :  {daily['passed']}/{daily['total']} OK",
+        ]
+        for t in daily.get("results", []):
+            txt_lines.append(f"    {'✅' if t['ok'] else '❌'}  {t['label']}")
+        vault_total = report["vault"]["total_memories"]
+        txt_lines += [
+            "",
+            f"  VAULT  :  {vault_total} mémoires",
+            "",
+            "=" * 60,
+        ]
+        txt_content = "\n".join(txt_lines)
+        txt_folder  = REPORT_DIR / "cheat_code"
+        txt_folder.mkdir(parents=True, exist_ok=True)
+        txt_path = txt_folder / f"cheat_{today}.txt"
+        txt_path.write_text(txt_content, encoding="utf-8")
+        subprocess.Popen(["notepad.exe", str(txt_path)])  # NOSONAR - fire-and-forget GUI
+        print(f"📄 Rapport ouvert : {txt_path}")
+    except Exception as _e:
+        print(f"⚠️  Ouverture rapport: {_e}")
 
     if voice:
         await notify_tts(msg)

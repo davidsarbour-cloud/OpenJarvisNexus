@@ -250,10 +250,10 @@ async function processProduct(
             const failedStl =
                 `${FAILED_FOLDER}/${path.basename(metadata.stlPath)}`;
 
-            await moveFile
+            await moveFile(
                 metadata.stlPath,
                 failedStl
-            ;
+            );
 
         } catch {}
 

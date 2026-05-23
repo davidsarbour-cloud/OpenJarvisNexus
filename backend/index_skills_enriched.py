@@ -1,4 +1,4 @@
-﻿"""
+"""
 index_skills_enriched.py — Indexe les SKILL.md avec mots-cles FR/EN
 """
 import asyncio
@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from vault.memory_manager import add_memory, get_stats
+from vault.memory_manager import add_memory
 
 SUPERPOWERS_DIR = Path(r"C:\Users\bobby\superpowers\skills")
 OBSIDIAN_DIR    = Path(r"C:\Users\bobby\obsidian-skills\skills")

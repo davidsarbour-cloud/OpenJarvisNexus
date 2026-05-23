@@ -9,7 +9,6 @@ import hashlib
 import os
 import secrets
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -153,7 +152,7 @@ async def upload_listing_image(listing_id: int | str, image_path: str) -> dict:
 
     url = f"{ETSY_BASE}/application/shops/{ETSY_SHOP_ID}/listings/{listing_id}/images"
     async with httpx.AsyncClient(timeout=60) as client:
-        with path.open("rb") as fh:
+        with path.open("rb") as fh:  # NOSONAR - sync open required for httpx multipart upload compatibility
             resp = await client.post(
                 url,
                 headers=_headers(json_content=False),
@@ -177,7 +176,7 @@ async def upload_listing_file(listing_id: int | str, file_path: str) -> dict:
 
     url = f"{ETSY_BASE}/application/shops/{ETSY_SHOP_ID}/listings/{listing_id}/files"
     async with httpx.AsyncClient(timeout=120) as client:
-        with path.open("rb") as fh:
+        with path.open("rb") as fh:  # NOSONAR - sync open required for httpx multipart upload compatibility
             resp = await client.post(
                 url,
                 headers=_headers(json_content=False),

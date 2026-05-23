@@ -1,4 +1,4 @@
-"""Validateur unifié — orchestre tous les checks de fabricabilité."""
+"""Validateur unifie - orchestre tous les checks de fabricabilite."""
 from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -11,20 +11,20 @@ from forge_room.wall_thickness_checker   import check_wall_thickness, WallThickn
 from forge_room.support_analyzer         import analyze_supports,     SupportAnalysisResult
 
 _RULES_PATH = Path(__file__).parent / "manufacturing_rules.json"
-_RULES: dict = json.loads(_RULES_PATH.read_text())
+_RULES: dict = json.loads(_RULES_PATH.read_text(encoding="utf-8"))
 
 
 @dataclass
 class ValidationReport:
     passed: bool
-    printability_score: int          # 0–100
+    printability_score: int          # 0-100
     manifold:     ManifoldResult
     floating:     FloatingResult
     wall:         WallThicknessResult
     supports:     SupportAnalysisResult
-    all_issues:   list[str] = field(default_factory=list)
-    passed_checks: list[str] = field(default_factory=list)
-    failed_checks: list[str] = field(default_factory=list)
+    all_issues:   list = field(default_factory=list)
+    passed_checks: list = field(default_factory=list)
+    failed_checks: list = field(default_factory=list)
 
 
 def validate_mesh(
@@ -32,9 +32,8 @@ def validate_mesh(
     check_thickness: bool = True,
     check_supports: bool = True,
 ) -> ValidationReport:
-    """
-    Lance tous les validateurs et calcule un score de fabricabilité (0–100).
-    Un mesh FDM-ready industriel doit scorer ≥ 75.
+    """Lance tous les validateurs et calcule un score de fabricabilite (0-100).
+    Un mesh FDM-ready industriel doit scorer >= 75.
     """
     rules = _RULES
 
@@ -52,63 +51,57 @@ def validate_mesh(
         if check_supports else _dummy_supports()
     )
 
-    # Score pondéré — 6 critères industriels (total = 100)
     weights = rules["scoring"]
     score = 0
-    passed_checks: list[str] = []
-    failed_checks: list[str] = []
+    passed_checks = []
+    failed_checks = []
 
-    # Watertight (30) : mesh étanche, sans trous ni bords ouverts
     if manifold.passed:
         score += weights["watertight_weight"]
-        passed_checks.append("✓ Watertight/Étanche")
+        passed_checks.append("OK Watertight/Etanche")
     else:
-        failed_checks.append("✗ Watertight/Étanche")
+        failed_checks.append("FAIL Watertight/Etanche")
 
-    # Contact build plate (20) : adhérence suffisante au plateau
-    # Fenêtre élargie à 2mm pour meshes organiques (pattes, bases irrégulières)
+    # Contact build plate - pondere par SURFACE (coherent avec orientation_optimizer)
     z_min = float(mesh.bounds[0][2])
     face_z = mesh.triangles_center[:, 2]
+    face_areas = mesh.area_faces
+    total_area = float(max(face_areas.sum(), 1e-9))
     contact_tolerance = max(2.0, float(mesh.bounding_box.extents[2]) * 0.02)
-    contact_faces = (face_z <= z_min + contact_tolerance).sum()
-    contact_pct = (contact_faces / max(len(face_z), 1)) * 100
+    contact_mask = face_z <= z_min + contact_tolerance
+    contact_area = float(face_areas[contact_mask].sum())
+    contact_pct = (contact_area / total_area) * 100.0
     if contact_pct >= rules["fdm"]["min_build_plate_contact_pct"]:
         score += weights["build_contact_weight"]
-        passed_checks.append(f"✓ Contact build plate ({contact_pct:.1f}%)")
+        passed_checks.append(f"OK Contact build plate ({contact_pct:.1f}%)")
     else:
-        failed_checks.append(f"✗ Contact build plate insuffisant ({contact_pct:.1f}%)")
+        failed_checks.append(f"FAIL Contact build plate insuffisant ({contact_pct:.1f}%)")
 
-    # Épaisseur de paroi (15)
     if wall.passed:
         score += weights["wall_thickness_weight"]
-        passed_checks.append(f"✓ Épaisseur de paroi ({wall.min_thickness_mm}mm min)")
+        passed_checks.append(f"OK Epaisseur paroi ({wall.min_thickness_mm}mm min)")
     else:
-        failed_checks.append(f"✗ Parois trop fines ({wall.min_thickness_mm}mm — min {wall.threshold_mm}mm)")
+        failed_checks.append(f"FAIL Parois trop fines ({wall.min_thickness_mm}mm)")
 
-    # Surplombs / overhangs (15)
     if not supports.support_required:
         score += weights["overhang_weight"]
-        passed_checks.append("✓ Surplombs dans les limites FDM")
+        passed_checks.append("OK Surplombs dans limites FDM")
     else:
-        failed_checks.append(f"✗ Surplombs excessifs ({supports.overhang_pct}%)")
+        failed_checks.append(f"FAIL Surplombs excessifs ({supports.overhang_pct}%)")
 
-    # Intégrité manifold — absence de géométrie flottante (10)
     if floating.passed:
         score += weights["manifold_integrity_weight"]
-        passed_checks.append("✓ Aucune géométrie flottante")
+        passed_checks.append("OK Aucune geometrie flottante")
     else:
-        failed_checks.append(f"✗ Géométrie flottante ({floating.floating_components} composante(s))")
+        failed_checks.append(f"FAIL Geometrie flottante ({floating.floating_components})")
 
-    # Exigences support — pas de supports nécessaires (10)
     if not supports.support_required:
         score += weights["support_requirements_weight"]
-        passed_checks.append("✓ Aucun support requis")
+        passed_checks.append("OK Aucun support requis")
     else:
-        failed_checks.append(f"✗ Supports requis ({supports.support_volume_estimate_cm3:.1f}cm³ estimé)")
+        failed_checks.append(f"FAIL Supports requis ({supports.support_volume_estimate_cm3:.1f}cm3)")
 
-    all_issues = (
-        manifold.issues + floating.issues + wall.issues + supports.issues
-    )
+    all_issues = manifold.issues + floating.issues + wall.issues + supports.issues
 
     return ValidationReport(
         passed=score >= 75,
@@ -123,14 +116,12 @@ def validate_mesh(
     )
 
 
-def validate_stl_file(stl_path: Path, **kwargs) -> ValidationReport:
+def validate_stl_file(stl_path, **kwargs):
     mesh = trimesh.load(str(stl_path), force="mesh")
     return validate_mesh(mesh, **kwargs)
 
 
-# ── Dummies pour skip optionnel ───────────────────────────
-
-def _dummy_wall(threshold: float) -> WallThicknessResult:
+def _dummy_wall(threshold):
     from forge_room.wall_thickness_checker import WallThicknessResult
     return WallThicknessResult(
         min_thickness_mm=threshold,
@@ -140,7 +131,8 @@ def _dummy_wall(threshold: float) -> WallThicknessResult:
         threshold_mm=threshold,
     )
 
-def _dummy_supports() -> SupportAnalysisResult:
+
+def _dummy_supports():
     return SupportAnalysisResult(
         overhang_area_cm2=0.0,
         total_area_cm2=0.0,

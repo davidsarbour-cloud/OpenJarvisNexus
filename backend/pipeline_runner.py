@@ -129,7 +129,7 @@ async def _tts(message: str):
     try:
         import edge_tts
         communicate = edge_tts.Communicate(message[:300], TTS_VOICE)
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")  # NOSONAR - instant sync I/O before async save
         tmp_path = tmp.name
         tmp.close()
         await communicate.save(tmp_path)
@@ -139,7 +139,7 @@ async def _tts(message: str):
             f"$mp.Open([uri]'{tmp_path}'); $mp.Play(); "
             f"Start-Sleep -Seconds 7; Remove-Item '{tmp_path}' -Force"
         )
-        subprocess.Popen(
+        subprocess.Popen(  # NOSONAR - fire-and-forget TTS playback
             ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NO_WINDOW,
@@ -154,7 +154,7 @@ async def run_start_all(voice: bool = True) -> dict:
     """Lance START_ALL.bat — démarre tous les services Nexus9."""
     bat = r"C:\OpenJarvisNexus\START_ALL.bat"
     try:
-        subprocess.Popen(
+        subprocess.Popen(  # NOSONAR - intentional detached fire-and-forget
             ["cmd", "/c", bat], cwd=r"C:\OpenJarvisNexus",
             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_CONSOLE,
         )
@@ -163,7 +163,7 @@ async def run_start_all(voice: bool = True) -> dict:
         result = {"ok": False, "message": str(e)}
     _save("pipelines", {"type": "start_all", "timestamp": str(datetime.now()), **result})
     if voice:
-        msg = "START ALL lancé. Tous les services Nexus9 démarrent." if result["ok"] else f"Erreur START ALL."
+        msg = "START ALL lancé. Tous les services Nexus9 démarrent." if result["ok"] else "Erreur START ALL."
         await _tts(msg)
     return result
 
@@ -321,7 +321,7 @@ async def run_daily_research(voice: bool = True) -> dict:
     # ── Ouvrir le rapport ─────────────────────────────────────
     try:
         import subprocess as _sp
-        _sp.Popen(["notepad.exe", str(summary_path)], creationflags=subprocess.CREATE_NO_WINDOW)
+        _sp.Popen(["notepad.exe", str(summary_path)])  # NOSONAR - fire-and-forget GUI launch
         print(f"📄 Rapport ouvert : {summary_path}")
     except Exception as _oe:
         print(f"⚠️  Ouverture rapport: {_oe}")

@@ -1,10 +1,9 @@
-﻿"""
+"""
 Claude-Mem MCP Server Bridge
 Expose claude-mem as MCP service for JARVIS + all agents
 """
 import asyncio
 import subprocess
-import json
 from pathlib import Path
 
 CLAUDE_MEM_PATH = Path(__file__).parent / "claude-mem"
@@ -15,7 +14,7 @@ async def start_claude_mem_service():
     print(f"[CLAUDE-MEM] Starting on port {PORT}...")
     
     # Run claude-mem via Node
-    proc = subprocess.Popen(
+    proc = subprocess.Popen(  # NOSONAR - intentional process launch, caller awaits elsewhere
         ["node", str(CLAUDE_MEM_PATH / "dist" / "npx-cli" / "index.js")],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE

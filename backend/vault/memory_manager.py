@@ -71,9 +71,12 @@ async def search_memory(
 async def vault_query(query: str, collections: list[str] | None = None) -> list[dict]:
     """
     Requête cross-collection — utilisé par JARVIS avant chaque tâche majeure.
-    Retourne les mémoires les plus pertinentes de toutes les collections.
+    Retourne les mémoires les plus pertinentes (collections + brain Obsidian).
     """
     cols = collections or list(get_collection_names().keys())
+    # Toujours inclure le brain (notes Obsidian indexées via brain_index)
+    if "brain" not in cols:
+        cols = [*cols, "brain"]
     results = []
     for col_name in cols:
         hits = await search_memory(col_name, query, n_results=3)

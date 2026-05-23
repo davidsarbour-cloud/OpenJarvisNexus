@@ -113,8 +113,9 @@ def list_pipelines() -> list[dict]:
 
 async def run_commerce_pipeline(pipeline_id: str) -> None:
     """Pipeline complet : concept → STL → metadata → approval queue."""
-    import asyncio
-    import httpx
+    from forge_room.fabrication_pipeline import (
+        new_mission, get_mission, run_forge_pipeline,
+    )
 
     p = _pipelines.get(pipeline_id)
     if not p:
@@ -129,45 +130,30 @@ async def run_commerce_pipeline(pipeline_id: str) -> None:
         _log(p, f"Concept: {p.concept.get('title', '?')} — {p.concept.get('niche', '?')}")
         _save_pipelines()
 
-        # ── ÉTAPE 2 : Forge Room STL ──────────────────────────────────
+        # ── ÉTAPE 2 : Forge Room STL (in-process, fusion 1->2) ────────
         p.status = "fabrication"
-        _log(p, "FORGE ROOM — génération STL...")
-        async with httpx.AsyncClient() as c:
-            r = await c.post(
-                f"http://localhost:{BACKEND_PORT}/v1/forge/mission",
-                json={"prompt": p.concept.get("forge_prompt", p.idea)},
-                timeout=30,
-            )
-            if r.status_code == 200:
-                d = r.json()
-                p.forge_mission_id = d.get("mission_id", "")
-                _log(p, f"Mission Forge: {p.forge_mission_id}")
-            else:
-                raise Exception(f"Forge HTTP {r.status_code}")
+        _log(p, "FORGE ROOM — génération STL (in-process)...")
+        m = new_mission(p.concept.get("forge_prompt", p.idea))
+        p.forge_mission_id = m["id"]
+        _log(p, f"Mission Forge: {p.forge_mission_id}")
 
-        # Polling Forge (max 10 min)
-        for _ in range(120):
-            await asyncio.sleep(5)
-            async with httpx.AsyncClient() as c:
-                r2 = await c.get(
-                    f"http://localhost:{BACKEND_PORT}/v1/forge/mission/{p.forge_mission_id}",
-                    timeout=8,
-                )
-                if r2.status_code == 200:
-                    fd = r2.json()
-                    if fd.get("status") == "completed":
-                        report = fd.get("report", {})
-                        p.printability_score = report.get("printability_score", 0)
-                        p.bambu_ready = report.get("bambu_ready", False)
-                        p.stl_path = fd.get("files", {}).get("final_stl", "")
-                        _log(
-                            p,
-                            f"STL: score={p.printability_score}/100, bambu_ready={p.bambu_ready}",
-                            "success",
-                        )
-                        break
-                    elif fd.get("status") == "failed":
-                        raise Exception(f"Forge failed: {fd.get('error', '?')}")
+        # Appel direct du pipeline de fabrication — plus de HTTP localhost ni polling.
+        await run_forge_pipeline(m["id"])
+
+        fd = get_mission(m["id"]) or {}
+        if fd.get("status") != "completed":
+            raise Exception(
+                f"Forge failed: {fd.get('error') or 'status=' + str(fd.get('status'))}"
+            )
+        report = fd.get("report", {}) or {}
+        p.printability_score = report.get("printability_score", 0)
+        p.bambu_ready = report.get("bambu_ready", False)
+        p.stl_path = fd.get("files", {}).get("final_stl", "")
+        _log(
+            p,
+            f"STL: score={p.printability_score}/100, bambu_ready={p.bambu_ready}",
+            "success",
+        )
         _save_pipelines()
 
         # ── ÉTAPE 3 : Metadata ULTRON + GWEN ────────────────────────

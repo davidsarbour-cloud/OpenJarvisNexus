@@ -1,15 +1,14 @@
 """
-The Forge Room — FastAPI Router
+The Forge Room - FastAPI Router
 Endpoints:
-  POST /v1/forge/mission          — lancer une mission de fabrication
-  GET  /v1/forge/mission/{id}     — statut + progression
-  GET  /v1/forge/download/{id}    — télécharger le STL final
-  GET  /v1/forge/report/{id}      — rapport de fabrication JSON
-  GET  /v1/forge/missions         — liste toutes les missions
-  POST /v1/forge/validate         — valider un STL uploadé
+  POST /v1/forge/mission          - lancer une mission de fabrication
+  GET  /v1/forge/mission/{id}     - statut + progression
+  GET  /v1/forge/download/{id}    - telecharger le STL final
+  GET  /v1/forge/report/{id}      - rapport de fabrication JSON
+  GET  /v1/forge/missions         - liste toutes les missions
+  POST /v1/forge/validate         - valider un STL uploade
 """
 from __future__ import annotations
-import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
@@ -18,30 +17,25 @@ from pydantic import BaseModel
 
 from forge_room.fabrication_pipeline import (
     new_mission, get_mission, run_forge_pipeline, _forge_missions,
-    FORGE_OUTPUT, FORGE_REPORTS,
+    FORGE_OUTPUT,
 )
-from forge_room.export_pipeline import run_export_pipeline
 import trimesh
 
 router = APIRouter(prefix="/v1/forge", tags=["forge"])
 
 
-# ── Modèles Pydantic ─────────────────────────────────────
-
 class ForgeMissionRequest(BaseModel):
     prompt: str
-    engine: str = "auto"           # "blender" | "openscad" | "auto"
+    engine: str = "auto"
     target_size_mm: float = 150.0
     auto_repair: bool = True
     auto_orient: bool = True
-    auto_bambu: bool = False        # ouvrir Bambu Studio automatiquement après export
+    auto_bambu: bool = False
 
 
 class ForgeValidateRequest(BaseModel):
-    stl_path: str                  # chemin local absolu
+    stl_path: str
 
-
-# ── Endpoints ────────────────────────────────────────────
 
 @router.post("/mission")
 async def create_forge_mission(req: ForgeMissionRequest, background_tasks: BackgroundTasks):
@@ -55,7 +49,7 @@ async def create_forge_mission(req: ForgeMissionRequest, background_tasks: Backg
     return {
         "mission_id": m["id"],
         "status": "running",
-        "message": f"⬡ THE FORGE ROOM — Mission {m['id']} démarrée",
+        "message": f"THE FORGE ROOM - Mission {m['id']} demarree",
         "poll_url": f"/v1/forge/mission/{m['id']}",
     }
 
@@ -80,7 +74,7 @@ async def get_forge_mission(mission_id: str):
         "plan":          m.get("plan", {}),
         "files":         m.get("files", {}),
         "report":        m.get("report"),
-        "logs":          m["logs"][-20:],    # derniers 20 logs
+        "logs":          m["logs"][-20:],
         "created_at":    m["created_at"],
         "completed_at":  m.get("completed_at"),
         "error":         m.get("error"),
@@ -89,7 +83,7 @@ async def get_forge_mission(mission_id: str):
 
 @router.get("/download/{mission_id}")
 async def download_forge_stl(mission_id: str):
-    """Télécharge le STL final (Bambu-ready)."""
+    """Telecharge le STL final (Bambu-ready)."""
     m = get_mission(mission_id.upper())
     if not m:
         raise HTTPException(status_code=404, detail="Mission introuvable")
@@ -111,27 +105,27 @@ async def download_forge_stl(mission_id: str):
 async def forge_bambu_handoff(mission_id: str):
     """Lance Bambu Studio avec le STL final de la mission Forge."""
     import os, subprocess
-    from pathlib import Path
+    from pathlib import Path as _P
 
     m = get_mission(mission_id.upper())
     if not m:
         raise HTTPException(status_code=404, detail="Mission introuvable")
     if m["status"] != "completed":
-        raise HTTPException(status_code=409, detail=f"Mission non complétée ({m['status']})")
+        raise HTTPException(status_code=409, detail=f"Mission non completee ({m['status']})")
 
     stl_path = m.get("files", {}).get("final_stl")
-    if not stl_path or not Path(stl_path).exists():
+    if not stl_path or not _P(stl_path).exists():
         raise HTTPException(status_code=404, detail="STL final non disponible")
 
     bambu_path = os.getenv("BAMBU_STUDIO_PATH", r"C:\Program Files\Bambu Studio\bambu-studio.exe")
-    if not Path(bambu_path).exists():
+    if not _P(bambu_path).exists():
         raise HTTPException(status_code=503, detail=f"Bambu Studio introuvable: {bambu_path}")
 
     try:
         subprocess.Popen([bambu_path, stl_path], shell=False)
-        return {"status": "launched", "file": Path(stl_path).name, "bambu": bambu_path}
+        return {"status": "launched", "file": _P(stl_path).name, "bambu": bambu_path}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lancement Bambu échoué: {e}")
+        raise HTTPException(status_code=500, detail=f"Lancement Bambu echoue: {e}") from e
 
 
 @router.get("/report/{mission_id}")
@@ -144,7 +138,7 @@ async def get_forge_report(mission_id: str):
     report_path = m.get("files", {}).get("report")
     if report_path and Path(report_path).exists():
         import json
-        return JSONResponse(json.loads(Path(report_path).read_text()))
+        return JSONResponse(json.loads(Path(report_path).read_text(encoding="utf-8")))
 
     if m.get("report"):
         return JSONResponse(m["report"])
@@ -172,18 +166,19 @@ async def list_forge_missions():
 
 @router.post("/validate")
 async def validate_stl_upload(file: UploadFile = File(...)):
-    """
-    Valide un STL uploadé.
-    Retourne le rapport de validation complet sans lancer de pipeline.
-    """
+    """Valide un STL uploade. Retourne le rapport sans lancer de pipeline."""
     from forge_room.mesh_validator import validate_mesh
-    from dataclasses import asdict
 
     content = await file.read()
     if len(content) < 100:
         raise HTTPException(status_code=400, detail="Fichier STL invalide")
 
-    tmp = FORGE_OUTPUT / f"validate_{file.filename}"
+    # Anti-path-traversal : basename uniquement + caracteres safe
+    raw_name = Path(file.filename or "upload.stl").name
+    safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in raw_name)[:80]
+    if not safe_name.lower().endswith(".stl"):
+        safe_name += ".stl"
+    tmp = FORGE_OUTPUT / f"validate_{safe_name}"
     tmp.write_bytes(content)
 
     try:
@@ -191,32 +186,32 @@ async def validate_stl_upload(file: UploadFile = File(...)):
         report  = validate_mesh(mesh, check_thickness=True, check_supports=True)
 
         return {
-            "filename":          file.filename,
+            "filename":           safe_name,
             "printability_score": report.printability_score,
-            "bambu_ready":       report.passed,
-            "face_count":        len(mesh.faces),
-            "vertex_count":      len(mesh.vertices),
-            "manifold":          {
-                "watertight":    report.manifold.is_watertight,
-                "volume_cm3":    report.manifold.volume_cm3,
-                "issues":        report.manifold.issues,
+            "bambu_ready":        report.passed,
+            "face_count":         len(mesh.faces),
+            "vertex_count":       len(mesh.vertices),
+            "manifold":           {
+                "watertight":     report.manifold.is_watertight,
+                "volume_cm3":     report.manifold.volume_cm3,
+                "issues":         report.manifold.issues,
             },
             "floating": {
-                "components":    report.floating.floating_components,
-                "issues":        report.floating.issues,
+                "components":     report.floating.floating_components,
+                "issues":         report.floating.issues,
             },
             "wall_thickness": {
-                "min_mm":        report.wall.min_thickness_mm,
-                "thin_pct":      report.wall.thin_face_pct,
-                "issues":        report.wall.issues,
+                "min_mm":         report.wall.min_thickness_mm,
+                "thin_pct":       report.wall.thin_face_pct,
+                "issues":         report.wall.issues,
             },
             "supports": {
-                "required":      report.supports.support_required,
-                "overhang_pct":  report.supports.overhang_pct,
-                "issues":        report.supports.issues,
+                "required":       report.supports.support_required,
+                "overhang_pct":   report.supports.overhang_pct,
+                "issues":         report.supports.issues,
             },
-            "passed_checks":     report.passed_checks,
-            "failed_checks":     report.failed_checks,
+            "passed_checks":      report.passed_checks,
+            "failed_checks":      report.failed_checks,
         }
     finally:
         tmp.unlink(missing_ok=True)

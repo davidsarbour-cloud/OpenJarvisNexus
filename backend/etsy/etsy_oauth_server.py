@@ -171,7 +171,7 @@ if __name__ == "__main__":
     webbrowser.open(auth_url)
 
     app.run(
-        host="0.0.0.0",
+        host=os.getenv("BIND_HOST", "0.0.0.0"),
         port=4000,
         debug=False
     )

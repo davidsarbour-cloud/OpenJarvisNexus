@@ -14,8 +14,13 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import trimesh
 
 router = APIRouter()
+_background_tasks: set = set()
 
 # ── Config (set in backend/.env) ─────────────────────────
 MESHY_API_KEY   = os.getenv("MESHY_API_KEY", "")
@@ -23,7 +28,7 @@ N8N_WEBHOOK_URL = os.getenv("N8N_STL_WEBHOOK", "")
 BLENDER_PATH    = os.getenv("BLENDER_PATH", r"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe")
 BAMBU_STUDIO_PATH = os.getenv("BAMBU_STUDIO_PATH", r"C:\Program Files\Bambu Studio\bambu-studio.exe")
 BACKEND_PORT    = int(os.getenv("BACKEND_PORT", 8000))
-CLAUDE_MODEL    = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5")
+CLAUDE_MODEL    = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 
 STL_DIR = Path(__file__).parent / "stl_output"
 STL_DIR.mkdir(exist_ok=True)
@@ -232,7 +237,8 @@ async def _run_blender(mission: dict, concept: str) -> Path | None:
     env = os.environ.copy()
     env["STL_OUT"] = str(out_path)
     try:
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             [BLENDER_PATH, "--background", "--python", str(script_path)],
             capture_output=True, text=True, timeout=180, env=env,
         )
@@ -682,7 +688,7 @@ async def _run_pipeline(mission_id: str):
             if final_stl:
                 m["files"]["model"] = str(final_stl)
                 m["steps"]["optimization"] = "done"
-                _log(m, f"[BRUCE] Mesh clean — watertight, 0 non-manifold edges. Ready for Bambu.", "ok")
+                _log(m, "[BRUCE] Mesh clean — watertight, 0 non-manifold edges. Ready for Bambu.", "ok")
             else:
                 m["steps"]["optimization"] = "error"
                 m["files"]["model"] = str(raw_path)
@@ -738,7 +744,9 @@ def _launch_bambu_studio(mission: dict, stl_path: Path) -> bool:
 async def create_stl_mission(req: MissionRequest):
     mission = _new_mission(req)
     _missions[mission["id"]] = mission
-    asyncio.create_task(_run_pipeline(mission["id"]))
+    _t = asyncio.create_task(_run_pipeline(mission["id"]))
+    _background_tasks.add(_t)
+    _t.add_done_callback(_background_tasks.discard)
     return {"mission_id": mission["id"], "status": "started"}
 
 
@@ -815,7 +823,7 @@ async def open_in_bambu(mission_id: str):
     if not Path(BAMBU_STUDIO_PATH).exists():
         raise HTTPException(500, f"Bambu Studio not found at {BAMBU_STUDIO_PATH} — set BAMBU_STUDIO_PATH in .env")
     try:
-        subprocess.Popen([BAMBU_STUDIO_PATH, fp], shell=False)
+        subprocess.Popen([BAMBU_STUDIO_PATH, fp], shell=False)  # NOSONAR - fire-and-forget GUI launch
         _log(m, f"Handoff to Bambu Studio: {Path(fp).name}", "success")
         return {"status": "launched", "file": Path(fp).name}
     except Exception as e:
@@ -831,7 +839,7 @@ async def open_folder(mission_id: str):
     fp = m["files"].get("model", "")
     target = Path(fp).parent if fp else STL_DIR
     try:
-        subprocess.Popen(["explorer", str(target)], shell=False)
+        subprocess.Popen(["explorer", str(target)], shell=False)  # NOSONAR - fire-and-forget GUI launch
         return {"status": "opened", "path": str(target)}
     except Exception as e:
         raise HTTPException(500, f"Failed to open folder: {e}")

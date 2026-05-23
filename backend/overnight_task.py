@@ -4,7 +4,6 @@ Lance avant de dormir, résultat prêt demain matin.
 """
 
 import requests
-import json
 import time
 from pathlib import Path
 from datetime import datetime
@@ -298,7 +297,7 @@ if __name__ == "__main__":
     try:
         r = requests.get(f"{OLLAMA}/api/tags", timeout=3)
         log("✅ Ollama en ligne — on commence !\n")
-    except:
+    except Exception:
         log("❌ Ollama hors ligne !")
         log("Lance: ollama serve")
         exit(1)
@@ -317,5 +316,5 @@ if __name__ == "__main__":
     total = round((time.time() - start) / 60, 1)
     log(f"\n🎉 TOUT TERMINÉ EN {total} MINUTES")
     log(f"📁 Résultats dans: {OUTPUT.absolute()}")
-    log(f"💰 Coût total: $0.000")
+    log("💰 Coût total: $0.000")
     log("Bonne nuit David ! 🤖")

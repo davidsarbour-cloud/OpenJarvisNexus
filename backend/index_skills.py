@@ -1,4 +1,4 @@
-﻿"""
+"""
 index_skills.py — Indexe les SKILL.md de Superpowers + Obsidian dans ChromaDB
 Run once: python index_skills.py
 """

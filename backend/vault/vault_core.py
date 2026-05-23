@@ -39,6 +39,7 @@ COLLECTIONS = {
     "architecture":     "arch",
     "skills_superpowers": "skill_sp",
     "skills_obsidian":    "skill_obs",
+    "brain":              "brain",
 }
 def get_collection(name: str):
     return get_client().get_or_create_collection(

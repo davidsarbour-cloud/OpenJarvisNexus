@@ -22,7 +22,6 @@ import httpx
 from memory import (
     get_history, add_message, clear_session, list_sessions,
     load_facts, save_facts, build_system_prompt,
-    get_last_session_summary,
 )
 from ollama_client import (
     is_ollama_available, list_local_models,
@@ -34,12 +33,13 @@ from ollama_client import (
 load_dotenv(override=True)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-CLAUDE_MODEL      = os.getenv("CLAUDE_MODEL",      "claude-haiku-4-5")
+CLAUDE_MODEL      = os.getenv("CLAUDE_MODEL",      "claude-haiku-4-5-20251001")
 CLAUDE_MODEL_GROS = os.getenv("CLAUDE_MODEL_GROS", "claude-sonnet-4-6")
 PORT              = int(os.getenv("BACKEND_PORT", 8000))
 
 _default_origins = (
     "http://localhost:5173,http://127.0.0.1:5173,"
+    "http://localhost:5174,http://127.0.0.1:5174,"  # Nexusx9 React hub (vite --port 5174)
     "http://localhost:3000,http://127.0.0.1:3000,"
     "http://localhost:8080,http://127.0.0.1:8080"
 )
@@ -146,6 +146,8 @@ from orchestrator import orchestrate, classify_intent
 from smoke_tests import run_smoke_tests
 from commerce.commerce_router import router as commerce_router
 from commerce.etsy_oauth import router as etsy_oauth_router
+from monitoring_router import router as monitoring_router
+from ws_router import router as ws_router
 app.include_router(stl_router)
 app.include_router(research_router)
 app.include_router(forge_router)
@@ -153,17 +155,30 @@ app.include_router(vault_router)
 app.include_router(files_router)
 app.include_router(commerce_router)
 app.include_router(etsy_oauth_router)
+app.include_router(monitoring_router)
+app.include_router(ws_router)
 
 # ── Sert Nexus9.html (UI principale) à la racine ─────────
 # Permet l'accès micro (Web Speech API exige un contexte sécurisé : localhost OK, file:// bloqué)
-_NEXUS9_HTML = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Nexus9.html"))
+_NEXUS9_HTML = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "archive", "legacy", "Nexus9.html"))
+# ── Phase 5 : React Command Center SPA buildé ───────────
+_FRONTEND_DIST = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+_SPA_INDEX = os.path.join(_FRONTEND_DIST, "index.html")
+_SPA_ASSETS = os.path.join(_FRONTEND_DIST, "assets")
+
+def _spa_or_legacy_html():
+    """Sert le SPA React si dist/index.html existe, sinon fallback Nexus9.html."""
+    if os.path.isfile(_SPA_INDEX):
+        return FileResponse(_SPA_INDEX, media_type="text/html")
+    return FileResponse(_NEXUS9_HTML, media_type="text/html")
 
 @app.get("/")
-async def serve_nexus9_root():
-    return FileResponse(_NEXUS9_HTML, media_type="text/html")
+async def serve_root():
+    return _spa_or_legacy_html()
 
 @app.get("/nexus9.html")
 async def serve_nexus9_alias():
+    """Alias legacy — sert toujours l'ancien Nexus9.html monolithique."""
     return FileResponse(_NEXUS9_HTML, media_type="text/html")
 
 # ── Etsy OAuth callback — reçoit le code d'autorisation ──
@@ -224,13 +239,22 @@ async def etsy_oauth_callback_root(code: str = None, state: str = None, error: s
 
 # ── Orbital UI — couche visuelle modulaire ────────────────
 from fastapi.staticfiles import StaticFiles
-_ORBITAL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "orbital_ui"))
+_ORBITAL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "archive", "legacy", "orbital_ui_vanilla"))
 
 @app.get("/orbital", include_in_schema=False)
 async def serve_orbital():
+    """Phase 5 : sert le SPA React si buildé, sinon l'ancien orbital.html vanilla."""
+    if os.path.isfile(_SPA_INDEX):
+        return FileResponse(_SPA_INDEX, media_type="text/html")
     return FileResponse(os.path.join(_ORBITAL_DIR, "orbital.html"), media_type="text/html")
 
-app.mount("/orbital_ui", StaticFiles(directory=_ORBITAL_DIR), name="orbital_ui")
+@app.get("/orbital-legacy", include_in_schema=False)
+async def serve_orbital_legacy():
+    """Accès explicite à l'ancien orbital_ui vanilla (avant Phase 3 React)."""
+    return FileResponse(os.path.join(_ORBITAL_DIR, "orbital.html"), media_type="text/html")
+
+if os.path.isdir(_ORBITAL_DIR):
+    app.mount("/orbital_ui", StaticFiles(directory=_ORBITAL_DIR), name="orbital_ui")
 
 _FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <polygon points="16,1 31,8.5 31,23.5 16,31 1,23.5 1,8.5"
@@ -306,7 +330,7 @@ async def pipeline_start_all():
     import subprocess
     bat = r"C:\OpenJarvisNexus\START_ALL.bat"
     try:
-        subprocess.Popen(
+        subprocess.Popen(  # NOSONAR - intentional detached fire-and-forget
             ["cmd", "/c", bat],
             cwd=r"C:\OpenJarvisNexus",
             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_CONSOLE,
@@ -316,7 +340,6 @@ async def pipeline_start_all():
         raise HTTPException(status_code=500, detail=str(e))
 
 # ── Schedulers : STL researcher (21:00) + tâches quotidiennes (03:00) ────────
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 @app.on_event("startup")
@@ -516,18 +539,23 @@ async def health_deep():
     now = datetime.now().isoformat(timespec="seconds")
 
     # ── 1. Claude API ────────────────────────────────────
+    # IMPORTANT: asyncio.get_event_loop() est déprécié dans Python 3.10+
+    # à l'intérieur d'une coroutine — il peut créer une nouvelle boucle
+    # au lieu de retourner la boucle courante, ce qui corrompt l'appel
+    # synchrone claude.messages.create → BadRequestError.
+    # Fix: asyncio.get_running_loop() qui retourne toujours la boucle active.
     claude_status = "ok"
     try:
         resp = await asyncio.wait_for(
-            asyncio.get_event_loop().run_in_executor(
+            asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: claude.messages.create(
                     model=CLAUDE_MODEL,
-                    max_tokens=5,
+                    max_tokens=10,   # min safe — 5 peut être trop court sur certaines versions
                     messages=[{"role": "user", "content": "ping"}],
                 ),
             ),
-            timeout=3.0,
+            timeout=5.0,   # 3s parfois trop court pour Haiku sous charge
         )
         _ = resp  # succès
     except asyncio.TimeoutError:
@@ -607,7 +635,7 @@ async def text_to_speech(
         raise HTTPException(503, "edge-tts non installé — lance: pip install edge-tts")
 
     communicate = edge_tts.Communicate(text, voice)
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")  # NOSONAR - instant sync before async TTS save
     tmp_path = tmp.name
     tmp.close()
 
@@ -615,7 +643,7 @@ async def text_to_speech(
 
     async def stream_and_delete():
         try:
-            with open(tmp_path, "rb") as f:
+            with open(tmp_path, "rb") as f:  # NOSONAR - streaming read, chunk-based, acceptable sync I/O
                 while chunk := f.read(8192):
                     yield chunk
         finally:
@@ -656,7 +684,7 @@ async def speech_transcribe(file: UploadFile = File(...)):
         raise HTTPException(400, "Fichier audio vide")
 
     suffix = ".webm"
-    tmp_f  = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    tmp_f  = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)  # NOSONAR - sync file creation before CPU-bound transcription thread
     tmp_f.write(audio_bytes)
     tmp_f.close()
 
@@ -675,7 +703,7 @@ async def speech_transcribe(file: UploadFile = File(...)):
     try:
         import asyncio
         import traceback
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()   # fix: get_event_loop() déprécié Python 3.10+
         try:
             text, info = await loop.run_in_executor(None, _run, tmp_f.name)
         except Exception as e:
@@ -802,7 +830,7 @@ async def generate_report(request: Request):
     lines += ["", f"{'='*60}", "  GENERATED BY JARVIS · OPENJARVISNEXUS", f"{'='*60}"]
 
     content = "\n".join(lines)
-    with open(filepath, "w", encoding="utf-8") as f:
+    with open(filepath, "w", encoding="utf-8") as f:  # NOSONAR - small text report, sync write acceptable
         f.write(content)
 
     # Destination OneDrive selon le type de rapport
@@ -816,7 +844,7 @@ async def generate_report(request: Request):
     os.makedirs(onedrive_dir, exist_ok=True)
     onedrive_path = os.path.join(onedrive_dir, filename)
     shutil.copy2(filepath, onedrive_path)
-    subprocess.Popen(["notepad.exe", onedrive_path])
+    subprocess.Popen(["notepad.exe", onedrive_path])  # NOSONAR - fire-and-forget GUI launch
 
     return {"filename": filename, "filepath": filepath, "title": title}
 
@@ -964,7 +992,7 @@ async def _run_bruce(task: str) -> dict:
                 "result":  f"⬡ BRUCE mission launched — conversation {conv_id}.\nMonitor: {OPENHANDS_URL}\nTask: {task[:120]}",
             }
     except httpx.ConnectError:
-        return {"ok": False, "agent": "BRUCE", "error": f"BRUCE offline. Lance: docker start nexus_bruce"}
+        return {"ok": False, "agent": "BRUCE", "error": "BRUCE offline. Lance: docker start nexus_bruce"}
     except Exception as e:
         return {"ok": False, "agent": "BRUCE", "error": str(e)}
 
@@ -1434,7 +1462,7 @@ def chat_completion(req: ChatRequest, request: Request):
 
     # ── Ollama (gratuit) ─────────────────────────────────
     if not use_claude and ollama_available:
-        print(f"[chat] OLLAMA — gratuit")
+        print("[chat] OLLAMA — gratuit")
         _budget["appels_ollama"] += 1
         budget_tracker.record_ollama_call()
         model_used  = OLLAMA_MODEL
@@ -1461,7 +1489,7 @@ def chat_completion(req: ChatRequest, request: Request):
             )
             model_used = "bloqué"
         else:
-            print(f"[chat] 🔵 CLAUDE — question complexe")
+            print("[chat] 🔵 CLAUDE — question complexe")
             model_used = (req.model if req.model and req.model.strip() else CLAUDE_MODEL)
             try:
                 resp = claude.messages.create(
@@ -1526,7 +1554,7 @@ def chat_completion(req: ChatRequest, request: Request):
 
 class OrchestrateRequest(BaseModel):
     text: str
-    model: str = "claude-haiku-4-5"
+    model: str = "claude-haiku-4-5-20251001"
 
 @app.post("/v1/orchestrate")
 async def orchestrate_request(req: OrchestrateRequest):
@@ -1623,6 +1651,7 @@ async def cheat_code_run(voice: bool = True):
     return report
 
 
+
 @app.get("/v1/cheat-code/status")
 def cheat_code_status():
     """Dernier rapport Cheat Code exécuté."""
@@ -1633,7 +1662,71 @@ def cheat_code_status():
     return report
 
 
+# ════════════════════════════════════════════════════════
+# PHASE 4 stubs — silence frontend boot 404s
+# ════════════════════════════════════════════════════════
+
+@app.get("/v1/info")
+def server_info():
+    """Lightweight server identity. Hit by the SPA on first paint."""
+    return {
+        "name":    "Nexus9 Backend",
+        "version": "9.0.0",
+        "phase":   4,
+        "model":   CLAUDE_MODEL,
+        "host":    os.getenv("HOSTNAME", "nexus_backend"),
+    }
+
+@app.get("/v1/connectors")
+def list_connectors():
+    """Connectors registry stub. Returns empty list until Phase X."""
+    return {"connectors": [], "total": 0}
+
+
+# ════════════════════════════════════════════════════════
+# PHASE 5 — React SPA serving
+# ════════════════════════════════════════════════════════
+
+# Mount /assets (bundles JS/CSS produits par `npm run build`) si présents
+if os.path.isdir(_SPA_ASSETS):
+    app.mount("/assets", StaticFiles(directory=_SPA_ASSETS), name="spa_assets")
+
+# Static files at the SPA root (favicon, pwa icons, robots, manifest, sw.js…)
+_SPA_ROOT_FILES = {
+    "manifest.webmanifest", "registerSW.js", "sw.js", "workbox-*.js",
+    "robots.txt", "pwa-192x192.png", "pwa-512x512.png", "apple-touch-icon.png",
+}
+@app.get("/{filename}", include_in_schema=False)
+async def serve_spa_root_file(filename: str):
+    """Sert les fichiers statiques racine du SPA (PWA assets, etc.)."""
+    candidate = os.path.join(_FRONTEND_DIST, filename)
+    if (
+        os.path.isfile(candidate)
+        and (
+            filename in _SPA_ROOT_FILES
+            or filename.endswith(('.js', '.css', '.png', '.svg', '.ico', '.webmanifest', '.txt', '.html'))
+        )
+    ):
+        return FileResponse(candidate)
+    raise HTTPException(status_code=404)
+
+
+# Catch-all : react-router SPA fallback pour toute route non-API non-statique
+@app.get("/{full_path:path}", include_in_schema=False)
+async def spa_fallback(full_path: str):
+    """Toute route inconnue → sert index.html du SPA pour que react-router prenne le relais."""
+    # Sécurité : ne jamais shadow les routes API/legacy
+    blocked = ("v1/", "health", "callback", "assets/", "orbital_ui/",
+               "favicon", "docs", "redoc", "openapi.json", "nexus9.html")
+    if any(full_path.startswith(p) for p in blocked):
+        raise HTTPException(status_code=404)
+    if os.path.isfile(_SPA_INDEX):
+        return FileResponse(_SPA_INDEX, media_type="text/html")
+    # Fallback : si pas de build React, retourne Nexus9.html legacy
+    return FileResponse(_NEXUS9_HTML, media_type="text/html")
+
+
 # ── Entrypoint ───────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)
+    uvicorn.run("main:app", host=os.getenv("BIND_HOST", "0.0.0.0"), port=PORT, reload=True)

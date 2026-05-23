@@ -3,11 +3,9 @@ JARVIS Orchestration Engine — classify intent, query Vault, route to agents.
 Transforme JARVIS d'un chatbot en système d'orchestration.
 """
 from __future__ import annotations
-import asyncio
 import re
 import os
 from datetime import datetime
-from typing import Any
 
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", 8000))
 
@@ -38,13 +36,13 @@ INTENT_PATTERNS = {
 
 AGENT_MAP = {
     "fabrication": {
-        "agents": ["FORGE", "CORTANA", "GWEN"],
+        "agents": ["FORGE", "CORTANA", "QWEN"],
         "providers": ["Meshy AI", "DeepSeek Coder 6.7b", "Qwen3:14b"],
         "plan": [
             "Vault: chercher missions similaires",
             "CORTANA: préparer pipeline géométrique",
             "FORGE: générer STL via Meshy AI",
-            "GWEN: optimiser paramètres FDM",
+            "QWEN: optimiser paramètres FDM",
             "Validation + export Bambu Studio",
         ],
     },
@@ -69,11 +67,11 @@ AGENT_MAP = {
         ],
     },
     "memory": {
-        "agents": ["GWEN"],
+        "agents": ["QWEN"],
         "providers": ["Qwen3:14b local"],
         "plan": [
             "Vault: recherche sémantique",
-            "GWEN: analyse et synthèse",
+            "QWEN: analyse et synthèse",
             "Retour mémoires pertinentes",
         ],
     },
@@ -162,7 +160,7 @@ class OrchestrationResult:
         }
 
 
-async def orchestrate(text: str, model: str = "claude-haiku-4-5") -> OrchestrationResult:
+async def orchestrate(text: str, model: str = "claude-haiku-4-5-20251001") -> OrchestrationResult:
     """Pipeline d'orchestration complet pour une requête utilisateur."""
     t0 = datetime.now()
     orch = OrchestrationResult(text)
@@ -183,7 +181,7 @@ async def orchestrate(text: str, model: str = "claude-haiku-4-5") -> Orchestrati
     # 2b. Jarvis file context — cherche dans les fichiers OneDrive de David
     jarvis_file_context = ""
     try:
-        from jarvis_files import search_jarvis_files, read_jarvis_file, list_jarvis_dir
+        from jarvis_files import search_jarvis_files
         file_hits = search_jarvis_files(text, max_results=3)
         if file_hits:
             jarvis_file_context = "\n\n[Jarvis Workspace Files]\n" + "\n".join(

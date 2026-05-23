@@ -76,6 +76,22 @@ def add_message(session_id: str, role: str, content: str) -> None:
     _sessions[session_id]["last_active"] = time.time()
     _save_sessions()
 
+    # ── Auto-log vers session_logs/YYYY-MM-DD.md ──────────────
+    # Non-bloquant : si le logger échoue, on continue normalement.
+    try:
+        from session_logger import log_message as _log_session
+        # Pour deviner l'agent on regarde le dernier message user de la session
+        last_user_msg = None
+        if role == "assistant":
+            for m in reversed(_sessions[session_id]["messages"]):
+                if m["role"] == "user":
+                    last_user_msg = m["content"]
+                    break
+        _log_session(session_id, role, content, user_msg_for_routing=last_user_msg)
+    except Exception:
+        # Silencieux : pas de crash sur erreur de logging
+        pass
+
 
 def clear_session(session_id: str) -> None:
     if session_id in _sessions:
@@ -210,7 +226,7 @@ def build_system_prompt(base: str, facts: dict) -> str:
         )
 
     # Language rule is prepended first so it's never overridden
-    lang_first = f"CRITICAL: You ALWAYS respond in English only. David may write or speak in French — understand it fully but ALWAYS reply in English.\n\n"
+    lang_first = "CRITICAL: You ALWAYS respond in English only. David may write or speak in French — understand it fully but ALWAYS reply in English.\n\n"
     return (
         lang_first + personality + lang_block + style_block
         + expertise_block + rules_block + memory_block

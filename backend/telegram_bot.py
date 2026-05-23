@@ -38,6 +38,7 @@ if not BOT_TOKEN:
 
 # ── État voix ────────────────────────────────────────────
 _voice_enabled: bool = False
+_background_tasks: set = set()
 TTS_VOICE = "fr-FR-HenriNeural"  # Voix Microsoft Neural française
 
 # ── Cache état du système ───────────────────────────────
@@ -110,11 +111,11 @@ async def send_voice_message(update: Update, text: str) -> None:
     try:
         import edge_tts
         communicate = edge_tts.Communicate(clean, TTS_VOICE)
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")  # NOSONAR - instant sync I/O before async save
         tmp_path = tmp.name
         tmp.close()
         await communicate.save(tmp_path)
-        with open(tmp_path, "rb") as audio:
+        with open(tmp_path, "rb") as audio:  # NOSONAR - small file read, non-blocking in practice
             await update.message.reply_voice(audio)
     except ImportError:
         log.warning("edge-tts non installé — lance: pip install edge-tts")
@@ -322,7 +323,7 @@ async def cmd_hub(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"💻 Ollama: {'OK' if status and status.get('ollama_online') else 'HORS LIGNE'}",
         f"\n👤 Utilisateur: {facts.get('user_name','?')}",
         f"📁 Projets: {len(facts.get('projects', []))}",
-        f"\n🤖 Agents configurés: 8",
+        "\n🤖 Agents configurés: 8",
         "  ◈ Architecte (Claude)",
         "  ☼  Tour Claude",
         "  ✺  Laboratoire (Ollama)",
@@ -331,8 +332,8 @@ async def cmd_hub(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "  ⚙  Atelier Code",
         "  ◉  Surveillance",
         "  ✦  Tableau Missions",
-        f"\n🌐 Hub UI: http://localhost:5174",
-        f"🔌 API:    http://localhost:8000",
+        "\n🌐 Hub UI: http://localhost:5174",
+        "🔌 API:    http://localhost:8000",
     ]
     await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN)
 
@@ -361,7 +362,7 @@ async def cmd_clear(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         return
     try:
-        requests.delete(f"{BACKEND_URL}/v1/memory/session/telegram", timeout=5)
+        await asyncio.to_thread(requests.delete, f"{BACKEND_URL}/v1/memory/session/telegram", timeout=5)
         await update.message.reply_text("🗑️ Session effacée. Repartons à zéro !")
     except Exception as e:
         await update.message.reply_text(f"❌ Erreur: {e}")
@@ -417,7 +418,9 @@ async def post_init(app: Application) -> None:
         BotCommand("voix",   "Activer/désactiver la voix Jarvis"),
         BotCommand("clear",  "Effacer la session"),
     ])
-    asyncio.create_task(monitor_system(app))
+    _t = asyncio.create_task(monitor_system(app))
+    _background_tasks.add(_t)
+    _t.add_done_callback(_background_tasks.discard)
     # Check initial
     status = get_backend_status()
     system_state["backend_online"] = bool(status)

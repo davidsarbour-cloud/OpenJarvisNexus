@@ -27,7 +27,7 @@ from langchain_ollama import ChatOllama
 load_dotenv(override=True)
 
 ANTHROPIC_API_KEY   = os.getenv("ANTHROPIC_API_KEY")
-JARVIS_MODEL        = os.getenv("CLAUDE_MODEL",      "claude-haiku-4-5")
+JARVIS_MODEL        = os.getenv("CLAUDE_MODEL",      "claude-haiku-4-5-20251001")
 ULTRON_MODEL        = os.getenv("CLAUDE_MODEL_GROS", "claude-sonnet-4-6")
 OLLAMA_HOST         = os.getenv("OLLAMA_HOST",       "http://localhost:11434")
 QWEN_MODEL          = os.getenv("OLLAMA_MODEL",      "qwen3:14b")
