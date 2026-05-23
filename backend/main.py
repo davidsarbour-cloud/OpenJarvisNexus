@@ -650,9 +650,8 @@ def _read_vram() -> dict:
         return {"vram": None, "vram_used_mb": None, "vram_total_mb": None, "gpu_util": None}
 
 
-@app.get("/v1/system/metrics")
-def system_metrics():
-    """Métriques hardware temps réel pour le HUD : CPU, RAM, VRAM, stockage, réseau."""
+def _collect_system_metrics() -> dict:
+    """Collecte CPU/RAM/VRAM/stockage/réseau + health score (source unique)."""
     import psutil
     cpu     = psutil.cpu_percent(interval=0.1)
     ram     = psutil.virtual_memory().percent
@@ -691,6 +690,40 @@ def system_metrics():
         "network_mbps": round(max(0.0, mbps), 1),
         "health_score": score, "health_label": label,
     }
+
+
+@app.get("/v1/system/metrics")
+def system_metrics():
+    """Métriques hardware temps réel pour le HUD (JSON)."""
+    return _collect_system_metrics()
+
+
+@app.get("/metrics")
+def prometheus_metrics():
+    """Exposition Prometheus des métriques hardware (host + GPU) pour le scrape."""
+    from fastapi.responses import PlainTextResponse
+    m = _collect_system_metrics()
+    out: list[str] = []
+
+    def gauge(name: str, val, help_: str):
+        if val is None:
+            return
+        out.append(f"# HELP {name} {help_}")
+        out.append(f"# TYPE {name} gauge")
+        out.append(f"{name} {val}")
+
+    gauge("nexus_cpu_percent",      m["cpu"],           "Host CPU usage percent")
+    gauge("nexus_ram_percent",      m["ram"],           "Host RAM usage percent")
+    gauge("nexus_storage_percent",  m["storage"],       "Host storage usage percent (C:)")
+    gauge("nexus_vram_percent",     m["vram"],          "GPU VRAM usage percent")
+    gauge("nexus_vram_used_mb",     m["vram_used_mb"],  "GPU VRAM used (MB)")
+    gauge("nexus_vram_total_mb",    m["vram_total_mb"], "GPU VRAM total (MB)")
+    gauge("nexus_gpu_util_percent", m["gpu_util"],      "GPU utilization percent")
+    gauge("nexus_network_mbps",     m["network_mbps"],  "Host network throughput (MB/s)")
+    gauge("nexus_health_score",     m["health_score"],  "Composite system health score (0-100)")
+
+    return PlainTextResponse("\n".join(out) + "\n",
+                             media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 @app.get("/api/digest")
