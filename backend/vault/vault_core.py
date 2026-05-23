@@ -3,7 +3,7 @@ Vault Core — ChromaDB vector store + Ollama embeddings.
 Collections: conversations, forge_reports, orchestration, agent_memory, workflows
 """
 from __future__ import annotations
-import os, json, hashlib
+import os, hashlib
 from datetime import datetime
 from pathlib import Path
 import chromadb

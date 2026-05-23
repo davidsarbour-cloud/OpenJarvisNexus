@@ -7,7 +7,6 @@ import asyncio
 import time
 import os
 from datetime import datetime
-from pathlib import Path
 
 BACKEND_PORT  = int(os.getenv("BACKEND_PORT", 8000))
 OLLAMA_HOST   = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -331,7 +330,7 @@ async def test_bruce_openhands() -> dict:
             r = await c.get(f"{OPENHANDS_URL}/api/options/models")
         ms = int((time.monotonic() - t) * 1000)
         if r.status_code == 200:
-            return _result("test_bruce_openhands", True, f"BRUCE online — HTTP 200", ms)
+            return _result("test_bruce_openhands", True, "BRUCE online — HTTP 200", ms)
         return _warn("test_bruce_openhands", f"BRUCE HTTP {r.status_code} (optionnel)", ms)
     except (httpx.ConnectError, httpx.TimeoutException) as e:
         ms = int((time.monotonic() - t) * 1000)
@@ -416,7 +415,6 @@ async def run_smoke_tests(tests=None) -> dict:
 
 # ── Run direct ───────────────────────────────────────────
 if __name__ == "__main__":
-    import json as _json
 
     async def _main():
         print("⬡ NEXUS9 — Smoke Tests\n")

@@ -146,18 +146,25 @@ async def task_jarvis_workspace_index():
 # ── Scheduler ─────────────────────────────────────────────
 
 async def task_vault_maintenance():
-    """Maintenance quotidienne du Vault — summarization + embedding refresh."""
+    """Maintenance quotidienne du Vault — summarization + embedding refresh.
+
+    Garde-fou futur (volontairement non implémenté) : purge des vieilles
+    conversations. À activer quand la collection `conversations` dépassera
+    durablement ~500 entrées. Politique prévue : supprimer les conversations
+    non-pinned ET plus vieilles que 60 jours, au-delà des 300 plus récentes,
+    via col.get(include=["metadatas"]) puis col.delete(ids=[...]).
+    """
     try:
-        from vault.vault_core import get_collection, COLLECTIONS
+        from vault.vault_core import get_collection
         from vault.analytics import get_vault_analytics
         analytics = get_vault_analytics()
         total = analytics.get("total_memories", 0)
         logger.info(f"Vault maintenance: {total} mémoires actives")
-        # Archive les vieilles conversations (>60 jours, non pinned)
-        cutoff = (datetime.now() - timedelta(days=60)).isoformat()
+        # Seuil d'archivage conservé pour la future implémentation de la purge.
+        cutoff = (datetime.now() - timedelta(days=60)).isoformat()  # noqa: F841
         col = get_collection("conversations")
         if col.count() > 500:
-            # Trop de conversations — garder seulement les 300 plus récentes
+            # TODO(vault-purge): purge réelle à implémenter (voir docstring).
             logger.info(f"Vault: purge conversations anciennes ({col.count()} → 300 max)")
     except Exception as e:
         logger.error(f"Vault maintenance failed: {e}")
@@ -186,7 +193,7 @@ async def task_vault_forge_analytics():
 async def task_orchestration_diagnostics():
     """Diagnostics quotidiens du système d'orchestration."""
     try:
-        from orchestrator import classify_intent, orchestrate
+        from orchestrator import classify_intent
         from vault.memory_manager import vault_query
 
         results = []
@@ -228,7 +235,7 @@ async def task_orchestration_diagnostics():
 async def task_vault_integrity():
     """Vérifie l'intégrité du Vault ChromaDB."""
     try:
-        from vault.vault_core import get_collection, COLLECTIONS
+        from vault.vault_core import COLLECTIONS
         from vault.analytics import get_vault_analytics
 
         stats = get_vault_analytics()

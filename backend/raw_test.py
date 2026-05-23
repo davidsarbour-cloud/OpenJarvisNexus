@@ -27,7 +27,6 @@ print(f"Body   : {r.text[:500]}")
 print()
 
 # Add to raw_test.py — replace Test 2 and 3 with this:
-import json
 
 print("=== All available models ===")
 r = requests.get("https://api.anthropic.com/v1/models", headers=headers)

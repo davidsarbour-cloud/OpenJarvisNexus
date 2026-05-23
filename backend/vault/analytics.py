@@ -3,10 +3,9 @@ Analytics — statistiques et tableaux de bord pour le Vault Hub.
 """
 from __future__ import annotations
 import json
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 
-from vault.memory_manager import get_stats, get_collection
+from vault.memory_manager import get_stats
 from vault.vault_core import _BACKEND_DIR
 
 

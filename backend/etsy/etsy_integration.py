@@ -1,4 +1,4 @@
-"""
+r"""
 etsy_integration.py
 Classe complète pour gérer tous les appels à l'API Etsy v3
 Placer dans : C:\OpenJarvisNexus\backend\etsy\etsy_integration.py
@@ -11,7 +11,6 @@ import logging
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 # ━━━ CONFIGURATION LOGGING ━━━
 logging.basicConfig(

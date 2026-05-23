@@ -4,7 +4,6 @@ Catégories: orchestration, memory, forge, voice, execution, connectivity.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 from datetime import datetime
@@ -55,7 +54,6 @@ def _status(score: int) -> str:
 async def _check(client, url: str, timeout: float = 3.0) -> tuple[bool, str]:
     """GET rapide — retourne (ok, detail)."""
     try:
-        import httpx
         r = await client.get(url, timeout=timeout)
         return r.status_code < 500, f"HTTP {r.status_code}"
     except Exception as exc:

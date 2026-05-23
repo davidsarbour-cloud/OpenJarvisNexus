@@ -6,7 +6,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 import json
-import numpy as np
 import trimesh
 
 _RULES = json.loads((Path(__file__).parent / "manufacturing_rules.json").read_text())

@@ -8,7 +8,6 @@ Endpoints:
 """
 from __future__ import annotations
 
-import os
 from typing import Optional
 
 import httpx
@@ -58,7 +57,7 @@ async def etsy_callback(
         "code":        code,
         "state":       state,
         "instruction": "Ajoute dans .env: ETSYYOAUTH_ACCESS_TOKEN=<token>",
-        "next_step":   f"POST /v1/etsy/exchange-token avec ce code et ton code_verifier PKCE",
+        "next_step":   "POST /v1/etsy/exchange-token avec ce code et ton code_verifier PKCE",
     }
 
 

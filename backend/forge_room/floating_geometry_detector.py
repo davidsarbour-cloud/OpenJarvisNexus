@@ -1,7 +1,6 @@
 """Détection de géométrie flottante — composantes déconnectées non ancrées à la build plate."""
 from __future__ import annotations
 from dataclasses import dataclass, field
-import numpy as np
 import trimesh
 
 

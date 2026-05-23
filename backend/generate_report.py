@@ -4,7 +4,6 @@ Lance : python generate_report.py
 Ouvre : rapport_nexusx9.html → Ctrl+P → Enregistrer en PDF
 """
 
-from datetime import datetime
 from pathlib import Path
 
 HTML = """<!DOCTYPE html>

@@ -2,9 +2,7 @@
 Memory Manager — ajouter, rechercher, résumer les mémoires.
 """
 from __future__ import annotations
-import json
 from datetime import datetime
-from typing import Any
 
 from vault.vault_core import get_collection, embed, make_id
 

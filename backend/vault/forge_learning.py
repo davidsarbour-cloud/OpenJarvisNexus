@@ -2,7 +2,6 @@
 Forge Learning — sauvegarde les résultats STL pour améliorer les futures générations.
 """
 from __future__ import annotations
-from datetime import datetime
 from vault.memory_manager import add_memory
 
 

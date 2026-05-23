@@ -8,7 +8,6 @@ JARVIS peut scanner, lire, chercher et ecrire dans ces repertoires.
 """
 from __future__ import annotations
 import os
-import json
 from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
