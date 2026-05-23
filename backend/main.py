@@ -342,6 +342,17 @@ async def pipeline_start_all():
 # ── Schedulers : STL researcher (21:00) + tâches quotidiennes (03:00) ────────
 from apscheduler.triggers.cron import CronTrigger
 
+
+async def _brain_reindex_job():
+    """Ré-indexe le brain Obsidian dans ChromaDB (recherche sémantique des agents)."""
+    try:
+        from vault.brain_index import index_brain
+        result = await index_brain()
+        print(f"[Brain] re-index: {result}")
+    except Exception as e:
+        print(f"[Brain] re-index failed: {e}")
+
+
 @app.on_event("startup")
 async def startup_daily_scheduler():
     # Scheduler partagé — STL researcher 21:00 + tâches quotidiennes 03:00
@@ -354,9 +365,17 @@ async def startup_daily_scheduler():
         replace_existing=True,
         misfire_grace_time=3600,
     )
+    scheduler.add_job(
+        _brain_reindex_job,
+        CronTrigger(hour=4, minute=30),
+        id="brain_reindex",
+        name="Daily: brain re-index (Obsidian -> ChromaDB)",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
     scheduler.start()
     app.state.scheduler = scheduler
-    print("[Daily] Scheduler démarré — tâches quotidiennes à 03:00, STL researcher à 21:00")
+    print("[Daily] Scheduler démarré — STL research 21:00, brain re-index 04:30")
 
 @app.on_event("shutdown")
 async def shutdown_daily_scheduler():
