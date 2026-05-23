@@ -403,7 +403,7 @@ async def daily_run_task(body: dict):
     from daily_tasks import (
         task_vault_cleanup, task_forge_analytics, task_stl_directory_sync,
         task_system_health_log, task_error_logs_cleanup, task_vault_maintenance,
-        task_vault_forge_analytics, task_vault_integrity, task_commerce_analytics,
+        task_commerce_analytics,
         task_jarvis_workspace_index, task_daily_smoke_tests,
         task_orchestration_diagnostics,
     )
@@ -414,8 +414,6 @@ async def daily_run_task(body: dict):
         "health_log":                task_system_health_log,
         "error_log_cleanup":         task_error_logs_cleanup,
         "vault_maintenance":         task_vault_maintenance,
-        "vault_forge_analytics":     task_vault_forge_analytics,
-        "vault_integrity":           task_vault_integrity,
         "commerce_analytics":        task_commerce_analytics,
         "jarvis_workspace_index":    task_jarvis_workspace_index,
         "daily_smoke_tests":         task_daily_smoke_tests,

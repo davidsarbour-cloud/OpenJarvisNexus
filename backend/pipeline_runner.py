@@ -33,9 +33,7 @@ DAILY_TASKS = [
     ("stl_sync",                  "Sync STL → Jarvis/STL"),
     ("health_log",                "Log santé système"),
     ("error_log_cleanup",         "Nettoyage logs erreur"),
-    ("vault_maintenance",         "Maintenance Vault ChromaDB"),
-    ("vault_forge_analytics",     "Analytics Forge → Vault"),
-    ("vault_integrity",           "Intégrité Vault"),
+    ("vault_maintenance",         "Maintenance + intégrité Vault"),
     ("commerce_analytics",        "Analytics Commerce"),
     ("jarvis_workspace_index",    "Indexation workspace Jarvis"),
     ("daily_smoke_tests",         "Smoke tests quotidiens"),
@@ -596,7 +594,7 @@ async def _run_one_task(name: str, label: str) -> dict:
 
 # Tâches qui écrivent dans ChromaDB → séquentiel (évite les locks SQLite).
 _VAULT_WRITERS = {
-    "vault_maintenance", "vault_forge_analytics", "vault_integrity",
+    "forge_analytics", "vault_maintenance",
     "orchestration_diagnostics", "jarvis_workspace_index",
     "daily_smoke_tests", "commerce_analytics",
 }

@@ -33,7 +33,7 @@ async def task_vault_cleanup():
         logger.error(f"Vault cleanup failed: {e}")
 
 async def task_forge_analytics():
-    """Génère un rapport quotidien des missions Forge."""
+    """Rapport quotidien des missions Forge — fichier JSON + mémoire Vault."""
     try:
         cache_file = BACKEND_DIR / "forge_missions_cache.json"
         if not cache_file.exists(): return
@@ -57,6 +57,20 @@ async def task_forge_analytics():
         report_path.parent.mkdir(exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         logger.info(f"Forge analytics: {len(completed)} completed, avg={avg_score:.1f}/100")
+
+        # Mémoire Vault (cherchable) — fusionné depuis vault_forge_analytics
+        try:
+            from vault.memory_manager import add_memory
+            from vault.analytics import get_vault_analytics
+            forge = get_vault_analytics().get("forge", {})
+            await add_memory("forge_reports",
+                f"Daily Forge Analytics {today}: "
+                f"{forge.get('completed',0)} missions complétées, "
+                f"score moyen {forge.get('avg_score',0)}/100, "
+                f"{forge.get('bambu_ready',0)} Bambu-ready",
+                metadata={"type": "daily_analytics", "date": today})
+        except Exception as ve:
+            logger.error(f"Forge vault analytics failed: {ve}")
     except Exception as e:
         logger.error(f"Forge analytics failed: {e}")
 
@@ -146,7 +160,7 @@ async def task_jarvis_workspace_index():
 # ── Scheduler ─────────────────────────────────────────────
 
 async def task_vault_maintenance():
-    """Maintenance quotidienne du Vault — summarization + embedding refresh.
+    """Maintenance + intégrité du Vault — stats, check counts, purge stub.
 
     Garde-fou futur (volontairement non implémenté) : purge des vieilles
     conversations. À activer quand la collection `conversations` dépassera
@@ -155,11 +169,20 @@ async def task_vault_maintenance():
     via col.get(include=["metadatas"]) puis col.delete(ids=[...]).
     """
     try:
-        from vault.vault_core import get_collection
+        from vault.vault_core import get_collection, COLLECTIONS
         from vault.analytics import get_vault_analytics
         analytics = get_vault_analytics()
         total = analytics.get("total_memories", 0)
-        logger.info(f"Vault maintenance: {total} mémoires actives")
+        cols  = analytics.get("collections", {})
+
+        # Intégrité — fusionné depuis vault_integrity
+        issues = [f"Collection {name}: count négatif ({cols.get(name, 0)})"
+                  for name in COLLECTIONS if cols.get(name, 0) < 0]
+        if issues:
+            logger.warning(f"Vault integrity issues: {issues}")
+        active = len([c for c in cols.values() if c > 0])
+        logger.info(f"Vault maintenance: {total} mémoires actives, {active} collections actives")
+
         # Seuil d'archivage conservé pour la future implémentation de la purge.
         cutoff = (datetime.now() - timedelta(days=60)).isoformat()  # noqa: F841
         col = get_collection("conversations")
@@ -168,26 +191,6 @@ async def task_vault_maintenance():
             logger.info(f"Vault: purge conversations anciennes ({col.count()} → 300 max)")
     except Exception as e:
         logger.error(f"Vault maintenance failed: {e}")
-
-
-async def task_vault_forge_analytics():
-    """Sauvegarde les analytics Forge du jour dans le Vault."""
-    try:
-        from vault.memory_manager import add_memory
-        from vault.analytics import get_vault_analytics
-        d = get_vault_analytics()
-        forge = d.get("forge", {})
-        text = (
-            f"Daily Forge Analytics {datetime.now():%Y-%m-%d}: "
-            f"{forge.get('completed',0)} missions complétées, "
-            f"score moyen {forge.get('avg_score',0)}/100, "
-            f"{forge.get('bambu_ready',0)} Bambu-ready"
-        )
-        await add_memory("forge_reports", text,
-                         metadata={"type": "daily_analytics", "date": datetime.now().isoformat()[:10]})
-        logger.info(f"Vault Forge analytics sauvegardées: {text}")
-    except Exception as e:
-        logger.error(f"Vault forge analytics failed: {e}")
 
 
 async def task_orchestration_diagnostics():
@@ -230,30 +233,6 @@ async def task_orchestration_diagnostics():
         )
     except Exception as e:
         logger.error(f"Orchestration diagnostics failed: {e}")
-
-
-async def task_vault_integrity():
-    """Vérifie l'intégrité du Vault ChromaDB."""
-    try:
-        from vault.vault_core import COLLECTIONS
-        from vault.analytics import get_vault_analytics
-
-        stats = get_vault_analytics()
-        total = stats.get("total_memories", 0)
-        cols  = stats.get("collections", {})
-
-        issues = []
-        for name in COLLECTIONS:
-            count = cols.get(name, 0)
-            if count < 0:
-                issues.append(f"Collection {name}: count négatif ({count})")
-
-        if issues:
-            logger.warning(f"Vault integrity issues: {issues}")
-        else:
-            logger.info(f"Vault integrity OK: {total} total memories, {len([c for c in cols.values() if c > 0])} active collections")
-    except Exception as e:
-        logger.error(f"Vault integrity check failed: {e}")
 
 
 async def task_daily_smoke_tests():
@@ -338,10 +317,8 @@ def create_scheduler():
         ("health_log",             task_system_health_log,      "03:15"),
         ("error_log_cleanup",      task_error_logs_cleanup,     "03:20"),
         ("vault_maintenance",      task_vault_maintenance,      "03:25"),
-        ("vault_forge_analytics",  task_vault_forge_analytics,  "03:30"),
         ("orchestration_diagnostics", task_orchestration_diagnostics, "03:35"),
         ("jarvis_workspace_index",  task_jarvis_workspace_index,   "03:45"),
-        ("vault_integrity",           task_vault_integrity,           "03:40"),
         ("daily_smoke_tests",         task_daily_smoke_tests,          "04:00"),
         ("commerce_analytics",        task_commerce_analytics,         "04:10"),
     ]
