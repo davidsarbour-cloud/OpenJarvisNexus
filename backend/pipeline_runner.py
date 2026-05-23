@@ -10,10 +10,11 @@ from pathlib import Path
 
 import httpx
 
-REPORT_DIR          = Path(r"C:\Users\bobby\OneDrive\Bureau\Jarvis\report")
-RESEARCH_REPORT_DIR = Path(r"C:\Users\bobby\OneDrive\Bureau\Jarvis\RESEARCH REPORT")
-BRAIN_DIR           = Path(__file__).resolve().parent / "BRAIN" / "BRAIN"
-CHEAT_REPORT_DIR    = BRAIN_DIR / "08_Command-Center" / "cheat_code"   # cheat code -> brain, pas OneDrive
+from config import BRAIN_DIR, BRAIN_REPORTS_DIR, BRAIN_RESEARCH_DIR
+
+REPORT_DIR          = BRAIN_REPORTS_DIR          # rapports pipelines -> brain (plus OneDrive)
+RESEARCH_REPORT_DIR = BRAIN_RESEARCH_DIR         # daily research -> brain
+CHEAT_REPORT_DIR    = BRAIN_DIR / "08_Command-Center" / "cheat_code"
 TTS_VOICE           = "fr-FR-HenriNeural"
 BACKEND_HOST        = os.getenv("BACKEND_HOST",  "http://localhost:8000")
 BRUCE_HOST          = os.getenv("OPENHANDS_URL", "http://localhost:3000")
@@ -64,7 +65,7 @@ def _reset_research_state():
         "started_at": str(datetime.now()), "finished_at": None, "folder": None,
     })
 
-# ── Masterlist — C:\Users\bobby\OneDrive\Bureau\Jarvis\DAYLY RESEARCH MASTER LIST TXT.txt
+# ── Masterlist (hardcodée ci-dessous) ──
 RESEARCH_TASKS = [
     {
         "task_id": 1,
@@ -401,10 +402,10 @@ async def run_rapport(voice: bool = True) -> dict:
     content = "\n".join(lines)
     try:
         filepath.write_text(content, encoding="utf-8")
-        # Copier aussi dans le dossier OneDrive
-        onedrive = REPORT_DIR / "reports"
-        onedrive.mkdir(parents=True, exist_ok=True)
-        (onedrive / filename).write_text(content, encoding="utf-8")
+        # Copier aussi dans le brain
+        brain_copy = REPORT_DIR / "reports"
+        brain_copy.mkdir(parents=True, exist_ok=True)
+        (brain_copy / filename).write_text(content, encoding="utf-8")
         result = {"ok": True, "filename": filename, "path": str(filepath)}
     except Exception as e:
         result = {"ok": False, "error": str(e)}
@@ -593,12 +594,27 @@ async def _run_one_task(name: str, label: str) -> dict:
         return {"task": name, "label": label, "ok": False, "message": str(e)}
 
 
+# Tâches qui écrivent dans ChromaDB → séquentiel (évite les locks SQLite).
+_VAULT_WRITERS = {
+    "vault_maintenance", "vault_forge_analytics", "vault_integrity",
+    "orchestration_diagnostics", "jarvis_workspace_index",
+    "daily_smoke_tests", "commerce_analytics",
+}
+
+
 async def run_daily_tasks() -> dict:
-    """Exécute toutes les daily tasks en séquence et retourne le rapport."""
+    """
+    Exécute les daily tasks et retourne le rapport.
+    Indépendantes (fichiers/HTTP) en parallèle, écritures ChromaDB en séquence.
+    """
     print("⚙️  Exécution des daily tasks...")
-    results = []
-    for name, label in DAILY_TASKS:
-        results.append(await _run_one_task(name, label))
+    parallel   = [(n, l) for n, l in DAILY_TASKS if n not in _VAULT_WRITERS]
+    sequential = [(n, l) for n, l in DAILY_TASKS if n in _VAULT_WRITERS]
+
+    par_results = await asyncio.gather(*[_run_one_task(n, l) for n, l in parallel])
+    seq_results = [await _run_one_task(n, l) for n, l in sequential]
+    results = list(par_results) + seq_results
+
     passed = sum(1 for r in results if r["ok"])
     print(f"\n  Total : {passed}/{len(results)} tâches OK\n")
     return {"results": results, "passed": passed, "total": len(results), "timestamp": str(datetime.now())}
@@ -747,6 +763,15 @@ async def run_cheat_code(voice: bool = True) -> dict:
         print(f"📄 Rapport ouvert : {md_path}")
     except Exception as _e:
         print(f"⚠️  Ouverture rapport: {_e}")
+
+    # Brain sync — réindexe le brain (dont ce rapport) dans le Vault
+    try:
+        from vault.brain_index import index_brain
+        bres = await index_brain()
+        report["brain_indexed"] = bres.get("indexed")
+        print(f"🧠 Brain réindexé : {bres.get('indexed', '?')} notes")
+    except Exception as _be:
+        print(f"⚠️  Brain sync: {_be}")
 
     if voice:
         await _tts(msg)

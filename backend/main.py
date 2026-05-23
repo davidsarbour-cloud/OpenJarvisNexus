@@ -443,7 +443,7 @@ async def daily_run_all():
 
 @app.post("/v1/report/save")
 async def report_save(body: dict):
-    """Sauvegarde un rapport dans C:\\Users\\bobby\\OneDrive\\Bureau\\Jarvis\\report\\{type}\\"""
+    """Sauvegarde un rapport dans le brain (08_Command-Center/reports/{type})."""
     from pipeline_runner import save_report
     type_ = body.get("type", "pipelines")
     data  = body.get("data", {})
@@ -852,18 +852,19 @@ async def generate_report(request: Request):
     with open(filepath, "w", encoding="utf-8") as f:  # NOSONAR - small text report, sync write acceptable
         f.write(content)
 
-    # Destination OneDrive selon le type de rapport
+    # Destination brain selon le type de rapport (plus OneDrive)
     import shutil
+    from config import BRAIN_REPORTS_DIR
     if report_type == "status":
-        onedrive_dir = r"C:\Users\bobby\OneDrive\Bureau\Jarvis\STATUS REPORT"
+        brain_dir = str(BRAIN_REPORTS_DIR / "status")
     elif report_type == "memory":
-        onedrive_dir = r"C:\Users\bobby\OneDrive\Bureau\Jarvis\MEMORY REPORT"
+        brain_dir = str(BRAIN_REPORTS_DIR / "memory")
     else:
-        onedrive_dir = r"C:\Users\bobby\OneDrive\Bureau\Jarvis"
-    os.makedirs(onedrive_dir, exist_ok=True)
-    onedrive_path = os.path.join(onedrive_dir, filename)
-    shutil.copy2(filepath, onedrive_path)
-    subprocess.Popen(["notepad.exe", onedrive_path])  # NOSONAR - fire-and-forget GUI launch
+        brain_dir = str(BRAIN_REPORTS_DIR)
+    os.makedirs(brain_dir, exist_ok=True)
+    brain_path = os.path.join(brain_dir, filename)
+    shutil.copy2(filepath, brain_path)
+    subprocess.Popen(["notepad.exe", brain_path])  # NOSONAR - fire-and-forget GUI launch
 
     return {"filename": filename, "filepath": filepath, "title": title}
 

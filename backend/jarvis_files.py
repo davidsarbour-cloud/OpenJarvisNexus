@@ -1,8 +1,8 @@
 """
 JARVIS File Workspace — acces lecture/ecriture au dossier OneDrive de David.
 
-READ  : OneDrive/Bureau/Jarvis        (lecture libre pour s'informer)
-WRITE : OneDrive/Bureau/Jarvis/Jarvis (ecriture rapports, fichiers)
+READ  : OneDrive/Bureau/Jarvis  (lecture du workspace de David, contexte chat)
+WRITE : brain Obsidian (08_Command-Center/reports) — rapports IA
 
 JARVIS peut scanner, lire, chercher et ecrire dans ces repertoires.
 """
@@ -14,8 +14,12 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
+from config import BRAIN_REPORTS_DIR
+
+# READ : workspace OneDrive de David (lecture pour le contexte chat) — conservé.
 JARVIS_READ_DIR  = Path(os.getenv("JARVIS_READ_DIR",  r"C:/Users/bobby/OneDrive/Bureau/Jarvis"))
-JARVIS_WRITE_DIR = Path(os.getenv("JARVIS_WRITE_DIR", r"C:/Users/bobby/OneDrive/Bureau/Jarvis/Jarvis"))
+# WRITE : rapports IA -> brain Obsidian (plus OneDrive).
+JARVIS_WRITE_DIR = Path(os.getenv("JARVIS_WRITE_DIR", str(BRAIN_REPORTS_DIR)))
 
 # Extensions texte lisibles
 TEXT_EXTENSIONS = {'.txt', '.md', '.json', '.py', '.js', '.html', '.css',
