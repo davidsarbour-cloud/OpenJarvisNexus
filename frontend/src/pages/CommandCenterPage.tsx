@@ -9,6 +9,8 @@ import { PrometheusLiveCard } from '../components/CommandCenter/PrometheusLiveCa
 import { ChromaDbLiveCard }   from '../components/CommandCenter/ChromaDbLiveCard';
 import { SonarqubeLiveCard }  from '../components/CommandCenter/SonarqubeLiveCard';
 import { GrafanaLiveCard }    from '../components/CommandCenter/GrafanaLiveCard';
+import { SystemHealthGauge }  from '../components/CommandCenter/SystemHealthGauge';
+import { ResourceMonitorCard } from '../components/CommandCenter/ResourceMonitorCard';
 import { CardSlot }           from '../systems/CardSlot';
 
 // Lazy-load chat panel so its bundle doesn't block the HUD first paint.
@@ -36,6 +38,12 @@ export function CommandCenterPage() {
         <CardSlot serviceId="chromadb"><ChromaDbLiveCard /></CardSlot>
         <CardSlot serviceId="sonarqube"><SonarqubeLiveCard /></CardSlot>
         <CardSlot serviceId="grafana"><GrafanaLiveCard /></CardSlot>
+      </div>
+
+      <SectionTitle text="HARDWARE" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <CardSlot serviceId="backend"><SystemHealthGauge /></CardSlot>
+        <CardSlot serviceId="backend"><ResourceMonitorCard /></CardSlot>
       </div>
 
       <SectionTitle text="OPERATIONAL CONSOLE" />

@@ -631,6 +631,68 @@ def telemetry_stats():
 def telemetry_energy():
     return {"energy": 0}
 
+
+_sys_net_state = {"t": 0.0, "bytes": 0}
+
+
+def _read_vram() -> dict:
+    """VRAM/GPU via nvidia-smi. Retourne des None si pas de GPU NVIDIA."""
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used,memory.total,utilization.gpu",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=3,
+        )
+        used, total, util = (int(x.strip()) for x in out.stdout.strip().splitlines()[0].split(","))
+        return {"vram": round(used / total * 100), "vram_used_mb": used,
+                "vram_total_mb": total, "gpu_util": util}
+    except Exception:
+        return {"vram": None, "vram_used_mb": None, "vram_total_mb": None, "gpu_util": None}
+
+
+@app.get("/v1/system/metrics")
+def system_metrics():
+    """Métriques hardware temps réel pour le HUD : CPU, RAM, VRAM, stockage, réseau."""
+    import psutil
+    cpu     = psutil.cpu_percent(interval=0.1)
+    ram     = psutil.virtual_memory().percent
+    storage = psutil.disk_usage("C:/").percent
+    g       = _read_vram()
+
+    net   = psutil.net_io_counters()
+    total = net.bytes_sent + net.bytes_recv
+    now   = time.time()
+    mbps  = 0.0
+    if _sys_net_state["t"]:
+        dt = now - _sys_net_state["t"]
+        if dt > 0:
+            mbps = (total - _sys_net_state["bytes"]) / dt / 1_000_000
+    _sys_net_state["t"] = now
+    _sys_net_state["bytes"] = total
+
+    score = 100
+    for v in (cpu, ram, g["vram"], storage):
+        if v is None:
+            continue
+        if v > 90:
+            score -= 15
+        elif v > 80:
+            score -= 8
+        elif v > 70:
+            score -= 3
+    score = max(0, score)
+    label = ("OPTIMAL" if score >= 85 else "GOOD" if score >= 70
+             else "FAIR" if score >= 50 else "DEGRADED")
+
+    return {
+        "cpu": round(cpu), "ram": round(ram), "storage": round(storage),
+        "vram": g["vram"], "vram_used_mb": g["vram_used_mb"],
+        "vram_total_mb": g["vram_total_mb"], "gpu_util": g["gpu_util"],
+        "network_mbps": round(max(0.0, mbps), 1),
+        "health_score": score, "health_label": label,
+    }
+
+
 @app.get("/api/digest")
 def api_digest():
     return {
