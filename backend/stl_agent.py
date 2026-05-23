@@ -182,7 +182,7 @@ async def _blender_script_from_claude(prompt: str, concept: str) -> str:
 
     # ── Fallback : Ollama deepseek-coder (local, gratuit) ──
     try:
-        ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        ollama_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
         ollama_coder = os.getenv("OLLAMA_CODER_MODEL", "deepseek-coder")
         async with httpx.AsyncClient() as c:
             r = await c.post(

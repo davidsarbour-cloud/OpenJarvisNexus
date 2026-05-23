@@ -14,7 +14,7 @@ from pathlib import Path
 
 import httpx
 
-OLLAMA_HOST  = os.getenv("OLLAMA_HOST",   "http://localhost:11434")
+OLLAMA_HOST  = os.getenv("OLLAMA_HOST",   "http://127.0.0.1:11434")
 BRUCE_HOST   = os.getenv("OPENHANDS_URL", "http://localhost:3000")
 BACKEND_HOST = os.getenv("BACKEND_HOST",  "http://localhost:8000")
 TTS_VOICE    = "fr-FR-HenriNeural"

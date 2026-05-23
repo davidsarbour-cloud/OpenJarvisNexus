@@ -172,7 +172,7 @@ async def _run_research_task(task: dict, date_folder: Path) -> dict:
     """Exécute une tâche de recherche via Ollama local UNIQUEMENT. Jamais Claude."""
     import os, httpx as _httpx
 
-    OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
     model_key   = task.get("model", "qwen")
     model_name  = os.getenv("OLLAMA_MODEL", "qwen3:14b") if model_key == "qwen" \
                   else os.getenv("DEEPSEEK_MODEL", "deepseek-r1:7b")
@@ -232,7 +232,7 @@ async def run_daily_research(voice: bool = True) -> dict:
     Sauvegarde dans RESEARCH REPORT/YYYY-MM-DD/ avec un fichier par tâche + summary.
     """
     import os, httpx as _httpx
-    OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 
     _reset_research_state()
 
