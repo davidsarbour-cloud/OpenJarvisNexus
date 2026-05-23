@@ -9,7 +9,7 @@ from typing import Optional, Union
 
 import httpx
 
-SHOPIFY_SHOP_URL     = os.getenv("SHOPIFY_SHOP_URL", "")        # ex: myshop.myshopify.com
+SHOPIFY_SHOP_URL     = os.getenv("SHOPIFY_STORE") or os.getenv("SHOPIFY_SHOP_URL", "")  # .env: SHOPIFY_STORE = myshop.myshopify.com
 SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN", "")
 SHOPIFY_API_VERSION  = "2024-01"
 
