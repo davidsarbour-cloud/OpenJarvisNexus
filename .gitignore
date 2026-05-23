@@ -153,3 +153,6 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
 frontend/e2e/*.png
+
+# Runtime state (écrit par l'app à chaque run — pas du code source)
+backend/budget_logs.json
