@@ -22,5 +22,5 @@
     }
   },
   "include": ["src"],
-  "exclude": ["src/components/Desktop"]
+  "exclude": ["src/components/Desktop", "src/**/*.backup-*"]
 }

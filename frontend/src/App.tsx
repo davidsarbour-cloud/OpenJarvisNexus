@@ -1,6 +1,9 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router';
 import { Layout } from './components/Layout';
+import { HudLayout } from './components/Layout/HudLayout';
+import { CommandCenterPage } from './pages/CommandCenterPage';
+import { OrbitalPage } from './pages/OrbitalPage';
 import { ChatPage } from './pages/ChatPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -14,6 +17,9 @@ import { Toaster } from './components/ui/sonner';
 import { useAppStore } from './lib/store';
 import { fetchModels, fetchServerInfo, fetchSavings, submitSavings, isTauri } from './lib/api';
 import { OptInModal } from './components/OptInModal';
+
+// Lazy: React Flow bundle (~120 KB) only loaded when /agent-network is hit.
+const AgentNetworkPage = lazy(() => import('./pages/AgentNetworkPage'));
 
 export default function App() {
   const [setupDone, setSetupDone] = useState(!isTauri());
@@ -170,8 +176,29 @@ export default function App() {
   return (
     <>
       <Routes>
+        <Route element={<HudLayout />}>
+          <Route index element={<CommandCenterPage />} />
+          <Route path="orbital" element={<OrbitalPage />} />
+          <Route
+            path="agent-network"
+            element={
+              <Suspense
+                fallback={
+                  <div
+                    className="flex-1 flex items-center justify-center text-[11px] tracking-[0.18em]"
+                    style={{ color: 'var(--hud-text-dim)' }}
+                  >
+                    loading agent network…
+                  </div>
+                }
+              >
+                <AgentNetworkPage />
+              </Suspense>
+            }
+          />
+        </Route>
         <Route element={<Layout />}>
-          <Route index element={<ChatPage />} />
+          <Route path="chat" element={<ChatPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="get-started" element={<GetStartedPage />} />

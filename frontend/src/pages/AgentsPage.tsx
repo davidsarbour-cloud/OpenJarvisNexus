@@ -943,7 +943,7 @@ function LaunchWizard({
                           key={day}
                           type="button"
                           onClick={() => {
-                            const newDays = isSelected ? selectedDays.filter(d => d !== dayNum) : [...selectedDays, dayNum].sort();
+                            const newDays = isSelected ? selectedDays.filter(d => d !== dayNum) : [...selectedDays, dayNum].sort((a, b) => Number(a) - Number(b));
                             const hourMatch = wizard.scheduleValue.match(/^0\s+(\d+)\s/);
                             const hour = hourMatch ? hourMatch[1] : '9';
                             setWizard((w) => ({ ...w, scheduleValue: newDays.length > 0 ? `0 ${hour} * * ${newDays.join(',')}` : '' }));

@@ -4,6 +4,11 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// Phase 6: PWA désactivée en dev (plus de hard refresh requis).
+// Phase 7: proxy WebSocket /ws → FastAPI :8000.
+const API_TARGET = process.env.VITE_API_URL || 'http://localhost:8000';
+const WS_TARGET  = API_TARGET.replace(/^http/, 'ws');
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -15,12 +20,13 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      devOptions: { enabled: false },
       manifest: {
-        name: 'OpenJarvis',
-        short_name: 'Jarvis',
-        description: 'On-device AI assistant',
-        theme_color: '#161618',
-        background_color: '#161618',
+        name: 'Nexus9',
+        short_name: 'Nexus9',
+        description: 'AI Command Center',
+        theme_color: '#070b11',
+        background_color: '#070b11',
         display: 'standalone',
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
@@ -29,21 +35,25 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        navigateFallbackDenylist: [/^\/v1\//, /^\/health/, /^\/dashboard/],
+        navigateFallbackDenylist: [/^\/v1\//, /^\/health/, /^\/orbital/, /^\/dashboard/, /^\/ws\//],
+        skipWaiting: true,
+        clientsClaim: true,
       },
     }),
   ],
   build: {
-    outDir: '../src/openjarvis/server/static',
+    outDir: 'dist',
     emptyOutDir: true,
     minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: {
-          react: ['react', 'react-dom'],
+          react:    ['react', 'react-dom'],
           markdown: ['react-markdown', 'rehype-highlight', 'remark-gfm'],
-          charts: ['recharts'],
-          router: ['react-router'],
+          charts:   ['recharts'],
+          router:   ['react-router'],
+          three:    ['three', '@react-three/fiber', '@react-three/drei'],
+          motion:   ['motion'],
         },
       },
     },
@@ -51,8 +61,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/v1': process.env.VITE_API_URL || 'http://localhost:8000',
-      '/health': process.env.VITE_API_URL || 'http://localhost:8000',
+      '/v1':     API_TARGET,
+      '/health': API_TARGET,
+      // Phase 7 — WebSocket proxy
+      '/ws':     { target: WS_TARGET, ws: true, changeOrigin: true },
     },
   },
 });

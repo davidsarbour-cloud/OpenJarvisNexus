@@ -6,6 +6,20 @@ import App from './App';
 import { initApiBase } from './lib/api';
 import './index.css';
 
+// ── Suppress connu-inoffensifs warnings ─────────────────────────
+// Recharts log un warning "width(-1) height(-1)" pendant le premier
+// paint dev (avant que ResizeObserver mesure le parent flex).
+// Cosmetique uniquement, le chart se rend correctement apres mesure.
+// THREE.Clock deprecation : noise interne react-three-fiber, hors de
+// notre controle jusqu'a mise a jour upstream.
+const _origWarn = console.warn;
+console.warn = (...args: unknown[]) => {
+  const m = typeof args[0] === 'string' ? args[0] : '';
+  if (m.includes('width(-1)') && m.includes('height(-1)')) return;
+  if (m.includes('THREE.Clock') && m.includes('deprecated')) return;
+  _origWarn(...args);
+};
+
 function applyTheme() {
   try {
     const raw = localStorage.getItem('openjarvis-settings');

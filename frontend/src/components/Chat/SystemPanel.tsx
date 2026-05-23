@@ -172,7 +172,7 @@ export function SystemPanel() {
                   key={provider.name}
                   className="flex items-center gap-2 rounded-lg px-3 py-2"
                   style={{
-                    background: provider.primary ? 'var(--color-bg-secondary)' : 'var(--color-bg-secondary)',
+                    background: 'var(--color-bg-secondary)',
                     border: provider.primary ? '1px solid var(--color-border-accent, var(--color-accent))' : '1px solid transparent',
                   }}
                 >

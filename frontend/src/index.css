@@ -708,3 +708,41 @@
   --color-background: var(--background);
   /* Keep project radius tokens — don't override with shadcn calc values */
 }
+/* ─────────────────────────────────────────────────────────
+ *  Nexus9 — Module identity colors
+ *  Each major system has a fixed hue used everywhere
+ *  (CC cards, sidebar, planets, alerts).
+ *  Light + dark themes share the same vivid hues so the
+ *  HUD identity stays consistent.
+ * ───────────────────────────────────────────────────────── */
+@layer base {
+  :root {
+    --color-jarvis:    #00d4ff;
+    --color-jarvis-glow: rgba(0, 212, 255, 0.45);
+    --color-forge:     #ff8a00;
+    --color-forge-glow: rgba(255, 138, 0, 0.45);
+    --color-commerce:  #00d4a8;
+    --color-commerce-glow: rgba(0, 212, 168, 0.45);
+    --color-cyberdeck: #ff2d55;
+    --color-cyberdeck-glow: rgba(255, 45, 85, 0.45);
+    --color-vault:     #a855f7;
+    --color-vault-glow: rgba(168, 85, 247, 0.45);
+    --color-docker:    #00ff88;
+    --color-docker-glow: rgba(0, 255, 136, 0.45);
+    --color-cortex:    #8b5cf6;
+    --color-cortex-glow: rgba(139, 92, 246, 0.45);
+    --color-security:  #f59e0b;
+    --color-security-glow: rgba(245, 158, 11, 0.45);
+
+    /* HUD chrome (used by HudLayout + TopBar) */
+    --hud-bg:          rgba(2, 5, 11, 0.92);
+    --hud-bg-elev:     rgba(8, 14, 28, 0.96);
+    --hud-border:      rgba(0, 212, 255, 0.18);
+    --hud-border-hot:  rgba(0, 212, 255, 0.45);
+    --hud-grid:        rgba(0, 212, 255, 0.06);
+    --hud-text:        #b0c8e8;
+    --hud-text-dim:    #5a7a9a;
+    --hud-text-hot:    #00d4ff;
+    --hud-scanline:    rgba(0, 212, 255, 0.03);
+  }
+}

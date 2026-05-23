@@ -4,7 +4,13 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --prefer-offline
+
+# react 19 vs @arwes/react (peer react@18) : on tolere les peer deps.
+# npm config set ecrit dans .npmrc => deterministe (plus fiable qu'ENV).
+# npm ci en premier (rapide), fallback npm install si peer deps cassent.
+RUN npm config set legacy-peer-deps true \
+ && (npm ci --prefer-offline \
+     || (echo "npm ci a echoue, fallback npm install..." && npm install --no-audit --no-fund))
 
 COPY . .
 

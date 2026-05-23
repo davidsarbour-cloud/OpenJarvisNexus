@@ -143,6 +143,7 @@ function SpeakButton({ content }: { content: string }) {
 
 export function MessageBubble({ message }: Props) {
   const isUser = message.role === 'user';
+  const cleanContent = useMemo(() => stripThinkTags(message.content), [message.content]);
 
   if (isUser) {
     return (
@@ -162,8 +163,6 @@ export function MessageBubble({ message }: Props) {
       </div>
     );
   }
-
-  const cleanContent = useMemo(() => stripThinkTags(message.content), [message.content]);
 
   return (
     <div className="group mb-6">

@@ -1,0 +1,199 @@
+/**
+ * Nexus9 — Command Center live API wrappers.
+ *
+ * Thin layer above the existing api.ts. Each function targets one
+ * Phase-2 widget. Endpoints with stub/empty backend responses are
+ * documented inline.
+ *
+ * Base URL resolution:
+ *   - In Vite dev, requests are relative (proxied or hit the same host).
+ *   - Setting VITE_API_URL overrides at build time.
+ */
+
+const API_BASE = (() => {
+  try {
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem('openjarvis-settings');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.apiUrl) return String(parsed.apiUrl).replace(/\/+$/, '');
+      }
+    }
+  } catch { /* ignore */ }
+  const env = (import.meta as { env?: Record<string, string> }).env;
+  if (env && env.VITE_API_URL) return env.VITE_API_URL.replace(/\/+$/, '');
+  return '';
+})();
+
+const url = (path: string): string => `${API_BASE}${path}`;
+
+async function getJSON<T>(path: string, timeoutMs = 4000): Promise<T> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url(path), { signal: ctrl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status} on ${path}`);
+    return (await r.json()) as T;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ─── Health ────────────────────────────────────────────
+export type ServiceStatus = string; // "ok" | "offline" | "timeout" | "not_configured" | "error: ..."
+
+export interface HealthDeep {
+  backend:    ServiceStatus;
+  claude_api: ServiceStatus;
+  ollama:     ServiceStatus;
+  forge_room: ServiceStatus;
+  meshy_api:  ServiceStatus;
+  timestamp:  string;
+}
+
+export const fetchHealthDeep = () => getJSON<HealthDeep>('/v1/health/deep', 6000);
+
+// ─── Agents ────────────────────────────────────────────
+export type AgentStatus = 'online' | 'idle' | 'offline' | string;
+
+export interface AgentInfo {
+  id: string;
+  name: string;
+  provider: string;
+  model: string;
+  role: string;
+  description: string;
+  status: AgentStatus;
+}
+
+export const fetchAgents = () =>
+  getJSON<{ agents: AgentInfo[] }>('/v1/agents');
+
+// ─── Models ────────────────────────────────────────────
+export interface ModelInfo {
+  id: string;
+  provider: string;
+  available: boolean;
+}
+
+export const fetchModels = () =>
+  getJSON<{ models: ModelInfo[] }>('/v1/models');
+
+// ─── Crew jobs (forge / missions) ──────────────────────
+export interface CrewJob {
+  id?: string;
+  status?: string;
+  [k: string]: unknown;
+}
+
+export const fetchCrewJobs = () =>
+  getJSON<{ jobs: CrewJob[] }>('/v1/crew/jobs');
+
+// ─── Budget ────────────────────────────────────────────
+export interface BudgetInfo {
+  session?: {
+    cost_usd: number;
+    calls_claude: number;
+    calls_ollama: number;
+  };
+  budget_max?: number;
+  budget_remaining?: number;
+  [k: string]: unknown;
+}
+
+export const fetchBudget = () => getJSON<BudgetInfo>('/v1/budget');
+
+// ─── Logs (currently a backend stub returning {logs: []}) ──
+export interface LogEntry {
+  ts?: string;
+  level?: string;
+  source?: string;
+  msg?: string;
+  [k: string]: unknown;
+}
+
+export const fetchLogs = () =>
+  getJSON<{ logs: LogEntry[] }>('/v1/logs');
+
+
+// ════════════════════════════════════════════════════════
+// Phase 4 — Monitoring proxies (Docker / Prometheus / ChromaDB / Sonar / Grafana)
+// ════════════════════════════════════════════════════════
+
+// ─── Docker via docker.sock / TCP / cAdvisor ───────────
+export interface DockerContainer {
+  id: string;
+  name: string;
+  image: string;
+  running: boolean;
+}
+
+export interface DockerContainersResponse {
+  available: boolean;
+  source?: string;
+  error?: string;
+  count?: number;
+  containers: DockerContainer[];
+}
+
+export const fetchDockerContainers = () =>
+  getJSON<DockerContainersResponse>('/v1/docker/containers', 6000);
+
+// ─── Prometheus ────────────────────────────────────────
+export interface PrometheusTarget {
+  job: string | null;
+  health: string;
+}
+
+export interface PrometheusTargetsResponse {
+  available: boolean;
+  error?: string;
+  total: number;
+  up: number;
+  down: number;
+  targets: PrometheusTarget[];
+}
+
+export const fetchPrometheusTargets = () =>
+  getJSON<PrometheusTargetsResponse>('/v1/prometheus/targets');
+
+export const fetchPrometheusQuery = (query: string) =>
+  getJSON<{ available: boolean; data?: unknown; error?: string }>(
+    `/v1/prometheus/query?q=${encodeURIComponent(query)}`,
+  );
+
+// ─── ChromaDB ──────────────────────────────────────────
+export interface ChromaStatsResponse {
+  available: boolean;
+  heartbeat?: unknown;
+  collections: number | null;
+  error?: string;
+}
+
+export const fetchChromaStats = () =>
+  getJSON<ChromaStatsResponse>('/v1/chromadb/stats');
+
+// ─── SonarQube ─────────────────────────────────────────
+export interface SonarIssuesResponse {
+  available: boolean;
+  total: number;
+  facets: Record<string, number>;
+  error?: string;
+}
+
+export const fetchSonarIssues = () =>
+  getJSON<SonarIssuesResponse>('/v1/sonarqube/issues', 6000);
+
+// --- Grafana ---
+// Fix #11: endpoint /v1/grafana/health added in monitoring_router.py
+// GrafanaLiveCard replaces the static GrafanaCard mock.
+export interface GrafanaHealthResponse {
+  available: boolean;
+  version?: string;
+  database?: string;
+  dashboards: number;
+  error?: string;
+}
+
+export const fetchGrafanaHealth = () =>
+  getJSON<GrafanaHealthResponse>('/v1/grafana/health', 5000);

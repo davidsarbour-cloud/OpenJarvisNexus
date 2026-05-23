@@ -144,3 +144,6 @@ backend/research_logs/
 dependency-report.txt
 dependency-audit-report.txt
 AUDIT_REPORT.md
+
+# TS build cache
+*.tsbuildinfo

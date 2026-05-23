@@ -490,9 +490,7 @@ export function SettingsPage() {
                 <span
                   className="w-2 h-2 rounded-full"
                   style={{
-                    background: speechBackendAvailable === true ? 'var(--color-success)'
-                      : speechBackendAvailable === false ? 'var(--color-text-tertiary)'
-                      : 'var(--color-text-tertiary)',
+                    background: speechBackendAvailable === true ? 'var(--color-success)' : 'var(--color-text-tertiary)',
                   }}
                 />
                 <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
