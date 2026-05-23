@@ -126,7 +126,14 @@ backend/.venv/
 node_modules/
 sessions.json
 memory.json
-overnight_results/# STL outputs - trop gros pour GitHub
+overnight_results/
+
+# STL outputs - trop gros pour GitHub
 backend/stl_output/
 backend/forge_output/
 backend/vault_data/chromadb/  # ChromaDB est local, pas de backup
+
+# Personal Obsidian brain vault - never commit/push (private notes: finance, sante)
+backend/BRAIN/
+vault_notes/
+backend/vault_data/
