@@ -152,3 +152,4 @@ AUDIT_REPORT.md
 frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
+frontend/e2e/*.png
