@@ -11,6 +11,9 @@ load_dotenv(override=True)
 
 OLLAMA_HOST  = os.getenv("OLLAMA_HOST",  "http://127.0.0.1:11434")  # 127.0.0.1 force IPv4 — évite ::1 sur Windows
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:14b")
+# 4096 garde qwen3:14b 100% sur GPU (RTX 4070 SUPER, 12 Go) ~44 tok/s.
+# Le défaut Ollama (8192) fait déborder le KV cache sur CPU → ~24 tok/s.
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "4096"))
 
 
 def is_ollama_available() -> bool:
@@ -47,6 +50,7 @@ def ask_ollama(prompt: str, model: str = OLLAMA_MODEL) -> str:
                 "options": {
                     "temperature": 0.7,
                     "num_predict": 1024,
+                    "num_ctx": OLLAMA_NUM_CTX,
                 }
             },
             timeout=60,
@@ -75,6 +79,7 @@ def ask_ollama_chat(messages: list[dict], model: str = OLLAMA_MODEL) -> str:
                 "options": {
                     "temperature": 0.7,
                     "num_predict": 1024,
+                    "num_ctx": OLLAMA_NUM_CTX,
                 }
             },
             timeout=60,

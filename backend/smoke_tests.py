@@ -9,7 +9,7 @@ import os
 from datetime import datetime
 
 BACKEND_PORT  = int(os.getenv("BACKEND_PORT", 8000))
-OLLAMA_HOST   = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_HOST   = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 OPENHANDS_URL = os.getenv("OPENHANDS_URL", "http://localhost:3000")
 
 _BASE_URL = f"http://localhost:{BACKEND_PORT}"

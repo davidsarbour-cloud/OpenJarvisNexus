@@ -13,7 +13,7 @@ _BACKEND_DIR = Path(__file__).parent.parent
 VAULT_DIR    = _BACKEND_DIR / "vault_data"
 VAULT_DIR.mkdir(exist_ok=True)
 
-OLLAMA_HOST  = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_HOST  = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 EMBED_MODEL  = os.getenv("VAULT_EMBED_MODEL", "nomic-embed-text")
 
 # Singleton ChromaDB client

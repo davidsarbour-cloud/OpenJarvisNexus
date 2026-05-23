@@ -7,7 +7,7 @@ import os
 import re
 import httpx
 
-OLLAMA_HOST   = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_HOST   = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 CODER_MODEL   = os.getenv("OLLAMA_CODER_MODEL", "deepseek-coder:6.7b")
 TIMEOUT_S     = 180
 
