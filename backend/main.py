@@ -435,7 +435,7 @@ async def daily_run_task(body: dict):
 @app.post("/v1/daily/run-all")
 async def daily_run_all():
     """Exécute toutes les daily tasks et retourne le rapport complet."""
-    from one_click_cheat import run_daily_tasks, save_report
+    from pipeline_runner import run_daily_tasks, save_report
     daily = await run_daily_tasks()
     save_report("daily", daily)
     return daily
@@ -444,7 +444,7 @@ async def daily_run_all():
 @app.post("/v1/report/save")
 async def report_save(body: dict):
     """Sauvegarde un rapport dans C:\\Users\\bobby\\OneDrive\\Bureau\\Jarvis\\report\\{type}\\"""
-    from one_click_cheat import save_report
+    from pipeline_runner import save_report
     type_ = body.get("type", "pipelines")
     data  = body.get("data", {})
     path  = save_report(type_, data)
@@ -1401,7 +1401,7 @@ def chat_completion(req: ChatRequest, request: Request):
     # ── Shortcut JARVIS: RUN CHEAT CODE ─────────────────────
     if "jarvis" in last_user_msg.lower() and "cheat" in last_user_msg.lower():
         import asyncio as _asyncio
-        from one_click_cheat import run_cheat_code
+        from pipeline_runner import run_cheat_code
         try:
             report = _asyncio.run(run_cheat_code(voice=True))
         except Exception as _e:
@@ -1665,7 +1665,7 @@ async def cheat_code_run(voice: bool = True):
     One-Click Cheat Code : sync agents, vérifie pipelines, met à jour le Vault, notifie David.
     Déclenché aussi par JARVIS: RUN CHEAT CODE dans le chat.
     """
-    from one_click_cheat import run_cheat_code
+    from pipeline_runner import run_cheat_code
     report = await run_cheat_code(voice=voice)
     return report
 
@@ -1674,7 +1674,7 @@ async def cheat_code_run(voice: bool = True):
 @app.get("/v1/cheat-code/status")
 def cheat_code_status():
     """Dernier rapport Cheat Code exécuté."""
-    from one_click_cheat import get_last_report
+    from pipeline_runner import get_last_report
     report = get_last_report()
     if not report:
         return {"status": "never_run", "message": "Lance POST /v1/cheat-code pour démarrer."}
