@@ -1,8 +1,15 @@
+# ----------------------------------------------------------------------
+# Compose profiles (run only what you need):
+#   core (always up) : ollama, backend, frontend, traefik, postgres, redis, chromadb
+#   monitoring       : grafana, prometheus, cadvisor
+#   quality          : sonarqube, sonarqube-db
+#   agents           : telegram, bruce, superpowers, obsidian-skills
+# Examples:
+#   docker compose up                                 # core only
+#   docker compose --profile monitoring up            # core + monitoring
+#   COMPOSE_PROFILES=monitoring,quality,agents docker compose up   # everything
+# ----------------------------------------------------------------------
 services:
-
-  # ═══════════════════════════════════════════════
-  # OLLAMA — IA locale (Qwen3:14b, etc.)
-  # ═══════════════════════════════════════════════
   ollama:
     image: ollama/ollama:latest
     container_name: nexus_ollama
@@ -11,19 +18,14 @@ services:
     volumes:
       - ollama_models:/root/.ollama
     restart: unless-stopped
-    # ── GPU RTX 4070 Super ──
-    # Décommente si nvidia-container-toolkit est installé :
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
-  # ═══════════════════════════════════════════════
-  # BACKEND — FastAPI + Claude + CrewAI + Whisper
-  # ═══════════════════════════════════════════════
   backend:
     build:
       context: ./backend
@@ -32,7 +34,6 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Données persistantes (générées à l'usage)
       - ./backend/memory.json:/app/memory.json
       - ./backend/sessions.json:/app/sessions.json
       - ./backend/config.json:/app/config.json
@@ -40,24 +41,35 @@ services:
       - ./backend/stl_output:/app/stl_output
       - ./backend/research_logs:/app/research_logs
       - ./backend/session_logs:/app/session_logs
+      - ./frontend/dist:/frontend/dist:ro
+      - ./archive/legacy/Nexus9.html:/archive/legacy/Nexus9.html:ro
+      - ./archive/legacy/orbital_ui_vanilla:/archive/legacy/orbital_ui_vanilla:ro
+      # Socket Docker en read-only : /v1/docker/containers utilise direct le socket
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     env_file:
       - ./backend/.env
     environment:
-      # Override localhost → nom du service Docker
       - OLLAMA_HOST=http://ollama:11434
+      - CHROMA_HOST=http://chromadb:8000
+      - POSTGRES_URL=postgresql://nexus:nexus@postgres:5432/nexus
+      - REDIS_URL=redis://redis:6379/0
       - CORS_ORIGINS=http://localhost:5173,http://localhost:80,http://frontend:80
     depends_on:
       - ollama
+      - chromadb
+      - postgres
+      - redis
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`api.nexus9.local`)"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
 
-  # ═══════════════════════════════════════════════
-  # FRONTEND — React/Vite → nginx
-  # ═══════════════════════════════════════════════
   frontend:
     build:
       context: ./frontend
@@ -68,15 +80,17 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`nexus9.local`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
 
-  # ═══════════════════════════════════════════════
-  # TELEGRAM BOT — partage l'image backend
-  # ═══════════════════════════════════════════════
   telegram:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: nexus_telegram
+    profiles: ["agents"]
     command: python telegram_bot.py
     volumes:
       - ./backend/memory.json:/app/memory.json
@@ -91,14 +105,10 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # ═══════════════════════════════════════════════
-  # BRUCE — Agent Autonome OpenHands
-  # Interface web : http://localhost:3000
-  # Démarre automatiquement avec docker compose up
-  # ═══════════════════════════════════════════════
   bruce:
     image: ghcr.io/all-hands-ai/openhands:latest
     container_name: nexus_bruce
+    profiles: ["agents"]
     ports:
       - "3000:3000"
     environment:
@@ -117,37 +127,170 @@ services:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
-  # ═══════════════════════════════════════════════
-  # CRUSH AI — Terminal AI coding assistant (port 8080)
-  # Web UI (ttyd) : http://localhost:8080
-  # ON  : docker compose --profile crush up -d crush
-  # OFF : docker compose --profile crush stop crush
-  # ═══════════════════════════════════════════════
-  crush:
-    build:
-      context: ./services/crush_ai
-      dockerfile: Dockerfile
-    container_name: nexus_crush
-    profiles:
-      - crush
+  superpowers:
+    image: superpowers
+    container_name: nexus_superpowers
+    profiles: ["agents"]
     ports:
-      - "8080:8080"
-    environment:
-      - OLLAMA_HOST=http://host.docker.internal:11434
-    volumes:
-      # Workspace partagé avec le projet
-      - ./:/workspace
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "8082:80"
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
+
+  obsidian-skills:
+    image: obsidian-skills
+    container_name: nexus_obsidian
+    profiles: ["agents"]
+    ports:
+      - "8081:80"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: nexus_grafana
+    profiles: ["monitoring"]
+    ports:
+      - "3001:3000"
+    volumes:
+      - nexus_grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: nexus_prometheus
+    profiles: ["monitoring"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - nexus_prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    restart: unless-stopped
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: nexus_chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - nexus_chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    restart: unless-stopped
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: nexus_cadvisor
+    profiles: ["monitoring"]
+    ports:
+      - "8888:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    restart: unless-stopped
+
+  sonarqube-db:
+    image: postgres:15
+    container_name: nexus_sonardb
+    profiles: ["quality"]
+    environment:
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=sonar
+      - POSTGRES_DB=sonarqube
+    volumes:
+      - nexus_sonardb_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  sonarqube:
+    image: sonarqube:community
+    container_name: nexus_sonarqube
+    profiles: ["quality"]
+    depends_on:
+      - sonarqube-db
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_JDBC_URL=jdbc:postgresql://sonarqube-db:5432/sonarqube
+      - SONAR_JDBC_USERNAME=sonar
+      - SONAR_JDBC_PASSWORD=sonar
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - nexus_sonar_data:/opt/sonarqube/data
+      - nexus_sonar_logs:/opt/sonarqube/logs
+      - nexus_sonar_extensions:/opt/sonarqube/extensions
+    restart: unless-stopped
+
+  # ════════════════════════════════════════════════════
+  # Phase 7 — NEW services
+  # ════════════════════════════════════════════════════
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: nexus_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=nexus
+      - POSTGRES_PASSWORD=nexus
+      - POSTGRES_DB=nexus
+    volumes:
+      - nexus_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus -d nexus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: nexus_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - nexus_redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  traefik:
+    image: traefik:v3.1
+    container_name: nexus_traefik
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8090:8080"  # Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    restart: unless-stopped
 
 volumes:
   ollama_models:
-    name: nexus_ollama_models
   bruce_state:
-    name: nexus_bruce_state
+  nexus_grafana_data:
+  nexus_prometheus_data:
+  nexus_chroma_data:
+  nexus_sonardb_data:
+  nexus_sonar_data:
+  nexus_sonar_logs:
+  nexus_sonar_extensions:
+  nexus_postgres_data:
+  nexus_redis_data:
