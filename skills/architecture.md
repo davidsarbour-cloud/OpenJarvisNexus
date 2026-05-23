@@ -11,10 +11,10 @@
 | Frontend Vite | 5173 | 3_FRONTEND.bat |
 | Telegram Bot | — | 4_TELEGRAM.bat |
 | BRUCE (OpenHands) | 3000 | docker compose --profile bruce up bruce |
-| Crush AI (ttyd) | 8080 | 5_CRUSH.bat |
 | NOVA inference | 9000 | uvicorn services/deepseek_sft/inference_server:app --port 9000 |
 | Obsidian Skills | 8081 | docker run -p 8081:80 obsidian-skills |
 | Superpowers | 8082 | docker run -p 8082:80 superpowers |
+| Vault Graph Sync | 8084 | cd services/vault_graph && npm start |
 
 ---
 
@@ -37,7 +37,6 @@ C:\OpenJarvisNexus\
     .env                  — Clés API — NE PAS COMMITTER
   frontend\               — React + TypeScript (port 5173)
   services\
-    crush_ai\             — Crush terminal AI (Go + ttyd)
     deepseek_sft\         — Fine-tuning QLoRA NOVA
   skills\                 — Modular skill files
   Nexus9.html             — UI principale Three.js
@@ -71,4 +70,4 @@ BAMBU_STUDIO_PATH       = C:\Program Files\...
 3. Frontend connects to http://localhost:8000 by default
 4. All backend runs from backend/ directory
 5. Comments in French in code, commit messages in French
-6. Session logs — session_logs/YYYY-MM-DD.md at end of each session
+6. 

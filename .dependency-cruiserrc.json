@@ -1,0 +1,21 @@
+﻿{
+  "extends": "default",
+  "forbidden": [
+    {
+      "name": "no-circular",
+      "severity": "error",
+      "type": "circular"
+    },
+    {
+      "name": "no-orphans",
+      "severity": "warn",
+      "type": "orphan",
+      "from": {
+        "orphanType": "nonpathable"
+      }
+    }
+  ],
+  "allowedSeverities": ["info", "warn", "error"],
+  "outputType": "text",
+  "maxDepth": 10
+}

@@ -1,0 +1,4 @@
+﻿@echo off
+REM Dependency Cruiser Audit Report
+node .\dependency-cruiser\bin\dependency-cruise.mjs --no-config --output-type text frontend/src > dependency-audit-report.txt
+echo ✓ Report generated: dependency-audit-report.txt

@@ -21,7 +21,7 @@ async def log_agent(agent_name: str, action: str, details: str, level="INFO"):
     for client in connected_clients[:]:
         try:
             await client.send_text(json.dumps(entry))
-        except:
+        except Exception:
             connected_clients.remove(client)
 
 @app.websocket("/ws/logs")
@@ -31,7 +31,7 @@ async def websocket_logs(websocket: WebSocket):
     try:
         while True:
             await asyncio.sleep(1)
-    except:
+    except Exception:
         connected_clients.remove(websocket)
 
 @app.get("/logs-dashboard", response_class=HTMLResponse)

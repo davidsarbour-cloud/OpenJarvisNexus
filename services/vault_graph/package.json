@@ -1,0 +1,20 @@
+{
+  "name": "nexus9-vault-graph",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Nexus9 — sidecar Node: parse Obsidian vault + broadcast graph via WebSocket.",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "check": "node --check vaultParser.js && node --check server.js"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3",
+    "ws": "^8.18.0"
+  }
+}

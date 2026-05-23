@@ -1,4 +1,4 @@
-﻿# CLAUDE.md — NEXUS9 System Constitution
+# CLAUDE.md — NEXUS9 System Constitution
 
 ---
 
@@ -29,6 +29,7 @@ skills/session-protocol.md — session logs + Telegram commands
 skills/session-history.md  — historique sessions
 skills/superpowers.md      — Superpowers bridge (port 8082)
 skills/obsidian-skills.md  — Obsidian Skills bridge (port 8081)
+skills/vault-graph.md      — Vault Graph Sync (port 8083, planet VAULT)
 
 ---
 
