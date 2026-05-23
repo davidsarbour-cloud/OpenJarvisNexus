@@ -12,6 +12,8 @@ import httpx
 
 REPORT_DIR          = Path(r"C:\Users\bobby\OneDrive\Bureau\Jarvis\report")
 RESEARCH_REPORT_DIR = Path(r"C:\Users\bobby\OneDrive\Bureau\Jarvis\RESEARCH REPORT")
+BRAIN_DIR           = Path(__file__).resolve().parent / "BRAIN" / "BRAIN"
+CHEAT_REPORT_DIR    = BRAIN_DIR / "08_Command-Center" / "cheat_code"   # cheat code -> brain, pas OneDrive
 TTS_VOICE           = "fr-FR-HenriNeural"
 BACKEND_HOST        = os.getenv("BACKEND_HOST",  "http://localhost:8000")
 BRUCE_HOST          = os.getenv("OPENHANDS_URL", "http://localhost:3000")
@@ -701,7 +703,10 @@ async def run_cheat_code(voice: bool = True) -> dict:
         "vault_id": vault_id,
     }
     _last_report = report
-    save_report("cheat_code", report)
+    CHEAT_REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    _ts_file = started_at.strftime("%Y-%m-%d_%H-%M-%S")
+    (CHEAT_REPORT_DIR / f"cheat-code-{_ts_file}.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     eco_score = ecosystem.get("score")
     eco_grade = ecosystem.get("grade", "—")
@@ -712,31 +717,34 @@ async def run_cheat_code(voice: bool = True) -> dict:
     )
     print(f"=== VAULT CENTRAL OPTIMISÉ ✅ ===\n{msg}")
 
-    # Rapport texte lisible + Notepad
+    # Rapport Markdown dans le brain Obsidian + ouverture Notepad
     try:
-        today    = started_at.strftime("%Y-%m-%d")
-        ts_label = started_at.strftime("%Y-%m-%d %H:%M")
-        txt_lines = [
-            "=" * 60,
-            "  ONE-CLICK CHEAT CODE — RAPPORT NEXUS9",
-            f"  {ts_label}  |  David Arbour",
-            "=" * 60, "",
-            f"  AGENTS  :  {agents_ok}/{agents_total} en ligne",
+        ts_label    = started_at.strftime("%Y-%m-%d %H:%M")
+        eco_str     = f"{eco_score}/100 Grade {eco_grade}" if eco_score is not None else "—"
+        vault_total = report["vault"]["total_memories"]
+        md = [
+            "---",
+            "domain: command-center",
+            "type: cheat-code-report",
+            "tags: [cheat-code, orchestration, agents, daily-tasks, vault]",
+            f"date: {ts_label}",
+            f"status: {status}",
+            "---",
+            "",
+            f"# Cheat Code — {ts_label}",
+            "",
+            f"## Agents — {agents_ok}/{agents_total} en ligne",
         ]
         for a in agents:
-            txt_lines.append(f"    {'✅' if a['ok'] else '❌'}  {a['agent']}")
-        eco_str = f"{eco_score}/100 Grade {eco_grade}" if eco_score is not None else "—"
-        txt_lines += ["", f"  ECOSYSTEM :  {eco_str}", "", f"  DAILY TASKS :  {daily['passed']}/{daily['total']} OK"]
+            md.append(f"- {'✅' if a['ok'] else '❌'} {a['agent']}")
+        md += ["", f"## Ecosystem — {eco_str}", "", f"## Daily tasks — {daily['passed']}/{daily['total']} OK"]
         for t in daily.get("results", []):
-            txt_lines.append(f"    {'✅' if t['ok'] else '❌'}  {t['label']}")
-        vault_total = report["vault"]["total_memories"]
-        txt_lines += ["", f"  VAULT  :  {vault_total} mémoires", "", "=" * 60]
-        txt_folder = REPORT_DIR / "cheat_code"
-        txt_folder.mkdir(parents=True, exist_ok=True)
-        txt_path = txt_folder / f"cheat_{today}.txt"
-        txt_path.write_text("\n".join(txt_lines), encoding="utf-8")
-        subprocess.Popen(["notepad.exe", str(txt_path)])  # NOSONAR - fire-and-forget GUI
-        print(f"📄 Rapport ouvert : {txt_path}")
+            md.append(f"- {'✅' if t['ok'] else '❌'} {t['label']}")
+        md += ["", f"## Vault — {vault_total} mémoires", ""]
+        md_path = CHEAT_REPORT_DIR / f"cheat-code-{_ts_file}.md"
+        md_path.write_text("\n".join(md), encoding="utf-8")
+        subprocess.Popen(["notepad.exe", str(md_path)])  # NOSONAR - fire-and-forget GUI
+        print(f"📄 Rapport ouvert : {md_path}")
     except Exception as _e:
         print(f"⚠️  Ouverture rapport: {_e}")
 
