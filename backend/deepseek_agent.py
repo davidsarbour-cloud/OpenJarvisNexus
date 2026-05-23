@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-OLLAMA_HOST    = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+from config import OLLAMA_HOST
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-r1:7b")
 
 
