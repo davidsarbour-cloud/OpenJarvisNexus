@@ -29,7 +29,7 @@ import { TacticalOverlay } from '../../systems/TacticalOverlay';
 export function HudLayout() {
   const location = useLocation();
   const isOrbital = location.pathname.startsWith('/orbital');
-  const fullBleed = isOrbital || location.pathname.startsWith('/chat');
+  const fullBleed = isOrbital || location.pathname.startsWith('/chat') || location.pathname.startsWith('/brain');
   useAlertGc(); // prune acknowledged alerts > 5min, once per HUD mount
 
   return (

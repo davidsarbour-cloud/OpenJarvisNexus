@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
@@ -10,6 +10,7 @@ import { AudioPlayer } from './AudioPlayer';
 import { ToolCallCard } from './ToolCallCard';
 import { XRayFooter } from './XRayFooter';
 import type { ChatMessage } from '../../types';
+import { getBase } from '../../lib/api';
 
 function stripThinkTags(text: string): string {
   let cleaned = text.replace(/<think>[\s\S]*?<\/think>\s*/gi, '');
@@ -97,44 +98,83 @@ function CopyMessageButton({ content }: { content: string }) {
   );
 }
 
+/** Retire le markdown avant d'envoyer au TTS (évite de lire "dièse dièse", "astérisque"…) */
+function stripMarkdownForTTS(text: string): string {
+  return text
+    .replace(/#{1,6}\s+/g, '')                    // titres
+    .replace(/\*\*(.*?)\*\*/gs, '$1')             // gras
+    .replace(/\*(.*?)\*/gs, '$1')                 // italique
+    .replace(/`{3}[\s\S]*?`{3}/g, '')            // blocs de code — supprimés (pas utile à lire)
+    .replace(/`([^`]+)`/g, '$1')                  // code inline
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')      // liens → texte seul
+    .replace(/^[-*+]\s/gm, '')                    // listes à puces
+    .replace(/^\d+\.\s/gm, '')                    // listes numérotées
+    .replace(/^\s*>\s/gm, '')                     // citations
+    .replace(/^[-*_]{3,}$/gm, '')                 // séparateurs horizontaux
+    .replace(/\|[^\n]+\|/g, '')                   // tableaux
+    .replace(/\n{3,}/g, '\n\n')                   // espaces multiples
+    .trim();
+}
+
 function SpeakButton({ content }: { content: string }) {
   const [speaking, setSpeaking] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
 
-  const handleSpeak = useCallback(() => {
-    if (!('speechSynthesis' in window)) return;
-
+  const handleSpeak = useCallback(async () => {
+    // Stop si déjà en train de parler
     if (speaking) {
-      window.speechSynthesis.cancel();
+      audioRef.current?.pause();
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+      audioRef.current = null;
       setSpeaking(false);
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(content);
-    utterance.lang = 'fr-FR';
-    utterance.rate = 1.05;
-    utterance.pitch = 0.95;
+    // Bug fix: strip markdown avant TTS + truncate à 4000 chars
+    const clean = stripMarkdownForTTS(content).slice(0, 4000);
+    if (!clean) return;
 
-    // Prefer a French voice if available
-    const voices = window.speechSynthesis.getVoices();
-    const frVoice = voices.find((v) => v.lang.startsWith('fr') && v.localService)
-      ?? voices.find((v) => v.lang.startsWith('fr'));
-    if (frVoice) utterance.voice = frVoice;
+    try {
+      setSpeaking(true);
+      // Bug fix: utilise le backend TTS (Edge ou Kokoro) au lieu de speechSynthesis navigateur
+      const res = await fetch(`${getBase()}/v1/tts?text=${encodeURIComponent(clean)}`);
+      if (!res.ok) throw new Error(`TTS ${res.status}`);
 
-    utterance.onstart  = () => setSpeaking(true);
-    utterance.onend    = () => setSpeaking(false);
-    utterance.onerror  = () => setSpeaking(false);
-    window.speechSynthesis.speak(utterance);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      blobUrlRef.current = url;
+
+      const audio = new Audio(url);
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        blobUrlRef.current = null;
+        audioRef.current = null;
+        setSpeaking(false);
+      };
+      audio.onerror = () => {
+        if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
+        audioRef.current = null;
+        setSpeaking(false);
+      };
+
+      await audio.play();
+    } catch {
+      setSpeaking(false);
+    }
   }, [content, speaking]);
-
-  if (!('speechSynthesis' in window)) return null;
 
   return (
     <button
       onClick={handleSpeak}
       className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
       style={{ color: speaking ? 'var(--color-accent)' : 'var(--color-text-tertiary)' }}
-      title={speaking ? 'Arrêter' : 'Écouter Jarvis'}
+      title={speaking ? 'Arrêter' : 'Écouter JARVIS'}
     >
       {speaking ? <VolumeX size={14} /> : <Volume2 size={14} />}
     </button>

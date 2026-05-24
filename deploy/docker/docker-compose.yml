@@ -11,6 +11,12 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
 
   ollama:
@@ -29,3 +35,8 @@ services:
 
 volumes:
   ollama-models:
+
+# NOTE: Le backend Nexus9 de David (C:\OpenJarvisNexus\backend\) est lancé
+# localement via Python, pas via ce Dockerfile (qui cible l'upstream open-source).
+# ChromaDB réel : backend/vault_data/chromadb (chemin local Windows)
+# Pour un déploiement Docker custom Nexus9, créer deploy/docker/docker-compose.nexus9.yml

@@ -17,7 +17,7 @@ export function JarvisChatPage() {
   const streamState = useAppStore((s) => s.streamState);
   const speaking = streamState.isStreaming;
   const listRef = useRef<HTMLDivElement>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const empty = messages.length === 0 && !streamState.isStreaming;
 
   useEffect(() => {

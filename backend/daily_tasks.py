@@ -235,6 +235,94 @@ async def task_orchestration_diagnostics():
         logger.error(f"Orchestration diagnostics failed: {e}")
 
 
+async def task_morning_briefing():
+    """
+    Brief matinal automatique — tous les jours à l'heure configurée.
+    Génère le brief et le sauvegarde dans le vault BRAIN/02_Daily/.
+    """
+    try:
+        from daily_briefing import build_morning_briefing
+        result = await build_morning_briefing()
+        if not result.get("enabled"):
+            logger.info("Daily briefing: désactivé dans config.json")
+            return
+
+        # Sauvegarde dans le vault BRAIN
+        from pathlib import Path
+        today     = datetime.now().strftime("%Y-%m-%d")
+        brain_dir = Path(__file__).parent / "BRAIN" / "BRAIN" / "02_Daily"
+        brain_dir.mkdir(parents=True, exist_ok=True)
+        out_file  = brain_dir / f"{today}.md"
+
+        # Injecte le brief dans la note quotidienne (section Brief) si elle existe,
+        # sinon crée-la avec le brief en tête.
+        md = result.get("markdown", "")
+        if out_file.exists():
+            existing = out_file.read_text(encoding="utf-8")
+            # Vérifie le marqueur H1 exact généré par build_morning_briefing
+            if f"# ☀️ Brief Matinal — " not in existing:
+                out_file.write_text(
+                    existing.rstrip() + "\n\n---\n\n" + md,
+                    encoding="utf-8",
+                )
+            else:
+                logger.info(f"Morning briefing: déjà présent dans {out_file.name}, skip")
+        else:
+            out_file.write_text(md, encoding="utf-8")
+
+        logger.info(f"Morning briefing: généré et sauvegardé → {out_file.name}")
+    except Exception as e:
+        logger.error(f"Morning briefing failed: {e}")
+
+
+async def task_trend_hunt():
+    """
+    Trend Hunter — tous les jours à l'heure configurée.
+    Fetch les tickers Yahoo Finance + Reddit hot posts et persiste le snapshot.
+    """
+    try:
+        from trend_hunter import run_trend_hunt
+        result = await run_trend_hunt()
+        if not result.get("enabled", True):
+            logger.info("Trend hunter: désactivé dans config.json")
+            return
+
+        meta = result.get("_meta", {})
+        logger.info(
+            f"Trend hunt: {meta.get('symbols_fetched', 0)} tickers · "
+            f"{meta.get('subreddits_fetched', 0)} subreddits · "
+            f"snapshot {result.get('timestamp', '?')[:10]}"
+        )
+    except Exception as e:
+        logger.error(f"Trend hunt failed: {e}")
+
+
+async def task_brain_autolink():
+    """
+    Obsidian Knowledge Auto-Linker — tâche hebdomadaire (dimanche 02:30).
+    - Normalise les tags frontmatter
+    - Crée les MOCs manquants
+    - Détecte les backlinks implicites
+    - Génère le rapport d'audit dans BRAIN/05_Resources/Research/
+    """
+    try:
+        from brain_autolinker import run_autolink
+        result = run_autolink(dry_run=False)
+        logger.info(
+            f"Brain autolink: {len(result.get('mocs_created', []))} MOCs créés | "
+            f"{len(result.get('tags_fixed', []))} tags normalisés | "
+            f"{result.get('implicit_links_added', 0)} backlinks ajoutés | "
+            f"{result.get('elapsed_ms', 0)}ms"
+        )
+        if result.get("broken_links"):
+            logger.warning(
+                f"Brain autolink: {len(result['broken_links'])} notes avec liens brisés "
+                f"— vérification manuelle requise"
+            )
+    except Exception as e:
+        logger.error(f"Brain autolink failed: {e}")
+
+
 async def task_brain_reindex():
     """Re-indexe le brain Obsidian dans ChromaDB (filet de securite apres les syncs nocturnels).
     La re-indexation post-sync est deja declenchee en temps reel par le sidecar vault_graph
@@ -352,5 +440,58 @@ def create_scheduler():
             misfire_grace_time=3600,  # tolère 1h de retard
         )
         logger.info(f"Scheduled: {name} at {time_str}")
+
+    # ── Tâches dynamiques — heure lue depuis config.json au démarrage ──────────
+    import json as _json
+    _cfg_file = BACKEND_DIR / "config.json"
+    try:
+        _cfg = _json.loads(_cfg_file.read_text(encoding="utf-8")) if _cfg_file.exists() else {}
+    except Exception:
+        _cfg = {}
+
+    # Trend Hunter — heure depuis config.trend_hunter
+    _th_cfg = _cfg.get("trend_hunter", {})
+    if _th_cfg.get("enabled", True):
+        _th_h = int(_th_cfg.get("schedule_hour",  6))
+        _th_m = int(_th_cfg.get("schedule_minute", 0))
+        scheduler.add_job(
+            task_trend_hunt,
+            trigger=CronTrigger(hour=_th_h, minute=_th_m),
+            id="trend_hunt",
+            name=f"Daily: trend_hunt ({_th_h:02d}:{_th_m:02d})",
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+        logger.info(f"Scheduled: trend_hunt at {_th_h:02d}:{_th_m:02d}")
+    else:
+        logger.info("Trend hunter: désactivé (config.json)")
+
+    # Morning Briefing — heure depuis config.daily_briefing
+    _bf_cfg = _cfg.get("daily_briefing", {})
+    if _bf_cfg.get("enabled", True):
+        _bf_h = int(_bf_cfg.get("schedule_hour",   7))
+        _bf_m = int(_bf_cfg.get("schedule_minute", 30))
+        scheduler.add_job(
+            task_morning_briefing,
+            trigger=CronTrigger(hour=_bf_h, minute=_bf_m),
+            id="morning_briefing",
+            name=f"Daily: morning_briefing ({_bf_h:02d}:{_bf_m:02d})",
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+        logger.info(f"Scheduled: morning_briefing at {_bf_h:02d}:{_bf_m:02d}")
+    else:
+        logger.info("Morning briefing: désactivé (config.json)")
+
+    # Tâche hebdomadaire — dimanche 02:30
+    scheduler.add_job(
+        task_brain_autolink,
+        trigger=CronTrigger(day_of_week="sun", hour=2, minute=30),
+        id="brain_autolink",
+        name="Weekly: brain_autolink",
+        replace_existing=True,
+        misfire_grace_time=7200,  # tolère 2h de retard (hebdo)
+    )
+    logger.info("Scheduled: brain_autolink (weekly Sunday 02:30)")
 
     return scheduler

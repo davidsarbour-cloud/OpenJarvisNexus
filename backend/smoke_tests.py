@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import time
 import os
+import httpx
 from datetime import datetime
 
 BACKEND_PORT  = int(os.getenv("BACKEND_PORT", 8000))
@@ -35,7 +36,7 @@ async def _timed(coro) -> tuple[any, int]:
 
 async def test_backend_health() -> dict:
     """GET /health — vérifie status == 'ok'."""
-    import httpx
+
     t = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=5.0) as c:
@@ -54,7 +55,7 @@ async def test_backend_health() -> dict:
 
 async def test_claude_api() -> dict:
     """POST /v1/chat/completions — vérifie réponse non-vide."""
-    import httpx
+
     t = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=10.0) as c:
@@ -86,7 +87,7 @@ async def test_claude_api() -> dict:
 
 async def test_ollama_connectivity() -> dict:
     """GET {OLLAMA_HOST}/api/tags — vérifie status 200 + au moins 1 modèle."""
-    import httpx
+
     t = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=5.0) as c:
@@ -106,7 +107,7 @@ async def test_ollama_connectivity() -> dict:
 
 async def test_ollama_models() -> dict:
     """Vérifie que deepseek-coder:6.7b et qwen3:14b sont présents dans Ollama."""
-    import httpx
+
     t = time.monotonic()
     required = {"deepseek-coder:6.7b", "qwen3:14b"}
     try:
@@ -138,7 +139,7 @@ async def test_ollama_models() -> dict:
 
 async def test_vault_read() -> dict:
     """GET /v1/vault/stats — vérifie que la réponse contient 'collections'."""
-    import httpx
+
     t = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=5.0) as c:
@@ -158,7 +159,7 @@ async def test_vault_read() -> dict:
 
 async def test_vault_write_search() -> dict:
     """POST /v1/vault/memory puis GET /v1/vault/search — vérifie l'aller-retour."""
-    import httpx
+
     t = time.monotonic()
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     test_text = f"smoke test {timestamp}"
@@ -194,7 +195,7 @@ async def test_vault_write_search() -> dict:
 
 async def test_jarvis_orchestration() -> dict:
     """POST /v1/orchestrate — vérifie intent == 'fabrication' et 'FORGE' dans agents."""
-    import httpx
+
     t = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=8.0) as c:
@@ -220,7 +221,7 @@ async def test_jarvis_orchestration() -> dict:
 
 async def test_intent_classification() -> dict:
     """GET /v1/orchestrate/classify?text=debug+python+script — vérifie intent == 'coding'."""
-    import httpx
+
     t = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=5.0) as c:
@@ -243,7 +244,7 @@ async def test_intent_classification() -> dict:
 
 async def test_forge_endpoint() -> dict:
     """GET /v1/forge/missions — vérifie status 200 et 'total' dans la réponse."""
-    import httpx
+
     t = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=5.0) as c:
@@ -262,7 +263,7 @@ async def test_forge_endpoint() -> dict:
 
 async def test_jarvis_files() -> dict:
     """GET /v1/jarvis/files/list — vérifie status 200 et 'files' dans la réponse."""
-    import httpx
+
     t = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=5.0) as c:
@@ -282,7 +283,7 @@ async def test_jarvis_files() -> dict:
 
 async def test_tts() -> dict:
     """GET /v1/tts?text=test&voice=en-US-GuyNeural — vérifie Content-Type audio/mpeg."""
-    import httpx
+
     t = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=10.0) as c:
@@ -304,7 +305,7 @@ async def test_tts() -> dict:
 
 async def test_whisper() -> dict:
     """GET /v1/speech/health — vérifie 'available' == True."""
-    import httpx
+
     t = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=5.0) as c:
@@ -323,7 +324,7 @@ async def test_whisper() -> dict:
 
 async def test_bruce_openhands() -> dict:
     """GET {OPENHANDS_URL}/api/options/models — PASS si 200, WARN si offline (optionnel)."""
-    import httpx
+
     t = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=3.0) as c:
@@ -342,7 +343,7 @@ async def test_bruce_openhands() -> dict:
 
 async def test_memory_embedding() -> dict:
     """Vérifie que nomic-embed-text est disponible dans Ollama."""
-    import httpx
+
     t = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=5.0) as c:

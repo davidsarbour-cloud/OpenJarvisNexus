@@ -9,6 +9,7 @@ import json
 import logging
 import traceback
 import tempfile
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, Query, UploadFile, File
@@ -21,7 +22,8 @@ import httpx
 
 from memory import (
     get_history, add_message, clear_session, list_sessions,
-    load_facts, save_facts, build_system_prompt,
+    load_facts, save_facts, build_system_prompt, load_config,
+    get_last_session_summary, is_new_session, compress_session_sync,
 )
 from ollama_client import (
     is_ollama_available, list_local_models,
@@ -77,15 +79,24 @@ def _log_error_500(route: str, exc: Exception) -> None:
     )
 
 claude      = Anthropic(api_key=ANTHROPIC_API_KEY)
-BASE_SYSTEM = (
-    "You are JARVIS, David's AI assistant and orchestration system. "
-    "You understand French perfectly but you ALWAYS respond in English. "
-    "Be direct, tactical, futuristic like Iron Man's JARVIS. "
-    "You have READ access to David's Jarvis workspace via /v1/jarvis/files/ endpoints. "
-    "Use /v1/jarvis/files/search to find relevant project files and notes. "
-    "Use /v1/jarvis/files/report to save your reports and analyses. "
-    "Always check workspace files before answering project-specific questions."
-)
+def _build_base_system() -> str:
+    """Construit le prompt de base depuis config.json (langue dynamique)."""
+    from memory import load_config
+    cfg = load_config().get("jarvis", {})
+    lang = cfg.get("language", "Français")
+    personality = cfg.get("personality", "")
+    if personality:
+        return personality
+    # Fallback si config vide
+    return (
+        f"Tu es JARVIS, l'assistant IA personnel de David Arbour. "
+        f"Réponds TOUJOURS en {lang}. "
+        "Tu es direct, tactique, futuriste. "
+        "Tu as accès au workspace Jarvis via les endpoints /v1/jarvis/files/. "
+        "Consulte les fichiers workspace avant de répondre à des questions spécifiques aux projets."
+    )
+
+BASE_SYSTEM = _build_base_system()
 
 # ── Budget ───────────────────────────────────────────────
 BUDGET_MAX_USD = float(os.getenv("BUDGET_MAX_USD", "2.0"))
@@ -123,8 +134,72 @@ _agents_status: dict[str, str] = {
     "BRUCE":    "offline",  # openhands + qwen3:14b — repair + autonome
 }
 
+# ── Client HTTP partagé (connection pooling) ─────────────
+# Initialisé dans _lifespan, fermé proprement au shutdown.
+# Utiliser _http pour tous les appels httpx dans main.py.
+_http: httpx.AsyncClient | None = None
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Gère le cycle de vie de l'app (remplace @app.on_event deprecated)."""
+    import asyncio as _asyncio
+
+    # ── STARTUP ──────────────────────────────────────────
+    global _http
+    _http = httpx.AsyncClient(
+        timeout=30.0,
+        limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),
+    )
+
+    from memory import load_config as _lc
+    _cfg = _lc().get("jarvis", {})
+
+    # Pré-charger Kokoro si configuré (évite la latence au 1er appel TTS)
+    if _cfg.get("tts_engine") == "kokoro":
+        _voice = _cfg.get("tts_voice_kokoro", "bm_george")
+        _lc_code = _voice[0] if _voice else "b"
+        try:
+            await _asyncio.to_thread(_get_kokoro_pipeline, _lc_code)
+            print(f"[TTS] Kokoro pré-chargé (lang={_lc_code}, voice={_voice})")
+        except Exception as _e:
+            print(f"[TTS] Kokoro pré-chargement ignoré: {_e}")
+
+    # ── Scheduler APScheduler (STL research 21:00 + tâches quotidiennes) ────
+    from apscheduler.triggers.cron import CronTrigger as _CronTrigger
+    _scheduler = create_scheduler()
+    _scheduler.add_job(
+        generate_daily_report,
+        _CronTrigger(hour=21, minute=0),
+        id="daily_stl_research",
+        name="Daily: stl_research",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    _scheduler.start()
+    app.state.scheduler = _scheduler
+    print("[Daily] Scheduler démarré — STL research 21:00, brain re-index 03:55 (daily_tasks)")
+
+    print("[Nexus9] Startup complet — client HTTP partagé prêt.")
+    yield
+
+    # ── SHUTDOWN ─────────────────────────────────────────
+    if hasattr(app.state, "scheduler"):
+        app.state.scheduler.shutdown()
+        print("[Daily] Scheduler arrêté")
+    await _http.aclose()
+    # Close shared Playwright browser if it was used
+    try:
+        from scrapers.browser import close_browser as _close_browser
+        await _close_browser()
+        print("[Browser] Playwright browser fermé.")
+    except Exception:
+        pass
+    print("[Nexus9] Shutdown — client HTTP fermé.")
+
+
 # ── App ──────────────────────────────────────────────────
-app = FastAPI(title="OpenJarvis Nexus Backend", version="0.5.0")
+app = FastAPI(title="OpenJarvis Nexus Backend", version="0.5.0", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -148,6 +223,8 @@ from commerce.commerce_router import router as commerce_router
 from commerce.etsy_oauth import router as etsy_oauth_router
 from monitoring_router import router as monitoring_router
 from ws_router import router as ws_router
+from daily_briefing import router as briefing_router
+from trend_hunter import router as trends_router
 app.include_router(stl_router)
 app.include_router(research_router)
 app.include_router(forge_router)
@@ -157,6 +234,8 @@ app.include_router(commerce_router)
 app.include_router(etsy_oauth_router)
 app.include_router(monitoring_router)
 app.include_router(ws_router)
+app.include_router(briefing_router)
+app.include_router(trends_router)
 
 # ── Sert Nexus9.html (UI principale) à la racine ─────────
 # Permet l'accès micro (Web Speech API exige un contexte sécurisé : localhost OK, file:// bloqué)
@@ -360,32 +439,228 @@ async def brain_reindex_endpoint(background_tasks: BackgroundTasks):
     return {"status": "reindex_started"}
 
 
-# ── Schedulers : STL researcher (21:00) + tâches quotidiennes (03:00) ────────
-from apscheduler.triggers.cron import CronTrigger
+@app.post("/v1/brain/autolink")
+async def brain_autolink_endpoint(
+    background_tasks: BackgroundTasks,
+    dry_run: bool = False,
+):
+    """
+    Obsidian Knowledge Auto-Linker :
+    - Normalise les tags frontmatter (ajoute les tags attendus par dossier, supprime doublons inline)
+    - Crée les MOCs manquants (moc-trading, moc-dropshipping, moc-ia, moc-mindset)
+    - Détecte les backlinks implicites (mentions sans [[link]]) et les ajoute
+    - Génère un rapport d'audit dans BRAIN/05_Resources/Research/autolink-report-*.md
+    Fire-and-forget (background) — retourne immédiatement.
+    Param dry_run=true : calcule tout sans écrire aucun fichier.
+    """
+    import asyncio as _aio
+
+    result_holder: dict = {}
+
+    async def _run():
+        try:
+            from brain_autolinker import run_autolink
+            r = await _aio.to_thread(run_autolink, dry_run)
+            result_holder.update(r)
+            print(
+                f"[AutoLinker] DONE — {len(r['mocs_created'])} MOCs | "
+                f"{len(r['tags_fixed'])} tags | {r['implicit_links_added']} liens | "
+                f"{r['elapsed_ms']}ms"
+            )
+        except Exception as e:
+            result_holder["error"] = str(e)
+            print(f"[AutoLinker] ERREUR: {e}")
+
+    background_tasks.add_task(_run)
+    return {
+        "status":  "autolink_started",
+        "dry_run": dry_run,
+        "message": "Rapport disponible dans BRAIN/05_Resources/Research/autolink-report-{date}.md",
+    }
 
 
+@app.post("/v1/brain/autolink/sync")
+async def brain_autolink_sync_endpoint(dry_run: bool = False):
+    """
+    Version synchrone (attend le résultat) — usage : debug / CLI.
+    Retourne le rapport complet. Peut prendre quelques secondes.
+    """
+    import asyncio as _aio
+    try:
+        from brain_autolinker import run_autolink
+        result = await _aio.to_thread(run_autolink, dry_run)
+        return result
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
-@app.on_event("startup")
-async def startup_daily_scheduler():
-    # Scheduler partagé — STL researcher 21:00 + tâches quotidiennes 03:00
-    scheduler = create_scheduler()
-    scheduler.add_job(
-        generate_daily_report,
-        CronTrigger(hour=21, minute=0),
-        id="daily_stl_research",
-        name="Daily: stl_research",
-        replace_existing=True,
-        misfire_grace_time=3600,
+
+# ── Import configuration depuis nexus9-setup.md ────────────────────────────
+
+@app.post("/v1/setup/import")
+async def import_setup():
+    """
+    Lit BRAIN/08_Command-Center/nexus9-setup.md et met à jour config.json + memory.json.
+    Déclencher via : POST /v1/setup/import
+    Ou depuis le chat : "JARVIS, importe la configuration nexus9-setup"
+    """
+    import re as _re
+    import asyncio as _aio
+
+    brain_setup = (
+        Path(__file__).parent / "BRAIN" / "BRAIN" / "08_Command-Center" / "nexus9-setup.md"
     )
-    scheduler.start()
-    app.state.scheduler = scheduler
-    print("[Daily] Scheduler démarré — STL research 21:00, brain re-index 03:55 (daily_tasks)")
+    if not brain_setup.exists():
+        raise HTTPException(404, f"Fichier introuvable : {brain_setup}")
 
-@app.on_event("shutdown")
-async def shutdown_daily_scheduler():
-    if hasattr(app.state, "scheduler"):
-        app.state.scheduler.shutdown()
-        print("[Daily] Scheduler arrêté")
+    raw = brain_setup.read_text(encoding="utf-8")
+
+    def _extract_block(header: str) -> list[str]:
+        """Extrait les lignes non-commentaires du bloc de code sous `header`."""
+        pattern = rf"### {_re.escape(header)}\n.*?```\n(.*?)```"
+        m = _re.search(pattern, raw, _re.DOTALL)
+        if not m:
+            return []
+        return [
+            line.strip()
+            for line in m.group(1).splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+
+    def _extract_checked(header: str) -> list[str]:
+        """Extrait les items cochés [x] sous `header`."""
+        pattern = rf"### {_re.escape(header)}\n(.*?)(?=\n###|\n---|\Z)"
+        m = _re.search(pattern, raw, _re.DOTALL)
+        if not m:
+            return []
+        return [
+            _re.sub(r"^- \[x\] \*\*(\w+)\*\*.*", r"\1", line.strip()).split(" — ")[0].split("**")[0].strip()
+            for line in m.group(1).splitlines()
+            if line.strip().startswith("- [x]")
+        ]
+
+    # ── Trend Hunter ────
+    tickers    = _extract_block("Tickers boursiers (actions / ETFs)")
+    crypto     = _extract_block("Cryptomonnaies")
+    keywords   = _extract_block("Mots-clés dropshipping à surveiller")
+    subreddits = _extract_block("Subreddits à surveiller")
+    th_time    = _extract_block("Heure du fetch quotidien (format HH:MM)")
+    th_h, th_m = (int(x) for x in (th_time[0] if th_time else "06:00").split(":"))
+
+    # ── Daily Briefing ──
+    sections   = _extract_checked("Sections à inclure dans le brief matinal")
+    bf_time    = _extract_block("Heure du brief automatique (format HH:MM)")
+    bf_h, bf_m = (int(x) for x in (bf_time[0] if bf_time else "07:30").split(":"))
+    greeting   = (_extract_block("Message d'accueil personnalisé") or ["Bonjour David. Voici ton brief du {date}."])[0]
+
+    # ── Session Continuity ──
+    gap_raw    = _extract_block("Délai avant \"nouvelle session\" (en minutes)")
+    gap_min    = int(gap_raw[0]) if gap_raw else 60
+    summ_raw   = _extract_block("Nombre de messages à inclure dans le résumé de session")
+    summ_msgs  = int(summ_raw[0]) if summ_raw else 10
+
+    # ── Memory Compression ──
+    thresh_raw = _extract_block("Seuil de compression (nombre de messages)")
+    threshold  = int(thresh_raw[0]) if thresh_raw else 30
+    keep_raw   = _extract_block("Messages récents à préserver (jamais compressés)")
+    keep       = int(keep_raw[0]) if keep_raw else 10
+    model_raw  = _extract_block("Modèle IA pour la compression")
+    comp_model = model_raw[0] if model_raw else "qwen3:14b"
+
+    # ── Infos personnelles ──
+    projects   = _extract_block("Projets actifs (un par ligne)")
+    goals      = _extract_block("Objectifs 2026 (un par ligne)")
+    stack      = _extract_block("Stack technique principale (un par ligne)")
+    notes_raw  = _extract_block("Notes importantes (infos que JARVIS doit toujours retenir)")
+
+    # ── Patch config.json ──
+    cfg_file = Path(__file__).parent / "config.json"
+    cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
+
+    cfg["trend_hunter"] = {
+        **cfg.get("trend_hunter", {}),
+        "tickers":              tickers,
+        "crypto":               crypto,
+        "dropshipping_keywords": keywords,
+        "reddit_subreddits":    subreddits,
+        "schedule_hour":        th_h,
+        "schedule_minute":      th_m,
+    }
+    cfg["daily_briefing"] = {
+        **cfg.get("daily_briefing", {}),
+        "sections":           sections or ["health", "vault_stubs", "stl_trends", "watchlist", "tasks"],
+        "schedule_hour":      bf_h,
+        "schedule_minute":    bf_m,
+        "greeting_template":  greeting,
+    }
+    cfg["session_continuity"] = {
+        **cfg.get("session_continuity", {}),
+        "gap_minutes":            gap_min,
+        "max_summary_messages":   summ_msgs,
+    }
+    cfg["memory_compression"] = {
+        **cfg.get("memory_compression", {}),
+        "threshold_messages":   threshold,
+        "keep_recent_messages": keep,
+        "compression_model":    comp_model,
+    }
+    cfg_file.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # ── Patch memory.json — LEAN uniquement ──────────────────────────────────
+    # Règle : memory.json = injecté dans CHAQUE prompt → garder minimal.
+    # Données riches (goals, stack, observations) → restent dans le Vault Obsidian
+    # et sont récupérées via ChromaDB/_needs_memory() uniquement quand pertinent.
+    from memory import load_facts, save_facts
+    facts = load_facts()
+
+    # Projets actifs : top 5 max (ce qui est TOUJOURS pertinent)
+    if projects:
+        facts["projects"] = projects[:5]
+
+    # Notes critiques : top 5 max, seulement si remplies
+    if notes_raw:
+        facts["notes"] = notes_raw[:5]
+
+    # goals / tech_stack / observations → NE PAS injecter dans memory.json
+    # Ils vivent dans nexus9-setup.md (Vault) et ChromaDB les indexe via brain_reindex.
+    save_facts(facts)
+
+    # ── Mettre à jour le tableau de bord dans le fichier setup ──
+    today = datetime.now().strftime("%Y-%m-%d")
+    updated_raw = raw.replace(
+        "| Session Continuity | ⏳ À configurer | — |",
+        f"| Session Continuity | ✅ Configuré | {today} |",
+    ).replace(
+        "| Memory Compression | ⏳ À configurer | — |",
+        f"| Memory Compression | ✅ Configuré | {today} |",
+    ).replace(
+        "| Daily Briefing | ⏳ À configurer | — |",
+        f"| Daily Briefing | ✅ Configuré | {today} |",
+    ).replace(
+        "| Trend Hunter | ⏳ À configurer | — |",
+        f"| Trend Hunter | ✅ Configuré | {today} |",
+    )
+    brain_setup.write_text(updated_raw, encoding="utf-8")
+
+    return {
+        "ok": True,
+        "imported_at": datetime.now().isoformat(),
+        "trend_hunter": {
+            "tickers": tickers, "crypto": crypto,
+            "keywords": keywords, "subreddits": subreddits,
+            "schedule": f"{th_h:02d}:{th_m:02d}",
+        },
+        "daily_briefing": {
+            "sections": sections, "schedule": f"{bf_h:02d}:{bf_m:02d}",
+            "greeting": greeting,
+        },
+        "session_continuity": {"gap_minutes": gap_min, "max_summary": summ_msgs},
+        "memory_compression": {"threshold": threshold, "keep": keep, "model": comp_model},
+        "memory_json": {"projects": len(projects), "goals": len(goals), "notes": len(notes_raw)},
+        "message": "✅ config.json + memory.json mis à jour — redémarre le backend pour recharger le scheduler",
+    }
+
+
+# (Scheduler démarré dans _lifespan — voir début du fichier)
 
 @app.post("/v1/pipeline/daily/start")
 def daily_research_start():
@@ -553,66 +828,70 @@ def health():
     }
 
 
-@app.get("/v1/health/deep")
-async def health_deep():
-    """Health check approfondi — teste chaque service avec timeout 3s.
-    Retourne: backend, claude_api, ollama, forge_room, meshy_api, timestamp.
-    """
+async def _hc_claude() -> str:
+    """Health check Claude API — isolé pour asyncio.gather."""
     import asyncio
-
-    now = datetime.now().isoformat(timespec="seconds")
-
-    # ── 1. Claude API ────────────────────────────────────
-    # IMPORTANT: asyncio.get_event_loop() est déprécié dans Python 3.10+
-    # à l'intérieur d'une coroutine — il peut créer une nouvelle boucle
-    # au lieu de retourner la boucle courante, ce qui corrompt l'appel
-    # synchrone claude.messages.create → BadRequestError.
-    # Fix: asyncio.get_running_loop() qui retourne toujours la boucle active.
-    claude_status = "ok"
     try:
-        resp = await asyncio.wait_for(
+        await asyncio.wait_for(
             asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: claude.messages.create(
                     model=CLAUDE_MODEL,
-                    max_tokens=10,   # min safe — 5 peut être trop court sur certaines versions
+                    max_tokens=10,
                     messages=[{"role": "user", "content": "ping"}],
                 ),
             ),
-            timeout=5.0,   # 3s parfois trop court pour Haiku sous charge
+            timeout=5.0,
         )
-        _ = resp  # succès
+        return "ok"
     except asyncio.TimeoutError:
-        claude_status = "timeout"
+        return "timeout"
     except Exception as e:
-        claude_status = f"error: {type(e).__name__}"
+        return f"error: {type(e).__name__}"
 
-    # ── 2. Ollama ────────────────────────────────────────
-    ollama_status = "ok" if is_ollama_available() else "offline"
+async def _hc_ollama() -> str:
+    """Health check Ollama."""
+    return "ok" if is_ollama_available() else "offline"
 
-    # ── 3. Forge Room — fichier cache présent ────────────
+async def _hc_forge() -> str:
+    """Health check Forge Room — vérifie que le dossier output existe."""
     try:
         from forge_room.fabrication_pipeline import FORGE_OUTPUT
-        forge_status = "ok" if FORGE_OUTPUT.exists() else "error: forge_output absent"
+        return "ok" if FORGE_OUTPUT.exists() else "error: forge_output absent"
     except Exception as e:
-        forge_status = f"error: {e}"
+        return f"error: {e}"
 
-    # ── 4. Meshy API ─────────────────────────────────────
+async def _hc_meshy() -> str:
+    """Health check Meshy API — utilise le client HTTP partagé."""
     meshy_key = os.getenv("MESHY_API_KEY", "")
     if not meshy_key:
-        meshy_status = "not_configured"
-    else:
-        try:
-            async with httpx.AsyncClient(timeout=3.0) as c:
-                r = await c.get(
-                    "https://api.meshy.ai/v2/text-to-3d",
-                    headers={"Authorization": f"Bearer {meshy_key}"},
-                )
-            meshy_status = "ok" if r.status_code in (200, 401, 403) else f"error: HTTP {r.status_code}"
-        except httpx.TimeoutException:
-            meshy_status = "timeout"
-        except Exception as e:
-            meshy_status = f"error: {type(e).__name__}"
+        return "not_configured"
+    if _http is None:
+        return "error: client_not_ready"
+    try:
+        r = await _http.get(
+            "https://api.meshy.ai/v2/text-to-3d",
+            headers={"Authorization": f"Bearer {meshy_key}"},
+            timeout=3.0,
+        )
+        return "ok" if r.status_code in (200, 401, 403) else f"error: HTTP {r.status_code}"
+    except httpx.TimeoutException:
+        return "timeout"
+    except Exception as e:
+        return f"error: {type(e).__name__}"
+
+@app.get("/v1/health/deep")
+async def health_deep():
+    """Health check approfondi — teste chaque service en parallèle (asyncio.gather).
+    Retourne: backend, claude_api, ollama, forge_room, meshy_api, timestamp.
+    """
+    import asyncio
+    now = datetime.now().isoformat(timespec="seconds")
+
+    # Tous les checks en parallèle — latence = max(individuel) au lieu de la somme
+    claude_status, ollama_status, forge_status, meshy_status = await asyncio.gather(
+        _hc_claude(), _hc_ollama(), _hc_forge(), _hc_meshy()
+    )
 
     return {
         "backend":    "ok",
@@ -739,22 +1018,80 @@ def api_digest():
         "timestamp":     int(time.time()),
     }
 
+# ── Kokoro pipeline cache (un par lang_code, chargé une seule fois) ─────────
+_kokoro_pipelines: dict = {}
+
+def _get_kokoro_pipeline(lang_code: str):
+    """Retourne le KPipeline mis en cache pour ce lang_code."""
+    if lang_code not in _kokoro_pipelines:
+        from kokoro import KPipeline
+        _kokoro_pipelines[lang_code] = KPipeline(lang_code=lang_code)
+    return _kokoro_pipelines[lang_code]
+
+def _run_kokoro_sync(text: str, tts_voice: str) -> bytes:
+    """Inference Kokoro synchrone — à appeler via asyncio.to_thread()."""
+    import numpy as np
+    import soundfile as sf
+    import io as _io
+    lang_code = tts_voice[0] if tts_voice else "b"
+    pipeline = _get_kokoro_pipeline(lang_code)
+    chunks = []
+    for _, _, audio in pipeline(text, voice=tts_voice, speed=1.0):
+        chunks.append(audio)
+    if not chunks:
+        raise RuntimeError("Kokoro n'a produit aucun audio")
+    full_audio = np.concatenate(chunks)
+    buf = _io.BytesIO()
+    sf.write(buf, full_audio, 24000, format="WAV")
+    return buf.getvalue()
+
+
 @app.get("/v1/tts")
 async def text_to_speech(
     text: str = Query(..., description="Texte à lire"),
-    voice: str = Query("fr-FR-HenriNeural", description="Voix edge-tts"),
+    voice: str = Query(None, description="Override voix (défaut: config.json)"),
+    engine: str = Query(None, description="Override moteur: 'edge' ou 'kokoro' (défaut: config.json)"),
 ):
-    """Synthèse vocale via Microsoft Edge TTS (gratuit, sans clé API)."""
-    text = text[:1000].strip()
+    """Synthèse vocale — Edge TTS (gratuit, cloud) ou Kokoro (local, offline)."""
+    import asyncio
+    from memory import load_config
+    cfg = load_config().get("jarvis", {})
+
+    tts_engine = engine or cfg.get("tts_engine", "edge")
+    text = text[:4000].strip()   # Bug fix: limite portée à 4000 chars
     if not text:
         raise HTTPException(400, "Texte vide")
+
+    # ── Kokoro (local, offline) ──────────────────────────────────────────────
+    if tts_engine == "kokoro":
+        tts_voice = voice or cfg.get("tts_voice_kokoro", "bm_george")
+        try:
+            import kokoro  # noqa: F401
+            import soundfile  # noqa: F401
+        except ImportError:
+            raise HTTPException(503, "Kokoro non installé — lance: pip install kokoro soundfile")
+
+        try:
+            # Bug fix: asyncio.to_thread évite de bloquer l'event loop FastAPI
+            audio_bytes = await asyncio.to_thread(_run_kokoro_sync, text, tts_voice)
+        except RuntimeError as e:
+            raise HTTPException(503, str(e))
+
+        return StreamingResponse(
+            iter([audio_bytes]),
+            media_type="audio/wav",
+            headers={"Content-Disposition": "inline; filename=jarvis.wav"},
+        )
+
+    # ── Edge TTS (cloud Microsoft, gratuit) ─────────────────────────────────
+    tts_voice = voice or cfg.get("tts_voice_edge", "fr-CA-JeanNeural")
     try:
         import edge_tts
     except ImportError:
         raise HTTPException(503, "edge-tts non installé — lance: pip install edge-tts")
 
-    communicate = edge_tts.Communicate(text, voice)
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")  # NOSONAR - instant sync before async TTS save
+    communicate = edge_tts.Communicate(text, tts_voice)
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")  # NOSONAR
     tmp_path = tmp.name
     tmp.close()
 
@@ -762,7 +1099,7 @@ async def text_to_speech(
 
     async def stream_and_delete():
         try:
-            with open(tmp_path, "rb") as f:  # NOSONAR - streaming read, chunk-based, acceptable sync I/O
+            with open(tmp_path, "rb") as f:  # NOSONAR
                 while chunk := f.read(8192):
                     yield chunk
         finally:
@@ -1096,25 +1433,27 @@ async def _run_cortana(task: str) -> dict:
         return {"ok": False, "agent": "CORTANA", "error": str(e)}
 
 async def _run_bruce(task: str) -> dict:
-    """BRUCE — OpenHands autonome."""
+    """BRUCE — OpenHands autonome — utilise le client HTTP partagé."""
+    if _http is None:
+        return {"ok": False, "agent": "BRUCE", "error": "Client HTTP non initialisé — backend pas encore prêt."}
     try:
-        async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.post(
-                f"{OPENHANDS_URL}/api/conversations",
-                json={"initial_user_msg": task},
-            )
-            if r.status_code not in (200, 201):
-                return {"ok": False, "agent": "BRUCE", "error": f"OpenHands HTTP {r.status_code}. Lance: docker start nexus_bruce"}
-            data = r.json()
-            conv_id = data.get("conversation_id") or data.get("id") or "?"
-            _agents_status["BRUCE"] = "active"
-            return {
-                "ok":      True,
-                "agent":   "BRUCE",
-                "model":   "OpenHands + qwen3:14b",
-                "conv_id": conv_id,
-                "result":  f"⬡ BRUCE mission launched — conversation {conv_id}.\nMonitor: {OPENHANDS_URL}\nTask: {task[:120]}",
-            }
+        r = await _http.post(
+            f"{OPENHANDS_URL}/api/conversations",
+            json={"initial_user_msg": task},
+            timeout=15,
+        )
+        if r.status_code not in (200, 201):
+            return {"ok": False, "agent": "BRUCE", "error": f"OpenHands HTTP {r.status_code}. Lance: docker start nexus_bruce"}
+        data = r.json()
+        conv_id = data.get("conversation_id") or data.get("id") or "?"
+        _agents_status["BRUCE"] = "active"
+        return {
+            "ok":      True,
+            "agent":   "BRUCE",
+            "model":   "OpenHands + qwen3:14b",
+            "conv_id": conv_id,
+            "result":  f"⬡ BRUCE mission launched — conversation {conv_id}.\nMonitor: {OPENHANDS_URL}\nTask: {task[:120]}",
+        }
     except httpx.ConnectError:
         return {"ok": False, "agent": "BRUCE", "error": "BRUCE offline. Lance: docker start nexus_bruce"}
     except Exception as e:
@@ -1496,6 +1835,9 @@ def _needs_memory(msg: str) -> bool:
 def chat_completion(req: ChatRequest, request: Request):
     session_id = _get_session_id(req, request)
 
+    # ── Session continuity — capturer AVANT add_message ──────
+    _was_new_session = is_new_session(session_id)
+
     if req.messages:
         new_msgs = [
             {"role": m.role, "content": m.content}
@@ -1597,8 +1939,29 @@ def chat_completion(req: ChatRequest, request: Request):
 
     facts      = load_facts()
     system     = build_system_prompt(req.system or BASE_SYSTEM, facts)
+
+    # ── Session continuity — inject résumé si nouvelle session ──
+    _sc_cfg = load_config().get("session_continuity", {})
+    if _was_new_session and _sc_cfg.get("inject_on_new_session", True):
+        _prev_summary = get_last_session_summary(session_id)
+        if _prev_summary:
+            system = (
+                "━━━ REPRISE DE SESSION ━━━\n"
+                + _prev_summary
+                + "\n━━━ FIN DU RÉSUMÉ — continue naturellement ━━━\n\n"
+            ) + system
+
+    # ── Memory compression — déclenche si seuil atteint ─────────
+    compress_session_sync(session_id)
+
     # Rappel langue injecté à la fin du system prompt — modèles suivent mieux la dernière instruction
-    system    += "\n\n[MANDATORY] Your response language is ENGLISH. Write ONLY in English. No French words."
+    # Lu depuis config.json (cache TTL 30s) — jamais hardcodé
+    _chat_lang = load_config().get("jarvis", {}).get("language", "Français")
+    _lang_lc   = _chat_lang.lower()
+    if "english" in _lang_lc or "anglais" in _lang_lc:
+        system += "\n\n[MANDATORY] Your response language is ENGLISH. Write ONLY in English. No French words."
+    else:
+        system += f"\n\n[OBLIGATOIRE] Tu réponds UNIQUEMENT en {_chat_lang}. Jamais dans une autre langue."
 
     # ── Brain/Vault contextuel (option 2 — triggers: long / complexe / debug) ──
     memory_meta = {"retrieved": False, "fragments": 0, "ms": 0, "confidence": 0}
@@ -1638,7 +2001,11 @@ def chat_completion(req: ChatRequest, request: Request):
         ollama_msgs = []
         for i, msg in enumerate(ollama_msgs_raw):
             if i == len(ollama_msgs_raw) - 1 and msg["role"] == "user":
-                ollama_msgs.append({"role": "user", "content": msg["content"] + "\n\n[Reply in English only]"})
+                if "english" in _lang_lc or "anglais" in _lang_lc:
+                    _lang_reminder = "[Reply in English only]"
+                else:
+                    _lang_reminder = f"[Réponds UNIQUEMENT en {_chat_lang}]"
+                ollama_msgs.append({"role": "user", "content": msg["content"] + f"\n\n{_lang_reminder}"})
             else:
                 ollama_msgs.append(msg)
         text        = ask_ollama_chat(ollama_msgs, OLLAMA_MODEL)
