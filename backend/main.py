@@ -2171,7 +2171,38 @@ def chat_completion(req: ChatRequest, request: Request):
                     output_tokens=_total_out,
                 )
             except APIError as e:
-                raise HTTPException(getattr(e, "status_code", 502), detail=str(e))
+                _sc  = getattr(e, "status_code", 502)
+                _msg = str(e)
+                # ── Crédit Anthropic épuisé → fallback Ollama + message clair ──
+                _is_credit = "credit balance" in _msg.lower() or "insufficient" in _msg.lower()
+                if _is_credit:
+                    print(f"[claude] ⚠️ Crédit épuisé — fallback Ollama")
+                    model_used = OLLAMA_MODEL
+                    if ollama_available:
+                        _fb_msgs = [{"role": "system", "content": system}] + anthropic_messages
+                        text = ask_ollama_chat(_fb_msgs, OLLAMA_MODEL)
+                        if text:
+                            text = strip_think_tags(text)
+                    if not text:
+                        text = (
+                            "⚠️ **Crédits Anthropic épuisés.** Je bascule sur Ollama local.\n"
+                            "Recharge les crédits sur https://console.anthropic.com/settings/billing\n"
+                            "En attendant, je fonctionne en mode Ollama (qwen3:14b)."
+                        )
+                    # Mark account as credit-exhausted to skip future Claude calls this session
+                    _budget["cout_usd"] = BUDGET_MAX_USD + 1.0
+                elif _sc in (400, 422):
+                    # Bad request — log but return friendly message instead of crashing
+                    print(f"[claude] 400/422 APIError: {_msg[:200]}")
+                    text = f"⚠️ Erreur API Claude ({_sc}). Basculement sur Ollama..."
+                    if ollama_available:
+                        _fb_msgs = [{"role": "system", "content": system}] + anthropic_messages
+                        _fb_text = ask_ollama_chat(_fb_msgs, OLLAMA_MODEL)
+                        if _fb_text:
+                            text = strip_think_tags(_fb_text)
+                            model_used = OLLAMA_MODEL
+                else:
+                    raise HTTPException(_sc, detail=_msg)
             except Exception as e:
                 raise HTTPException(500, detail=str(e))
 
