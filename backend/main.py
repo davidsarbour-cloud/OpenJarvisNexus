@@ -2052,15 +2052,15 @@ def chat_completion(req: ChatRequest, request: Request):
 
         # Pour Ollama : rappel aussi dans le dernier message utilisateur
         ollama_msgs_raw = [{"role": "system", "content": _ollama_sys}] + anthropic_messages
-        # Ajoute le rappel de langue au dernier message user
+        # Ajoute le rappel langue + brièveté en fin de message user (Ollama suit mieux la dernière instruction)
         ollama_msgs = []
         for i, msg in enumerate(ollama_msgs_raw):
             if i == len(ollama_msgs_raw) - 1 and msg["role"] == "user":
                 if "english" in _lang_lc or "anglais" in _lang_lc:
-                    _lang_reminder = "[Reply in English only]"
+                    _tail = "[English only. 1-2 sentences MAX. No markdown, no lists, no headers.]"
                 else:
-                    _lang_reminder = f"[Réponds UNIQUEMENT en {_chat_lang}]"
-                ollama_msgs.append({"role": "user", "content": msg["content"] + f"\n\n{_lang_reminder}"})
+                    _tail = f"[{_chat_lang} uniquement. MAX 2 phrases courtes. Texte brut, zéro markdown, zéro liste, zéro titre.]"
+                ollama_msgs.append({"role": "user", "content": msg["content"] + f"\n\n{_tail}"})
             else:
                 ollama_msgs.append(msg)
 
