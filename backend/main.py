@@ -1985,7 +1985,7 @@ def chat_completion(req: ChatRequest, request: Request):
         use_claude = should_use_claude(last_user_msg) or not ollama_available
 
     facts      = load_facts()
-    system     = build_system_prompt(req.system or BASE_SYSTEM, facts)
+    system     = build_system_prompt(req.system or _build_base_system(), facts)  # relit config.json à chaque requête (TTL 30s)
 
     # ── Session continuity — inject résumé si nouvelle session ──
     _sc_cfg = load_config().get("session_continuity", {})
