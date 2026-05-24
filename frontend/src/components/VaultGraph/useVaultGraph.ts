@@ -20,12 +20,13 @@ export interface VaultGraphNode {
 export interface VaultGraphLink {
   source: string;
   target: string;
+  type?: 'wikilink' | 'tag';
 }
 
 export interface VaultGraphData {
   nodes: VaultGraphNode[];
   links: VaultGraphLink[];
-  stats?: { files: number; links: number };
+  stats?: { files: number; links: number; tags: number; orphans: number };
 }
 
 export type VaultGraphState = 'connecting' | 'open' | 'closed' | 'error';
@@ -100,7 +101,9 @@ export function useVaultGraph(options: UseVaultGraphOptions = {}): UseVaultGraph
         }
       };
 
-      socket.onerror = () => {
+      socket.onerror = (e) => {
+        const msg = (e as ErrorEvent).message || 'WebSocket error';
+        setError(msg);
         setState('error');
       };
 

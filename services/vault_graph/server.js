@@ -39,8 +39,11 @@ let syncing = false;
 
 const wss = new WebSocketServer({ port: PORT });
 
-function broadcast(msg) {
-  const data = JSON.stringify(msg);
+// Cache la string JSON du graph pour ne pas re-stringifier sur chaque client.
+let cachedGraphStr = null;
+
+function broadcast(msg, preStringified = null) {
+  const data = preStringified ?? JSON.stringify(msg);
   for (const client of wss.clients) {
     if (client.readyState === 1) {
       try { client.send(data); } catch (err) {
@@ -59,7 +62,9 @@ function doRefresh(reason) {
   broadcast({ type: 'vault:refreshing', payload: true });
   try {
     cache = parseVault(VAULT_PATH);
-    broadcast({ type: 'vault:graph', payload: cache });
+    // Stringifier une seule fois pour tous les clients (optim broadcast).
+    cachedGraphStr = JSON.stringify({ type: 'vault:graph', payload: cache });
+    broadcast(null, cachedGraphStr);
     console.log(
       `[vault_graph] (${reason}) ${cache.stats.files} files / ${cache.stats.links} links / ${cache.stats.tags} tags / ${cache.stats.orphans} orphans`,
     );
@@ -104,11 +109,22 @@ wss.on('listening', () => {
   console.log(`[vault_graph] ws listening on ws://localhost:${PORT}`);
 });
 
+// Optim D : heartbeat ping/pong pour détecter les connexions mortes.
+const PING_INTERVAL_MS = 30_000;
+setInterval(() => {
+  for (const client of wss.clients) {
+    if (client.readyState === 1) {
+      try { client.ping(); } catch { /* noop */ }
+    }
+  }
+}, PING_INTERVAL_MS);
+
 wss.on('connection', (socket, req) => {
   console.log('[vault_graph] client connected', req.socket.remoteAddress);
-  if (cache) {
+  if (cachedGraphStr) {
+    // Utilise le cache JSON pré-stringifié.
     try {
-      socket.send(JSON.stringify({ type: 'vault:graph', payload: cache }));
+      socket.send(cachedGraphStr);
     } catch (err) {
       console.warn('[vault_graph] initial send failed', err);
     }

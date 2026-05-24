@@ -92,14 +92,24 @@ export function parseVault(vaultPath) {
   const files = getAllMdFiles(vaultPath);
 
   // --- Pass 1 : enregistre tous les fichiers reels avec leur group ---
+  // Detecte les doublons de nom pour eviter la collision silencieuse.
+  const nameCount = new Map();
   for (const file of files) {
-    const id = path.basename(file, '.md');
-    const rel = path.relative(vaultPath, path.dirname(file));
+    const base = path.basename(file, '.md');
+    nameCount.set(base, (nameCount.get(base) ?? 0) + 1);
+  }
+  for (const file of files) {
+    const base = path.basename(file, '.md');
+    const rel  = path.relative(vaultPath, path.dirname(file));
     const group = rel === '' ? '_root' : rel.split(path.sep)[0];
+    // Si doublon : on prefixe avec le 1er sous-dossier pour un ID unique.
+    const id = nameCount.get(base) > 1
+      ? (rel === '' ? base : `${rel.split(path.sep)[0]}/${base}`)
+      : base;
     if (!nodes.has(id)) {
       nodes.set(id, {
         id,
-        label: id,
+        label: base,   // label reste le nom court
         path: file,
         group,
         tags: [],
@@ -132,7 +142,7 @@ export function parseVault(vaultPath) {
           tags: [],
         });
       }
-      links.push({ source: id, target, type: 'wikilink' });
+      if (target !== id) links.push({ source: id, target, type: 'wikilink' });
     }
 
     // Tags

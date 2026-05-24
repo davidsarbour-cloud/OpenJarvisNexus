@@ -74,10 +74,13 @@ function withRoutedFrontmatter(originalContent, fromRel) {
 
 function stripFrontmatter(s) { return s.replace(FM_RE, ''); }
 
+const WALK_IGNORED = new Set(['.git', '.obsidian', '.trash', 'node_modules', '__pycache__', '.DS_Store']);
+
 function walkAll(dir, baseDir, out = []) {
   let entries;
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return out; }
   for (const e of entries) {
+    if (WALK_IGNORED.has(e.name)) continue;
     const full = path.join(dir, e.name);
     if (e.isDirectory()) walkAll(full, baseDir, out);
     else if (e.isFile() && e.name.toLowerCase().endsWith('.md')) {

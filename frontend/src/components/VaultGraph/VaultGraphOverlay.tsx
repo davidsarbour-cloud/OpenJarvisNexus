@@ -16,7 +16,7 @@ interface ForceGraphHandle {
  *
  * Overlay plein ecran qui visualise le vault Obsidian comme un graphe.
  *
- * - Connecte au sidecar `services/vault_graph/` via WebSocket (ws://localhost:8083).
+ * - Connecte au sidecar `services/vault_graph/` via WebSocket (ws://localhost:8084).
  * - ForceGraph2D : noeuds blancs (taille proportionnelle aux connexions),
  *   liens semi-transparents, halo sur hover.
  * - Fond #0a0a0f, accent VAULT #a855f7.
@@ -76,7 +76,7 @@ export function VaultGraphOverlay({ open, onClose }: VaultGraphOverlayProps) {
   const { graph, state, error } = useVaultGraph({ enabled: open });
   const { width, height } = useFullscreenSize();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const fgRef = useRef<any>(null);
+  const fgRef = useRef<any>(null); // ForceGraph2D impose son propre type MutableRefObject interne
   const [hoverId, setHoverId] = useState<string | null>(null);
 
   // Decoration calculee une seule fois par snapshot.

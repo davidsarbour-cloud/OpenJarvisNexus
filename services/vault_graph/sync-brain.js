@@ -78,8 +78,15 @@ function withFrontmatter(originalContent, sourcePath) {
   const srcSlash = sourcePath.split(path.sep).join('/');
   const existing = originalContent.match(FM_RE);
   if (existing) {
+    // Remplace les clés nexus9 existantes au lieu de les dupliquer.
+    let fm = existing[1]
+      .replace(/^nexus9_source:.*$/m, '')
+      .replace(/^nexus9_synced:.*$/m, '')
+      .replace(/\n{2,}/g, '\n')
+      .trim();
+    if (fm) fm += '\n';
     const body = originalContent.slice(existing[0].length);
-    return `---\n${existing[1]}\nnexus9_source: ${srcSlash}\nnexus9_synced: ${now}\n---\n\n${body}`;
+    return `---\n${fm}nexus9_source: ${srcSlash}\nnexus9_synced: ${now}\n---\n\n${body}`;
   }
   return `---\nnexus9_source: ${srcSlash}\nnexus9_synced: ${now}\n---\n\n${originalContent}`;
 }
