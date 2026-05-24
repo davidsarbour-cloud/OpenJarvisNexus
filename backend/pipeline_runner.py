@@ -441,6 +441,15 @@ async def run_stl(prompt: str, voice: bool = True) -> dict:
 # ── Détection de commande dans le texte ───────────────────────────────
 
 _PATTERNS = {
+    "docker": re.compile(
+        r"(ouvre|open|start|run|lance|d[eé]marre|d[eé]marrer|allume)\s+docker"
+        r"|docker\s+(up|start|compose|on|ouvre|lance)"
+        r"|run\s+docker"
+        r"|docker\s+compose\s+up"
+        r"|monte\s+les?\s+containers?"
+        r"|start\s+containers?",
+        re.I
+    ),
     "start_all": re.compile(
         r"start[\s_-]?all|démarre\s+tout|lance\s+tous\s+les\s+services|démarrer\s+nexus",
         re.I
@@ -472,6 +481,96 @@ _STL_EXTRACT = re.compile(
 )
 
 
+async def run_docker(voice: bool = True) -> dict:
+    """
+    Lance Docker Desktop si endormi, attend le daemon, puis `docker compose up -d`.
+    Retourne l'état de chaque container.
+    """
+    import shutil, asyncio as _asyncio
+
+    compose_dir = Path(__file__).parent.parent  # racine du projet (contient docker-compose.yml)
+
+    # ── 1. Vérifier si Docker daemon répond ──────────────────────────────
+    def _daemon_alive() -> bool:
+        try:
+            r = subprocess.run(["docker", "info"], capture_output=True, timeout=5)
+            return r.returncode == 0
+        except Exception:
+            return False
+
+    # ── 2. Démarrer Docker Desktop si nécessaire ─────────────────────────
+    docker_desktop = r"C:\Program Files\Docker\Docker\Docker Desktop.exe"
+    if not _daemon_alive():
+        if os.path.exists(docker_desktop):
+            subprocess.Popen([docker_desktop], creationflags=subprocess.DETACHED_PROCESS)
+            # Attendre jusqu'à 60s que le daemon soit prêt
+            for _ in range(12):
+                await _asyncio.sleep(5)
+                if _daemon_alive():
+                    break
+            else:
+                return {"ok": False, "error": "Docker Desktop n'a pas démarré en 60s", "containers": []}
+        else:
+            return {"ok": False, "error": "Docker Desktop introuvable", "containers": []}
+
+    # ── 3. docker compose up -d ──────────────────────────────────────────
+    try:
+        proc = await _asyncio.create_subprocess_exec(
+            "docker", "compose", "up", "-d",
+            cwd=str(compose_dir),
+            stdout=_asyncio.subprocess.PIPE,
+            stderr=_asyncio.subprocess.STDOUT,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=120)
+        compose_ok = proc.returncode == 0
+    except asyncio.TimeoutError:
+        return {"ok": False, "error": "docker compose up a pris plus de 120s", "containers": []}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "containers": []}
+
+    # ── 4. Lire l'état des containers ───────────────────────────────────
+    containers = []
+    try:
+        ps = await _asyncio.create_subprocess_exec(
+            "docker", "compose", "ps", "--format", "json",
+            cwd=str(compose_dir),
+            stdout=_asyncio.subprocess.PIPE,
+            stderr=_asyncio.subprocess.DEVNULL,
+        )
+        ps_out, _ = await ps.communicate()
+        for line in ps_out.decode(errors="replace").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                c = json.loads(line)
+                containers.append({
+                    "name":   c.get("Name", "?"),
+                    "status": c.get("Status", "?"),
+                    "ports":  c.get("Publishers", []),
+                })
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    result = {
+        "ok":         compose_ok,
+        "containers": containers,
+        "count":      len(containers),
+        "up":         sum(1 for c in containers if "Up" in c.get("status", "")),
+    }
+
+    if voice:
+        up   = result["up"]
+        tot  = result["count"]
+        msg  = f"Docker lancé. {up} containers actifs sur {tot}." if compose_ok \
+               else "Erreur au démarrage de Docker Compose."
+        await _tts(msg)
+
+    return result
+
+
 def detect_pipeline(text: str) -> tuple[str, str] | None:
     """
     Retourne (pipeline_id, arg) si une commande pipeline est détectée, sinon None.
@@ -490,6 +589,8 @@ def detect_pipeline(text: str) -> tuple[str, str] | None:
 
 async def execute_pipeline(pipeline_id: str, arg: str = "", voice: bool = True) -> dict:
     """Exécute le pipeline et retourne le résultat."""
+    if pipeline_id == "docker":
+        return await run_docker(voice)
     if pipeline_id == "start_all":
         return await run_start_all(voice)
     if pipeline_id == "daily":
@@ -504,6 +605,19 @@ async def execute_pipeline(pipeline_id: str, arg: str = "", voice: bool = True) 
 def format_response(pipeline_id: str, result: dict) -> str:
     """Formate la réponse chat pour chaque pipeline."""
     ok = result.get("ok", False)
+
+    if pipeline_id == "docker":
+        up   = result.get("up", 0)
+        tot  = result.get("count", 0)
+        ctrs = result.get("containers", [])
+        if not ok:
+            return f"🐳 **DOCKER ❌**\n\n{result.get('error', 'Erreur inconnue')}"
+        lines = [f"🐳 **DOCKER ✅ — {up}/{tot} containers actifs**\n"]
+        for c in ctrs:
+            icon = "✅" if "Up" in c.get("status", "") else "⏸"
+            name = c.get("name", "?").replace("nexus_", "")
+            lines.append(f"{icon} `{name}` — {c.get('status','?')}")
+        return "\n".join(lines)
 
     if pipeline_id == "start_all":
         return (
