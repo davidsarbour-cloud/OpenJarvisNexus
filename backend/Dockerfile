@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# ffmpeg pour faster-whisper, gcc/cmake pour pymeshfix/fast-simplification
+# System deps: ffmpeg (whisper), gcc/cmake (meshfix), Playwright browser deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     gcc \
@@ -9,18 +9,42 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     curl \
+    # Playwright / Chromium headless deps
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxext6 \
+    libxfont2 \
+    fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Dépendances d'abord (layer cachée si requirements.txt ne change pas)
+# Python deps (layer cached unless requirements.txt changes)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Code source
+# Install Playwright's Chromium browser binary
+RUN python -m playwright install chromium
+
+# Application source
 COPY . .
 
-# Créer les dossiers persistants s'ils n'existent pas
+# Persistent runtime dirs
 RUN mkdir -p mission_logs stl_output research_logs session_logs
 
 EXPOSE 8000
