@@ -197,3 +197,17 @@ export interface GrafanaHealthResponse {
 
 export const fetchGrafanaHealth = () =>
   getJSON<GrafanaHealthResponse>('/v1/grafana/health', 5000);
+
+// ─── System Metrics (/v1/system/metrics) ───────────────
+export interface SystemMetrics {
+  cpu:          number;
+  ram:          number;
+  vram:         number | null;
+  storage:      number | null;
+  network_mbps: number;
+  health_score: number;
+  health_label: string;
+}
+
+export const fetchSystemMetrics = () =>
+  getJSON<SystemMetrics>('/v1/system/metrics', 3000);
