@@ -481,16 +481,86 @@ _STL_EXTRACT = re.compile(
 )
 
 
+def _pids_on_port(port: int) -> list[int]:
+    """Retourne les PIDs des processus natifs (non-Docker) qui écoutent sur ce port."""
+    pids = []
+    try:
+        out = subprocess.check_output(
+            ["netstat", "-ano"],
+            text=True, stderr=subprocess.DEVNULL, timeout=5,
+        )
+        for line in out.splitlines():
+            # Cherche les lignes LISTENING sur ce port
+            if f":{port}" in line and ("LISTENING" in line or "LISTEN" in line):
+                parts = line.split()
+                raw_pid = parts[-1]
+                try:
+                    pids.append(int(raw_pid))
+                except ValueError:
+                    pass
+    except Exception:
+        pass
+    return list(set(pids))
+
+
+def _kill_native_conflicts() -> list[str]:
+    """
+    Tue les processus natifs (non-Docker) sur les ports que Docker va prendre.
+    Ports surveillés : 8000 (backend), 5173 (frontend), 11434 (ollama).
+    Les processus Docker eux-mêmes (com.docker.backend) sont ignorés.
+    Retourne la liste des processus tués.
+    """
+    import signal as _sig
+
+    # Noms de processus Docker — ne jamais les tuer
+    DOCKER_PROCS = {"com.docker.backend", "dockerd", "docker", "docker-proxy", "vpnkit"}
+    # Ports gérés par Docker Compose (natif → Docker)
+    CONFLICT_PORTS = [8000, 5173, 11434]
+
+    killed = []
+    for port in CONFLICT_PORTS:
+        for proc_id in _pids_on_port(port):
+            try:
+                result = subprocess.run(
+                    ["tasklist", "/FI", f"PID eq {proc_id}", "/FO", "CSV", "/NH"],
+                    capture_output=True, text=True, timeout=3,
+                )
+                proc_name = ""
+                for row in result.stdout.strip().splitlines():
+                    parts = row.strip('"').split('","')
+                    if parts:
+                        proc_name = parts[0].lower().replace(".exe", "")
+                        break
+
+                if proc_name in DOCKER_PROCS or "docker" in proc_name:
+                    continue  # c'est Docker lui-même, on ne touche pas
+
+                # Tuer le processus natif
+                subprocess.run(["taskkill", "/F", "/PID", str(proc_id)],
+                               capture_output=True, timeout=5)
+                killed.append(f"{proc_name}:{port}")
+                print(f"[docker-pipeline] Tué processus natif {proc_name} (PID {proc_id}) sur port {port}")
+            except Exception as e:
+                print(f"[docker-pipeline] Impossible de tuer PID {proc_id} sur port {port}: {e}")
+
+    return killed
+
+
 async def run_docker(voice: bool = True) -> dict:
     """
-    Lance Docker Desktop si endormi, attend le daemon, puis `docker compose up -d`.
-    Retourne l'état de chaque container.
+    Lance Docker Desktop si endormi, résout les conflits de ports avec START_ALL.bat,
+    puis `docker compose up -d`. Retourne l'état de chaque container.
+
+    Conflits gérés automatiquement :
+      :8000  uvicorn natif  → remplacé par nexus_backend
+      :5173  npm run dev    → remplacé par nexus_frontend
+      :11434 ollama natif   → remplacé par nexus_ollama (si présent)
     """
-    import shutil, asyncio as _asyncio
+    import asyncio as _asyncio
 
-    compose_dir = Path(__file__).parent.parent  # racine du projet (contient docker-compose.yml)
+    compose_dir = Path(__file__).parent.parent  # racine du projet (docker-compose.yml)
 
-    # ── 1. Vérifier si Docker daemon répond ──────────────────────────────
+    # ── 1. Daemon Docker vivant ? ────────────────────────────────────────
     def _daemon_alive() -> bool:
         try:
             r = subprocess.run(["docker", "info"], capture_output=True, timeout=5)
@@ -498,22 +568,28 @@ async def run_docker(voice: bool = True) -> dict:
         except Exception:
             return False
 
-    # ── 2. Démarrer Docker Desktop si nécessaire ─────────────────────────
+    # ── 2. Lancer Docker Desktop si nécessaire ───────────────────────────
     docker_desktop = r"C:\Program Files\Docker\Docker\Docker Desktop.exe"
     if not _daemon_alive():
         if os.path.exists(docker_desktop):
             subprocess.Popen([docker_desktop], creationflags=subprocess.DETACHED_PROCESS)
-            # Attendre jusqu'à 60s que le daemon soit prêt
             for _ in range(12):
                 await _asyncio.sleep(5)
                 if _daemon_alive():
                     break
             else:
-                return {"ok": False, "error": "Docker Desktop n'a pas démarré en 60s", "containers": []}
+                return {"ok": False, "error": "Docker Desktop n'a pas démarré en 60s", "containers": [], "killed": []}
         else:
-            return {"ok": False, "error": "Docker Desktop introuvable", "containers": []}
+            return {"ok": False, "error": "Docker Desktop introuvable", "containers": [], "killed": []}
 
-    # ── 3. docker compose up -d ──────────────────────────────────────────
+    # ── 3. Résoudre les conflits avec START_ALL.bat ──────────────────────
+    # Tue les processus natifs (uvicorn, node/vite, ollama) sur les ports Docker
+    killed = await _asyncio.to_thread(_kill_native_conflicts)
+    if killed:
+        print(f"[docker-pipeline] Conflits résolus : {killed}")
+        await _asyncio.sleep(1)  # laisser les ports se libérer
+
+    # ── 4. docker compose up -d ──────────────────────────────────────────
     try:
         proc = await _asyncio.create_subprocess_exec(
             "docker", "compose", "up", "-d",
@@ -521,14 +597,14 @@ async def run_docker(voice: bool = True) -> dict:
             stdout=_asyncio.subprocess.PIPE,
             stderr=_asyncio.subprocess.STDOUT,
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=120)
+        stdout, _ = await _asyncio.wait_for(proc.communicate(), timeout=120)
         compose_ok = proc.returncode == 0
-    except asyncio.TimeoutError:
-        return {"ok": False, "error": "docker compose up a pris plus de 120s", "containers": []}
+    except _asyncio.TimeoutError:
+        return {"ok": False, "error": "docker compose up a pris plus de 120s", "containers": [], "killed": killed}
     except Exception as e:
-        return {"ok": False, "error": str(e), "containers": []}
+        return {"ok": False, "error": str(e), "containers": [], "killed": killed}
 
-    # ── 4. Lire l'état des containers ───────────────────────────────────
+    # ── 5. Lire l'état des containers ────────────────────────────────────
     containers = []
     try:
         ps = await _asyncio.create_subprocess_exec(
@@ -547,7 +623,6 @@ async def run_docker(voice: bool = True) -> dict:
                 containers.append({
                     "name":   c.get("Name", "?"),
                     "status": c.get("Status", "?"),
-                    "ports":  c.get("Publishers", []),
                 })
             except Exception:
                 pass
@@ -559,13 +634,16 @@ async def run_docker(voice: bool = True) -> dict:
         "containers": containers,
         "count":      len(containers),
         "up":         sum(1 for c in containers if "Up" in c.get("status", "")),
+        "killed":     killed,
     }
 
     if voice:
-        up   = result["up"]
-        tot  = result["count"]
-        msg  = f"Docker lancé. {up} containers actifs sur {tot}." if compose_ok \
-               else "Erreur au démarrage de Docker Compose."
+        up  = result["up"]
+        tot = result["count"]
+        msg = f"Docker lancé. {up} containers actifs sur {tot}." if compose_ok \
+              else "Erreur au démarrage de Docker Compose."
+        if killed:
+            msg = f"Conflits résolus. {msg}"
         await _tts(msg)
 
     return result
@@ -607,12 +685,15 @@ def format_response(pipeline_id: str, result: dict) -> str:
     ok = result.get("ok", False)
 
     if pipeline_id == "docker":
-        up   = result.get("up", 0)
-        tot  = result.get("count", 0)
-        ctrs = result.get("containers", [])
+        up     = result.get("up", 0)
+        tot    = result.get("count", 0)
+        ctrs   = result.get("containers", [])
+        killed = result.get("killed", [])
         if not ok:
             return f"🐳 **DOCKER ❌**\n\n{result.get('error', 'Erreur inconnue')}"
         lines = [f"🐳 **DOCKER ✅ — {up}/{tot} containers actifs**\n"]
+        if killed:
+            lines.append(f"⚡ *Conflits START_ALL résolus : `{'`, `'.join(killed)}`*\n")
         for c in ctrs:
             icon = "✅" if "Up" in c.get("status", "") else "⏸"
             name = c.get("name", "?").replace("nexus_", "")
