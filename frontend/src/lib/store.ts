@@ -84,12 +84,23 @@ function loadSettings(): Settings {
     defaultAgent: '',
     temperature: 0.7,
     maxTokens: 4096,
-    speechEnabled: false,
+    speechEnabled: true,
   };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return defaults;
-    return { ...defaults, ...JSON.parse(raw) };
+    const stored = JSON.parse(raw) as Partial<Settings>;
+    const merged = { ...defaults, ...stored };
+    // Migration: speechEnabled was `false` by default in older builds —
+    // if the user never explicitly changed it, bump it to true.
+    // We detect the old default by checking if the stored value is `false`
+    // and no explicit user-toggle key tracks it. Safest: just ignore stored
+    // `false` values for this one field when no sibling "speech_user_set" flag
+    // is present (the flag is written whenever the user toggles in Settings).
+    if (stored.speechEnabled === false && !localStorage.getItem('nexus9_speech_user_set')) {
+      merged.speechEnabled = true;
+    }
+    return merged;
   } catch {
     return defaults;
   }

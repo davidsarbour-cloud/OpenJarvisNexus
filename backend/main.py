@@ -789,7 +789,11 @@ def _get_whisper():
 
 @app.get("/v1/speech/health")
 async def speech_health():
-    return {"available": True, "backend": "faster-whisper-base-local"}
+    try:
+        import faster_whisper  # noqa: F401
+        return {"available": True, "backend": "faster-whisper-local"}
+    except ImportError:
+        return {"available": False, "backend": None, "error": "faster-whisper not installed"}
 
 
 @app.post("/v1/speech/transcribe")
@@ -807,7 +811,7 @@ async def speech_transcribe(file: UploadFile = File(...)):
         model = _get_whisper()
         segments, info = model.transcribe(
             path,
-            task="translate",
+            task="transcribe",
             beam_size=5,
             no_speech_threshold=0.6,   # ignore silence/bruit de fond
             condition_on_previous_text=False,  # évite les répétitions hallucinées

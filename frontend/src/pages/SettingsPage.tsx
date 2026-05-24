@@ -470,7 +470,14 @@ export function SettingsPage() {
           <Section title="Speech">
             <SettingRow label="Speech-to-Text" description="Enable microphone input for voice dictation">
               <button
-                onClick={() => { updateSettings({ speechEnabled: !settings.speechEnabled }); showSaved(); }}
+                onClick={() => {
+                  const next = !settings.speechEnabled;
+                  updateSettings({ speechEnabled: next });
+                  // Mark that the user has explicitly chosen a value — prevents the
+                  // migration in loadSettings from overriding it on next reload.
+                  localStorage.setItem('nexus9_speech_user_set', '1');
+                  showSaved();
+                }}
                 className="relative w-11 h-6 rounded-full transition-colors cursor-pointer"
                 style={{
                   background: settings.speechEnabled ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
