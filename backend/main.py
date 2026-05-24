@@ -809,9 +809,17 @@ def _stream_text(text: str, model_used: str, req_id: str, memory: dict | None = 
 # ROUTES SYSTÈME
 # ════════════════════════════════════════════════════════
 
+_health_cache: dict = {"ollama_ok": None, "ts": 0.0}
+_HEALTH_TTL = 8.0  # seconds — avoid hammering Ollama on every frontend poll
+
 @app.get("/health")
 def health():
-    ollama_ok = is_ollama_available()
+    import time as _t
+    now = _t.monotonic()
+    if _health_cache["ollama_ok"] is None or now - _health_cache["ts"] > _HEALTH_TTL:
+        _health_cache["ollama_ok"] = is_ollama_available()
+        _health_cache["ts"] = now
+    ollama_ok = _health_cache["ollama_ok"]
     return {
         "status":        "ok",
         "version":       "0.5.0",
@@ -1138,13 +1146,22 @@ async def speech_health():
 
 
 @app.post("/v1/speech/transcribe")
-async def speech_transcribe(file: UploadFile = File(...)):
+async def speech_transcribe(
+    file: UploadFile = File(...),
+    language: str | None = None,   # "fr" | "en" | None = auto-detect
+):
     audio_bytes = await file.read()
     if not audio_bytes:
         raise HTTPException(400, "Fichier audio vide")
 
+    # Resolve language: explicit param > config > default "fr"
+    # Forcing a language prevents auto-detect bugs like "allo" → Arabic "هلو"
+    _cfg_lang = load_config().get("jarvis", {}).get("language", "Français")
+    _lang_map  = {"Français": "fr", "French": "fr", "English": "en", "fr": "fr", "en": "en"}
+    resolved_lang = language or _lang_map.get(_cfg_lang, "fr")
+
     suffix = ".webm"
-    tmp_f  = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)  # NOSONAR - sync file creation before CPU-bound transcription thread
+    tmp_f  = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)  # NOSONAR
     tmp_f.write(audio_bytes)
     tmp_f.close()
 
@@ -1152,10 +1169,13 @@ async def speech_transcribe(file: UploadFile = File(...)):
         model = _get_whisper()
         segments, info = model.transcribe(
             path,
+            language=resolved_lang,            # FIX: force language — prevents "allo"→"هلو"
             task="transcribe",
             beam_size=5,
-            no_speech_threshold=0.6,   # ignore silence/bruit de fond
-            condition_on_previous_text=False,  # évite les répétitions hallucinées
+            no_speech_threshold=0.6,           # ignore silence/background noise
+            condition_on_previous_text=False,  # prevents hallucinated repetitions
+            repetition_penalty=1.2,            # extra guard against echo loops
+            temperature=0,                     # deterministic output
         )
         text = " ".join(seg.text for seg in segments).strip()
         return text, info

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import ForceGraph2D from 'react-force-graph-2d';
 import { useVaultGraph, type VaultGraphNode, type VaultGraphData } from '../components/VaultGraph';
 
@@ -137,6 +138,7 @@ function useStarfield(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function BrainHubPage() {
+  const navigate = useNavigate();
   const { graph, state, error } = useVaultGraph({ enabled: true });
   const [hoverId, setHoverId]   = useState<string | null>(null);
   const [size, setSize]         = useState({ width: 0, height: 0 });
@@ -311,9 +313,35 @@ export function BrainHubPage() {
 
       {/* ── HUD overlays (above graph) ── */}
 
+      {/* ← Back button */}
+      <button
+        onClick={() => navigate('/')}
+        title="Retour au Command Center"
+        style={{
+          position: 'absolute', top: 14, left: 16, zIndex: 10,
+          padding: '5px 12px',
+          border: '1px solid rgba(168,85,247,0.4)',
+          background: 'rgba(2,4,12,0.82)',
+          color: 'rgba(168,85,247,0.75)',
+          fontSize: 9, letterSpacing: '0.25em',
+          cursor: 'pointer', fontFamily: 'inherit',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = VAULT_ACCENT;
+          e.currentTarget.style.color = VAULT_ACCENT;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = 'rgba(168,85,247,0.4)';
+          e.currentTarget.style.color = 'rgba(168,85,247,0.75)';
+        }}
+      >
+        ◀ BACK
+      </button>
+
       {/* Header */}
       <div style={{
-        position: 'absolute', top: 14, left: 16, zIndex: 10,
+        position: 'absolute', top: 14, left: 110, zIndex: 10,
         padding: '5px 14px',
         border: `1px solid ${VAULT_ACCENT}`,
         background: 'rgba(2,4,12,0.82)',
@@ -409,19 +437,34 @@ export function BrainHubPage() {
         </div>
       )}
 
-      {/* Offline state */}
+      {/* Connecting / Offline state */}
       {state !== 'open' && !graph && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 5,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16,
           pointerEvents: 'none',
         }}>
-          <div style={{ color: VAULT_ACCENT, fontSize: 28, textShadow: `0 0 20px ${VAULT_GLOW}` }}>◆</div>
-          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, letterSpacing: '0.25em' }}>
-            {state === 'connecting'
-              ? 'CONNEXION AU VAULT…'
-              : 'VAULT OFFLINE · LANCE vault_graph SERVICE SUR :8084'}
+          {/* Pulsing orb */}
+          <div style={{
+            width: 48, height: 48, borderRadius: '50%',
+            border: `2px solid ${VAULT_ACCENT}`,
+            boxShadow: `0 0 24px ${VAULT_GLOW}, inset 0 0 12px ${VAULT_GLOW}`,
+            animation: state === 'connecting' ? 'brain-pulse 1.6s ease-in-out infinite' : 'none',
+          }} />
+          <style>{`
+            @keyframes brain-pulse {
+              0%, 100% { opacity: 0.4; transform: scale(0.95); }
+              50%       { opacity: 1.0; transform: scale(1.05); box-shadow: 0 0 40px ${VAULT_GLOW}; }
+            }
+          `}</style>
+          <div style={{ color: VAULT_ACCENT, fontSize: 10, letterSpacing: '0.4em', fontWeight: 700 }}>
+            {state === 'connecting' ? '● CONNEXION AU VAULT…' : '○ VAULT OFFLINE'}
           </div>
+          {state !== 'connecting' && (
+            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 9, letterSpacing: '0.2em', textAlign: 'center' }}>
+              Lance START_ALL.bat · vault_graph service sur :8084
+            </div>
+          )}
         </div>
       )}
     </div>
