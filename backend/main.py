@@ -27,7 +27,7 @@ from memory import (
 )
 from ollama_client import (
     is_ollama_available, list_local_models,
-    ask_ollama_chat, should_use_claude,
+    ask_ollama_chat, should_use_claude, stream_ollama_chat, strip_think_tags,
     OLLAMA_MODEL,
 )
 
@@ -2028,7 +2028,59 @@ def chat_completion(req: ChatRequest, request: Request):
                 ollama_msgs.append({"role": "user", "content": msg["content"] + f"\n\n{_lang_reminder}"})
             else:
                 ollama_msgs.append(msg)
-        text        = ask_ollama_chat(ollama_msgs, OLLAMA_MODEL)
+
+        # ── Real streaming path — tokens arrive live, no 60s freeze ──────
+        if req.stream:
+            def _ollama_real_stream():
+                full_text = ""
+                _rid = req_id
+                _mid = model_used
+                _mem = memory_meta
+                _sid = session_id
+                # opening delta (role)
+                yield _sse({
+                    "id": _rid, "object": "chat.completion.chunk",
+                    "model": _mid,
+                    "choices": [{"index": 0, "delta": {"role": "assistant", "content": ""}, "finish_reason": None}],
+                })
+                for _chunk in stream_ollama_chat(ollama_msgs, OLLAMA_MODEL):
+                    full_text += _chunk
+                    yield _sse({
+                        "id": _rid, "object": "chat.completion.chunk",
+                        "model": _mid,
+                        "choices": [{"index": 0, "delta": {"content": _chunk}, "finish_reason": None}],
+                    })
+                # final chunk + [DONE]
+                _final = {
+                    "id": _rid, "object": "chat.completion.chunk",
+                    "model": _mid,
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                }
+                if _mem:
+                    _final["memory"] = _mem
+                yield _sse(_final)
+                yield "data: [DONE]\n\n"
+                # Persist to session after stream completes
+                if full_text:
+                    add_message(_sid, "assistant", full_text)
+                    print(f"[chat] ollama-stream modèle={_mid} '{full_text[:50]}...'")
+                else:
+                    print("[chat] ollama-stream — pas de réponse, fallback non déclenché")
+
+            return StreamingResponse(
+                _ollama_real_stream(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control":     "no-cache",
+                    "X-Accel-Buffering": "no",
+                    "Connection":        "keep-alive",
+                },
+            )
+
+        # ── Non-streaming path — collect full response, strip think tags ─
+        text = ask_ollama_chat(ollama_msgs, OLLAMA_MODEL)
+        if text:
+            text = strip_think_tags(text)  # Remove <think>...</think> from qwen3/deepseek-r1
         if not text:
             use_claude = True
 
