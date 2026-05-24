@@ -235,6 +235,21 @@ async def task_orchestration_diagnostics():
         logger.error(f"Orchestration diagnostics failed: {e}")
 
 
+async def task_brain_reindex():
+    """Re-indexe le brain Obsidian dans ChromaDB (filet de securite apres les syncs nocturnels).
+    La re-indexation post-sync est deja declenchee en temps reel par le sidecar vault_graph
+    via POST /v1/brain/reindex — cette tache sert de securite si le sidecar etait offline."""
+    try:
+        from vault.brain_index import index_brain
+        result = await index_brain()
+        logger.info(
+            f"Brain re-index: {result.get('indexed')} indexed / "
+            f"{result.get('skipped')} skipped / {result.get('total')} total in ChromaDB"
+        )
+    except Exception as e:
+        logger.error(f"Brain re-index failed: {e}")
+
+
 async def task_daily_smoke_tests():
     """Lance les smoke tests quotidiens et sauvegarde le rapport."""
     try:
@@ -311,16 +326,19 @@ def create_scheduler():
 
     # Tâches quotidiennes à 03:00
     daily_tasks = [
-        ("vault_cleanup",          task_vault_cleanup,          "03:00"),
-        ("forge_analytics",        task_forge_analytics,        "03:05"),
-        ("stl_sync",               task_stl_directory_sync,     "03:10"),
-        ("health_log",             task_system_health_log,      "03:15"),
-        ("error_log_cleanup",      task_error_logs_cleanup,     "03:20"),
-        ("vault_maintenance",      task_vault_maintenance,      "03:25"),
+        ("vault_cleanup",             task_vault_cleanup,             "03:00"),
+        ("forge_analytics",           task_forge_analytics,           "03:05"),
+        ("stl_sync",                  task_stl_directory_sync,        "03:10"),
+        ("health_log",                task_system_health_log,         "03:15"),
+        ("error_log_cleanup",         task_error_logs_cleanup,        "03:20"),
+        ("vault_maintenance",         task_vault_maintenance,         "03:25"),
         ("orchestration_diagnostics", task_orchestration_diagnostics, "03:35"),
-        ("jarvis_workspace_index",  task_jarvis_workspace_index,   "03:45"),
-        ("daily_smoke_tests",         task_daily_smoke_tests,          "04:00"),
-        ("commerce_analytics",        task_commerce_analytics,         "04:10"),
+        ("jarvis_workspace_index",    task_jarvis_workspace_index,    "03:45"),
+        # Re-index apres les syncs nocturnels — filet de securite si sidecar offline.
+        # (Le sidecar vault_graph declenche aussi ce re-index en temps reel apres chaque sync.)
+        ("brain_reindex",             task_brain_reindex,             "03:55"),
+        ("daily_smoke_tests",         task_daily_smoke_tests,         "04:00"),
+        ("commerce_analytics",        task_commerce_analytics,        "04:10"),
     ]
 
     for name, func, time_str in daily_tasks:

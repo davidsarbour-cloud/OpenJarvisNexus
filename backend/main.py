@@ -339,18 +339,30 @@ async def pipeline_start_all():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ── Brain re-index endpoint (appelé par le vault_graph sidecar après chaque sync) ──
+
+@app.post("/v1/brain/reindex")
+async def brain_reindex_endpoint(background_tasks: BackgroundTasks):
+    """
+    Lance un re-index incrémental du brain Obsidian dans ChromaDB.
+    Fire-and-forget : retourne immédiatement, l'indexage tourne en arrière-plan.
+    Appelé automatiquement par le sidecar vault_graph après chaque vault:sync.
+    """
+    async def _run():
+        try:
+            from vault.brain_index import index_brain
+            result = await index_brain()
+            print(f"[Brain] post-sync re-index: {result.get('indexed')} indexed / {result.get('total')} total")
+        except Exception as e:
+            print(f"[Brain] post-sync re-index failed: {e}")
+
+    background_tasks.add_task(_run)
+    return {"status": "reindex_started"}
+
+
 # ── Schedulers : STL researcher (21:00) + tâches quotidiennes (03:00) ────────
 from apscheduler.triggers.cron import CronTrigger
 
-
-async def _brain_reindex_job():
-    """Ré-indexe le brain Obsidian dans ChromaDB (recherche sémantique des agents)."""
-    try:
-        from vault.brain_index import index_brain
-        result = await index_brain()
-        print(f"[Brain] re-index: {result}")
-    except Exception as e:
-        print(f"[Brain] re-index failed: {e}")
 
 
 @app.on_event("startup")
@@ -365,17 +377,9 @@ async def startup_daily_scheduler():
         replace_existing=True,
         misfire_grace_time=3600,
     )
-    scheduler.add_job(
-        _brain_reindex_job,
-        CronTrigger(hour=4, minute=30),
-        id="brain_reindex",
-        name="Daily: brain re-index (Obsidian -> ChromaDB)",
-        replace_existing=True,
-        misfire_grace_time=3600,
-    )
     scheduler.start()
     app.state.scheduler = scheduler
-    print("[Daily] Scheduler démarré — STL research 21:00, brain re-index 04:30")
+    print("[Daily] Scheduler démarré — STL research 21:00, brain re-index 03:55 (daily_tasks)")
 
 @app.on_event("shutdown")
 async def shutdown_daily_scheduler():

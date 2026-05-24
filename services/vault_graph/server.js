@@ -26,6 +26,8 @@ const PORT = Number(process.env.VAULT_GRAPH_PORT ?? 8084);
 const DEBOUNCE_MS = Number(process.env.VAULT_DEBOUNCE_MS ?? 250);
 const REFRESH_INTERVAL_MS = Number(process.env.VAULT_REFRESH_INTERVAL_MS ?? 60 * 60 * 1000);
 const BRAIN_SYNC_INTERVAL_MS = Number(process.env.BRAIN_SYNC_INTERVAL_MS ?? 24 * 60 * 60 * 1000);
+// Backend FastAPI — pour déclencher le re-index ChromaDB après chaque sync.
+const BACKEND_URL = process.env.NEXUS9_BACKEND_URL ?? 'http://localhost:8000';
 
 console.log('[vault_graph] starting');
 console.log('[vault_graph] vault:', VAULT_PATH);
@@ -76,6 +78,13 @@ function doRefresh(reason) {
   }
 }
 
+/** Fire-and-forget : demande au backend de re-indexer le brain dans ChromaDB. */
+function triggerBrainReindex(reason) {
+  fetch(`${BACKEND_URL}/v1/brain/reindex`, { method: 'POST' })
+    .then(r => console.log(`[vault_graph] brain re-index triggered (${reason}) → ${r.status}`))
+    .catch(err => console.warn(`[vault_graph] brain re-index request failed (${reason}):`, err.message));
+}
+
 function doSync(reason) {
   if (syncing) {
     console.log(`[vault_graph] skip sync (${reason}) — already syncing`);
@@ -95,6 +104,8 @@ function doSync(reason) {
     }
     broadcast({ type: 'vault:synced', payload: { ...result, routed } });
     doRefresh(`post-sync ${reason}`);
+    // Option B : re-index ChromaDB après chaque sync (fire-and-forget).
+    triggerBrainReindex(reason);
   } catch (err) {
     console.error('[vault_graph] sync failed', err);
   } finally {
