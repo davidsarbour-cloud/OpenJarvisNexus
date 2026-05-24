@@ -27,7 +27,7 @@ export function InputArea() {
   const resetStream = useAppStore((s) => s.resetStream);
   const modelLoading = useAppStore((s) => s.modelLoading);
 
-  const { state: speechState, available: speechAvailable, startRecording, stopRecording } = useSpeech();
+  const { state: speechState, available: speechAvailable, startRecording, stopRecording, cancelRecording } = useSpeech();
 
   // Abort in-flight stream when the user switches models mid-generation.
   // This prevents errors from trying to continue a stream with a stale model.
@@ -66,6 +66,10 @@ export function InputArea() {
       await startRecording();
     }
   }, [speechState, startRecording, stopRecording]);
+
+  const handleMicCancel = useCallback(() => {
+    cancelRecording();
+  }, [cancelRecording]);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -348,6 +352,7 @@ export function InputArea() {
             <MicButton
               state={speechState}
               onClick={handleMicClick}
+              onCancel={handleMicCancel}
               disabled={micDisabled}
               reason={micReason}
             />

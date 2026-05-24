@@ -4,11 +4,12 @@ import type { SpeechState } from '../../hooks/useSpeech';
 interface MicButtonProps {
   state: SpeechState;
   onClick: () => void;
+  onCancel?: () => void;
   disabled?: boolean;
   reason?: 'not-enabled' | 'no-backend' | 'streaming';
 }
 
-export function MicButton({ state, onClick, disabled, reason }: MicButtonProps) {
+export function MicButton({ state, onClick, onCancel, disabled, reason }: MicButtonProps) {
   const [showTooltip, setShowTooltip] = useState(false);
 
   const tooltipText =
@@ -19,7 +20,7 @@ export function MicButton({ state, onClick, disabled, reason }: MicButtonProps) 
         : reason === 'streaming'
           ? 'Wait for response'
           : state === 'recording'
-            ? 'Stop recording'
+            ? 'Stop & transcribe'
             : state === 'transcribing'
               ? 'Transcribing...'
               : 'Voice input';
@@ -27,53 +28,88 @@ export function MicButton({ state, onClick, disabled, reason }: MicButtonProps) 
   const isInactive = disabled || state === 'transcribing';
 
   return (
-    <div
-      className="relative"
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
-    >
-      <button
-        onClick={onClick}
-        disabled={isInactive}
-        className="p-2 rounded-xl transition-all shrink-0"
-        style={{
-          background: state === 'recording'
-            ? 'var(--color-error)'
-            : 'transparent',
-          color: state === 'recording'
-            ? 'white'
-            : isInactive
-              ? 'var(--color-text-tertiary)'
-              : 'var(--color-text-secondary)',
-          cursor: isInactive ? 'default' : 'pointer',
-          opacity: isInactive ? 0.35 : 1,
-          animation: state === 'recording' ? 'pulse 1.5s ease-in-out infinite' : 'none',
-        }}
+    <div className="flex items-center gap-0.5">
+      {/* ── Mic / Stop button ───────────────────────────────── */}
+      <div
+        className="relative"
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
       >
-        {state === 'transcribing' ? (
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="28" strokeDashoffset="10">
-              <animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="1s" repeatCount="indefinite" />
-            </circle>
-          </svg>
-        ) : (
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M5 3a3 3 0 0 1 6 0v5a3 3 0 0 1-6 0V3z" />
-            <path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z" />
-          </svg>
-        )}
-      </button>
-      {showTooltip && isInactive && (
-        <div
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 rounded-lg text-xs whitespace-nowrap pointer-events-none"
+        <button
+          onClick={onClick}
+          disabled={isInactive}
+          title={tooltipText}
+          className="p-2 rounded-xl transition-all shrink-0"
           style={{
-            background: 'var(--color-text)',
-            color: 'var(--color-bg)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            background: state === 'recording' ? 'var(--color-error)' : 'transparent',
+            color: state === 'recording'
+              ? 'white'
+              : isInactive
+                ? 'var(--color-text-tertiary)'
+                : 'var(--color-text-secondary)',
+            cursor: isInactive ? 'default' : 'pointer',
+            opacity: isInactive ? 0.35 : 1,
+            animation: state === 'recording' ? 'pulse 1.5s ease-in-out infinite' : 'none',
           }}
         >
-          {tooltipText}
-        </div>
+          {state === 'transcribing' ? (
+            /* Spinning loader */
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="2"
+                strokeDasharray="28" strokeDashoffset="10">
+                <animateTransform attributeName="transform" type="rotate"
+                  from="0 8 8" to="360 8 8" dur="1s" repeatCount="indefinite" />
+              </circle>
+            </svg>
+          ) : (
+            /* Microphone icon */
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M5 3a3 3 0 0 1 6 0v5a3 3 0 0 1-6 0V3z" />
+              <path d="M3.5 6.5A.5.5 0 0 1 4 7v1a4 4 0 0 0 8 0V7a.5.5 0 0 1 1 0v1a5 5 0 0 1-4.5 4.975V15h3a.5.5 0 0 1 0 1h-7a.5.5 0 0 1 0-1h3v-2.025A5 5 0 0 1 3 8V7a.5.5 0 0 1 .5-.5z" />
+            </svg>
+          )}
+        </button>
+
+        {showTooltip && isInactive && (
+          <div
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 rounded-lg text-xs whitespace-nowrap pointer-events-none"
+            style={{
+              background: 'var(--color-text)',
+              color: 'var(--color-bg)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            }}
+          >
+            {tooltipText}
+          </div>
+        )}
+      </div>
+
+      {/* ── Cancel button — only visible while recording ────── */}
+      {state === 'recording' && onCancel && (
+        <button
+          onClick={onCancel}
+          title="Cancel recording"
+          className="p-2 rounded-xl transition-all shrink-0 cursor-pointer"
+          style={{
+            background: 'transparent',
+            color: 'var(--color-text-tertiary)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color    = 'var(--color-text)';
+            e.currentTarget.style.background = 'var(--color-bg-tertiary)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color    = 'var(--color-text-tertiary)';
+            e.currentTarget.style.background = 'transparent';
+          }}
+        >
+          {/* ✕ icon */}
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <line x1="2" y1="2" x2="12" y2="12" />
+            <line x1="12" y1="2" x2="2" y2="12" />
+          </svg>
+        </button>
       )}
     </div>
   );
