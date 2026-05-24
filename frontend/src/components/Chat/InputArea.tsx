@@ -67,9 +67,8 @@ export function InputArea() {
     }
   }, [speechState, startRecording, stopRecording]);
 
-  const handleMicCancel = useCallback(() => {
-    cancelRecording();
-  }, [cancelRecording]);
+  // Bug 5 fix: cancelRecording is already stable, no wrapper needed
+  const handleMicCancel = cancelRecording;
 
   useEffect(() => {
     const el = textareaRef.current;

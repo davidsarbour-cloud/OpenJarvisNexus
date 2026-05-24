@@ -13,18 +13,14 @@ export function MicButton({ state, onClick, onCancel, disabled, reason }: MicBut
   const [showTooltip, setShowTooltip] = useState(false);
 
   const tooltipText =
-    reason === 'not-enabled'
-      ? 'Enable in Settings'
-      : reason === 'no-backend'
-        ? 'Speech backend not configured'
-        : reason === 'streaming'
-          ? 'Wait for response'
-          : state === 'recording'
-            ? 'Stop & transcribe'
-            : state === 'transcribing'
-              ? 'Transcribing...'
-              : 'Voice input';
+    reason === 'not-enabled'   ? 'Enable in Settings'
+    : reason === 'no-backend'  ? 'Speech backend not configured'
+    : reason === 'streaming'   ? 'Wait for response'
+    : state === 'recording'    ? 'Stop & transcribe'
+    : state === 'transcribing' ? 'Transcribing…'
+    : 'Voice input';
 
+  // Bug 1 fix: inactive = disabled OR transcribing (not recording)
   const isInactive = disabled || state === 'transcribing';
 
   return (
@@ -38,7 +34,6 @@ export function MicButton({ state, onClick, onCancel, disabled, reason }: MicBut
         <button
           onClick={onClick}
           disabled={isInactive}
-          title={tooltipText}
           className="p-2 rounded-xl transition-all shrink-0"
           style={{
             background: state === 'recording' ? 'var(--color-error)' : 'transparent',
@@ -70,9 +65,10 @@ export function MicButton({ state, onClick, onCancel, disabled, reason }: MicBut
           )}
         </button>
 
-        {showTooltip && isInactive && (
+        {/* Bug 1 fix: show tooltip on hover for ALL states, not just inactive */}
+        {showTooltip && (
           <div
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 rounded-lg text-xs whitespace-nowrap pointer-events-none"
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 rounded-lg text-xs whitespace-nowrap pointer-events-none z-10"
             style={{
               background: 'var(--color-text)',
               color: 'var(--color-bg)',
@@ -90,24 +86,20 @@ export function MicButton({ state, onClick, onCancel, disabled, reason }: MicBut
           onClick={onCancel}
           title="Cancel recording"
           className="p-2 rounded-xl transition-all shrink-0 cursor-pointer"
-          style={{
-            background: 'transparent',
-            color: 'var(--color-text-tertiary)',
-          }}
+          style={{ background: 'transparent', color: 'var(--color-text-tertiary)' }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.color    = 'var(--color-text)';
+            e.currentTarget.style.color      = 'var(--color-text)';
             e.currentTarget.style.background = 'var(--color-bg-tertiary)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.color    = 'var(--color-text-tertiary)';
+            e.currentTarget.style.color      = 'var(--color-text-tertiary)';
             e.currentTarget.style.background = 'transparent';
           }}
         >
-          {/* ✕ icon */}
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
             stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <line x1="2" y1="2" x2="12" y2="12" />
-            <line x1="12" y1="2" x2="2" y2="12" />
+            <line x1="12" y1="2" x2="2"  y2="12" />
           </svg>
         </button>
       )}

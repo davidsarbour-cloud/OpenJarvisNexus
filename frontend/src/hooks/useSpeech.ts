@@ -7,11 +7,29 @@ export function useSpeech() {
   const [state, setState] = useState<SpeechState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [available, setAvailable] = useState(false);
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
-  // When true, the next `onstop` event discards audio instead of transcribing.
+  const chunksRef        = useRef<Blob[]>([]);
+  const streamRef        = useRef<MediaStream | null>(null);
+
+  /** Set to true by cancelRecording() — onstop checks this flag. */
   const cancelledRef = useRef(false);
+
+  /**
+   * resolve/reject for the Promise returned by stopRecording().
+   * Declared early (before startRecording) to avoid any closure ordering ambiguity.
+   */
+  const resolveRef = useRef<((text: string) => void) | null>(null);
+  const rejectRef  = useRef<((err: unknown) => void) | null>(null);
+
+  /** Clean up pending stopRecording promise (cancel or error path). */
+  const rejectPending = useCallback((reason: string) => {
+    if (rejectRef.current) {
+      rejectRef.current(new Error(reason));
+      resolveRef.current = null;
+      rejectRef.current  = null;
+    }
+  }, []);
 
   // Check if speech backend is available on mount
   useEffect(() => {
@@ -21,6 +39,9 @@ export function useSpeech() {
   }, []);
 
   const startRecording = useCallback(async (): Promise<void> => {
+    // Bug 2 fix: guard against re-entry
+    if (mediaRecorderRef.current?.state === 'recording') return;
+
     setError(null);
     cancelledRef.current = false;
 
@@ -33,7 +54,11 @@ export function useSpeech() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const recorder = new MediaRecorder(stream);
+      // Pick the best supported MIME type (Bug 4 partial fix: prefer opus)
+      const preferredMimes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+      const mimeType = preferredMimes.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
+
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       chunksRef.current = [];
 
       recorder.ondataavailable = (e) => {
@@ -46,8 +71,9 @@ export function useSpeech() {
         streamRef.current = null;
 
         if (cancelledRef.current) {
-          // Discard audio, return to idle without calling backend
-          chunksRef.current = [];
+          // Bug 3 fix: clean up pending promise before discarding
+          rejectPending('Recording cancelled');
+          chunksRef.current  = [];
           cancelledRef.current = false;
           setState('idle');
           return;
@@ -60,7 +86,6 @@ export function useSpeech() {
         try {
           const result = await transcribeAudio(blob);
           setState('idle');
-          // Resolved via the stopRecording promise
           resolveRef.current?.(result.text);
         } catch (err) {
           setState('idle');
@@ -69,7 +94,7 @@ export function useSpeech() {
           rejectRef.current?.(err);
         } finally {
           resolveRef.current = null;
-          rejectRef.current = null;
+          rejectRef.current  = null;
         }
       };
 
@@ -80,11 +105,7 @@ export function useSpeech() {
       setError('Microphone access denied');
       setState('idle');
     }
-  }, []);
-
-  // Refs to pass resolve/reject out of the onstop closure
-  const resolveRef = useRef<((text: string) => void) | null>(null);
-  const rejectRef  = useRef<((err: unknown) => void) | null>(null);
+  }, [rejectPending]);
 
   const stopRecording = useCallback((): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -93,8 +114,8 @@ export function useSpeech() {
         reject(new Error('Not recording'));
         return;
       }
-      resolveRef.current = resolve;
-      rejectRef.current  = reject;
+      resolveRef.current   = resolve;
+      rejectRef.current    = reject;
       cancelledRef.current = false;
       recorder.stop();
     });
@@ -115,7 +136,7 @@ export function useSpeech() {
     startRecording,
     stopRecording,
     cancelRecording,
-    isRecording:     state === 'recording',
-    isTranscribing:  state === 'transcribing',
+    isRecording:    state === 'recording',
+    isTranscribing: state === 'transcribing',
   };
 }
