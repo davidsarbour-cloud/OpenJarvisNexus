@@ -4,6 +4,7 @@ FastAPI + Claude + Ollama + CrewAI + SSE Streaming + Mémoire
 """
 
 import os
+import re
 import time
 import json
 import logging
@@ -29,6 +30,11 @@ from ollama_client import (
     is_ollama_available, list_local_models,
     ask_ollama_chat, should_use_claude, stream_ollama_chat, strip_think_tags,
     OLLAMA_MODEL,
+)
+from tools.docker_tools import (
+    CLAUDE_TOOL_DEFS as _DOCKER_TOOL_DEFS,
+    dispatch as _docker_dispatch,
+    quick_status_text as _docker_quick_status,
 )
 
 # ── Environnement ────────────────────────────────────────
@@ -1839,6 +1845,15 @@ _DEBUG_KEYWORDS = (
     "fails", "failing", "not working",
 )
 
+# Docker keyword detector — triggers tool injection in Claude / status injection in Ollama
+_DOCKER_KW = re.compile(
+    r"\b(docker|container|compose|chromadb|postgres|redis|traefik|nexus_\w+)\b"
+    r"|quel\s+(service|container)|les?\s+containers?|est[- ]ce\s+que\s+docker"
+    r"|restart\s+\w+|stop\s+\w+container|start\s+\w+container"
+    r"|logs?\s+(du\s+)?(container|service)",
+    re.I,
+)
+
 
 def _needs_memory(msg: str) -> bool:
     """Déclenche l'injection brain/vault : message long, complexe, ou debug."""
@@ -1883,6 +1898,9 @@ def chat_completion(req: ChatRequest, request: Request):
         (m["content"] for m in reversed(anthropic_messages) if m["role"] == "user"),
         ""
     )
+
+    # Detect whether this message is about Docker / containers
+    _needs_docker = bool(_DOCKER_KW.search(last_user_msg))
 
     # ── Shortcut JARVIS: RUN CHEAT CODE ─────────────────────
     if "jarvis" in last_user_msg.lower() and "cheat" in last_user_msg.lower():
@@ -2015,8 +2033,16 @@ def chat_completion(req: ChatRequest, request: Request):
         _budget["appels_ollama"] += 1
         budget_tracker.record_ollama_call()
         model_used  = OLLAMA_MODEL
+        # Docker context injection for Ollama (no native tool_use in Ollama)
+        _ollama_sys = system
+        if _needs_docker:
+            try:
+                _ollama_sys += "\n\n[Docker Status]\n" + _docker_quick_status()
+            except Exception as _de:
+                print(f"[docker] quick_status_text error: {_de}")
+
         # Pour Ollama : rappel aussi dans le dernier message utilisateur
-        ollama_msgs_raw = [{"role": "system", "content": system}] + anthropic_messages
+        ollama_msgs_raw = [{"role": "system", "content": _ollama_sys}] + anthropic_messages
         # Ajoute le rappel de langue au dernier message user
         ollama_msgs = []
         for i, msg in enumerate(ollama_msgs_raw):
@@ -2097,22 +2123,52 @@ def chat_completion(req: ChatRequest, request: Request):
             print("[chat] 🔵 CLAUDE — question complexe")
             model_used = (req.model if req.model and req.model.strip() else CLAUDE_MODEL)
             try:
-                resp = claude.messages.create(
-                    model=model_used,
-                    max_tokens=req.max_tokens,
-                    temperature=req.temperature,
-                    system=system,
-                    messages=anthropic_messages,
-                )
-                text = "".join(
-                    b.text for b in resp.content
-                    if getattr(b, "type", None) == "text"
-                )
+                _docker_tools = _DOCKER_TOOL_DEFS if _needs_docker else []
+                _tool_msgs    = list(anthropic_messages)  # working copy for tool loop
+                _total_in, _total_out = 0, 0
+
+                while True:
+                    _create_kw = dict(
+                        model=model_used,
+                        max_tokens=req.max_tokens,
+                        temperature=req.temperature,
+                        system=system,
+                        messages=_tool_msgs,
+                    )
+                    if _docker_tools:
+                        _create_kw["tools"] = _docker_tools
+
+                    resp = claude.messages.create(**_create_kw)
+                    _total_in  += resp.usage.input_tokens
+                    _total_out += resp.usage.output_tokens
+
+                    if resp.stop_reason == "tool_use":
+                        # Execute each tool call and collect results
+                        _tool_results = []
+                        for _blk in resp.content:
+                            if getattr(_blk, "type", None) == "tool_use":
+                                print(f"[docker-tool] calling {_blk.name} {_blk.input}")
+                                _res_str = _docker_dispatch(_blk.name, _blk.input)
+                                _tool_results.append({
+                                    "type":        "tool_result",
+                                    "tool_use_id": _blk.id,
+                                    "content":     _res_str,
+                                })
+                        # Append assistant turn + tool results for next loop
+                        _tool_msgs.append({"role": "assistant", "content": resp.content})
+                        _tool_msgs.append({"role": "user",      "content": _tool_results})
+                    else:
+                        text = "".join(
+                            b.text for b in resp.content
+                            if getattr(b, "type", None) == "text"
+                        )
+                        break
+
                 _enregistrer_cout(
-                    resp.usage.input_tokens + resp.usage.output_tokens,
+                    _total_in + _total_out,
                     model_used,
-                    input_tokens=resp.usage.input_tokens,
-                    output_tokens=resp.usage.output_tokens,
+                    input_tokens=_total_in,
+                    output_tokens=_total_out,
                 )
             except APIError as e:
                 raise HTTPException(getattr(e, "status_code", 502), detail=str(e))
@@ -2266,6 +2322,48 @@ def cheat_code_status():
     if not report:
         return {"status": "never_run", "message": "Lance POST /v1/cheat-code pour démarrer."}
     return report
+
+
+# ════════════════════════════════════════════════════════
+# DOCKER REST ENDPOINTS — direct access from frontend
+# ════════════════════════════════════════════════════════
+
+@app.get("/v1/docker/status")
+def docker_status_endpoint():
+    """Liste tous les containers Docker avec état, ports, santé."""
+    from tools.docker_tools import docker_status
+    return docker_status()
+
+
+@app.get("/v1/docker/stats")
+def docker_stats_endpoint(name: str = None):
+    """CPU / RAM de tous les containers (ou d'un seul si name fourni)."""
+    from tools.docker_tools import docker_stats
+    return docker_stats(name)
+
+
+@app.get("/v1/docker/logs/{name}")
+def docker_logs_endpoint(name: str, lines: int = 40):
+    """Dernières N lignes de logs d'un container."""
+    from tools.docker_tools import docker_logs
+    return docker_logs(name, lines)
+
+
+@app.post("/v1/docker/action")
+def docker_action_endpoint(body: dict):
+    """start | stop | restart un container. Body: {name, action}."""
+    from tools.docker_tools import docker_container_action
+    return docker_container_action(
+        name=body.get("name", ""),
+        action=body.get("action", ""),
+    )
+
+
+@app.post("/v1/docker/compose")
+def docker_compose_endpoint(body: dict):
+    """docker compose up | down | ps | restart. Body: {action}."""
+    from tools.docker_tools import docker_compose_action
+    return docker_compose_action(action=body.get("action", "ps"))
 
 
 # ════════════════════════════════════════════════════════
