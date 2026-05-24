@@ -26,9 +26,6 @@ const SEED: Event[] = [
  *   1. WebSocket  /ws/events    (real-time, preferred)
  *   2. HTTP poll  /v1/logs      (fallback, every 4s)
  *   3. Mock seed                (last resort if both empty)
- *
- * Badge in the section header reflects the active source:
- *   WS LIVE · HTTP LIVE · MOCK
  */
 export function RightPanel() {
   const ws = useWsEvents(50);

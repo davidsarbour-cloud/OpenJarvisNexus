@@ -17,7 +17,7 @@ export function SystemHealthCard() {
 
   return (
     <HudCard
-      title="Service Status"
+      title="System Health"
       subtitle="services deep-check (/v1/health/deep)"
       colorKey="jarvis"
       icon={Cpu}

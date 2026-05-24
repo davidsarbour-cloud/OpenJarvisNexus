@@ -46,6 +46,7 @@ export function ChatArea() {
   };
 
   const isEmpty = messages.length === 0 && !streamState.isStreaming;
+  const isStreaming = streamState.isStreaming;
 
   const PanelIcon = systemPanelOpen ? PanelRightClose : PanelRightOpen;
 
@@ -53,6 +54,24 @@ export function ChatArea() {
     <div className="flex flex-col h-full">
       {/* Toggle bar */}
       <div className="flex items-center justify-end px-3 py-1.5 shrink-0">
+        {/* Streaming indicator — visible only when Jarvis is generating */}
+        {isStreaming && (
+          <div className="mr-auto flex items-center gap-2">
+            <div style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: '#00d4ff',
+              boxShadow: '0 0 8px #00d4ff',
+              animation: 'jarvis-pulse 0.75s ease-in-out infinite',
+            }} />
+            <span style={{
+              fontSize: 9, letterSpacing: '0.22em',
+              color: '#00d4ff',
+              fontFamily: "'IBM Plex Mono', ui-monospace, monospace",
+            }}>
+              {streamState.phase || 'PROCESSING'}
+            </span>
+          </div>
+        )}
         <button
           onClick={toggleSystemPanel}
           className="p-1.5 rounded-md transition-colors cursor-pointer"

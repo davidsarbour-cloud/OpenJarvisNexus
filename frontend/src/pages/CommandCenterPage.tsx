@@ -8,22 +8,18 @@ import { PrometheusLiveCard } from '../components/CommandCenter/PrometheusLiveCa
 import { ChromaDbLiveCard }   from '../components/CommandCenter/ChromaDbLiveCard';
 import { SonarqubeLiveCard }  from '../components/CommandCenter/SonarqubeLiveCard';
 import { GrafanaLiveCard }    from '../components/CommandCenter/GrafanaLiveCard';
-import { SystemHealthGauge }  from '../components/CommandCenter/SystemHealthGauge';
-import { ResourceMonitorCard } from '../components/CommandCenter/ResourceMonitorCard';
+import { SatelliteCards } from '../components/CommandCenter/FunctionalSatellites';
 import { CardSlot }           from '../systems/CardSlot';
 
 /**
  * CommandCenterPage — route `/`.
- *
- * Phase 4 milestone: 10 cards LIVE (Grafana migré vers GrafanaLiveCard).
- * Each card is wrapped in <CardSlot serviceId="..."> so that clicking a
- * planet in /orbital scrolls + pulses the matching card.
+ * Shows the 10 live service cards grid only.
  */
 export function CommandCenterPage() {
   return (
     <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
       <SectionTitle text="SYSTEM OVERVIEW" />
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-10 gap-3">
         <CardSlot serviceId="backend"><SystemHealthCard /></CardSlot>
         <CardSlot serviceId="bruce"><AgentActivityCard /></CardSlot>
         <CardSlot serviceId="ollama"><OllamaStatusCard /></CardSlot>
@@ -34,14 +30,8 @@ export function CommandCenterPage() {
         <CardSlot serviceId="chromadb"><ChromaDbLiveCard /></CardSlot>
         <CardSlot serviceId="sonarqube"><SonarqubeLiveCard /></CardSlot>
         <CardSlot serviceId="grafana"><GrafanaLiveCard /></CardSlot>
+        <SatelliteCards />
       </div>
-
-      <SectionTitle text="HARDWARE" />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <CardSlot serviceId="backend"><SystemHealthGauge /></CardSlot>
-        <CardSlot serviceId="backend"><ResourceMonitorCard /></CardSlot>
-      </div>
-
     </div>
   );
 }

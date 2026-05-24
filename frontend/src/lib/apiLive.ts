@@ -53,22 +53,6 @@ export interface HealthDeep {
 
 export const fetchHealthDeep = () => getJSON<HealthDeep>('/v1/health/deep', 6000);
 
-// ─── System metrics (hardware HUD) ─────────────────────
-export interface SystemMetrics {
-  cpu: number;
-  ram: number;
-  storage: number;
-  vram: number | null;
-  vram_used_mb: number | null;
-  vram_total_mb: number | null;
-  gpu_util: number | null;
-  network_mbps: number;
-  health_score: number;
-  health_label: string;
-}
-
-export const fetchSystemMetrics = () => getJSON<SystemMetrics>('/v1/system/metrics', 5000);
-
 // ─── Agents ────────────────────────────────────────────
 export type AgentStatus = 'online' | 'idle' | 'offline' | string;
 

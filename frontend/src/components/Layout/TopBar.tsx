@@ -34,7 +34,7 @@ export function TopBar() {
 
   return (
     <header
-      className="flex items-center justify-between shrink-0 px-4"
+      className="flex items-center shrink-0 px-4"
       style={{
         height: 48,
         background: 'var(--hud-bg-elev)',
@@ -43,7 +43,7 @@ export function TopBar() {
       }}
     >
       {/* LEFT — brand */}
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
         <Hexagon
           size={20}
           style={{
@@ -69,17 +69,17 @@ export function TopBar() {
 
       {/* MID — view nav (boutons uniformes) */}
       <div
-        className="flex items-stretch rounded-sm overflow-hidden"
+        className="flex items-stretch rounded-sm overflow-hidden shrink-0"
         style={{ border: '1px solid var(--hud-border)' }}
       >
+        <ViewButton active={path.startsWith('/chat')}         icon={<MessageSquare size={13} />}   label="CHAT"           onClick={() => navigate('/chat')} />
         <ViewButton active={path === '/'}                     icon={<LayoutDashboard size={13} />} label="COMMAND CENTER" onClick={() => navigate('/')} />
         <ViewButton active={path.startsWith('/orbital')}      icon={<Orbit size={13} />}           label="ORBITAL"        onClick={() => navigate('/orbital')} />
-        <ViewButton active={path.startsWith('/vault-graph')}  icon={<Share2 size={13} />}          label="BRAIN"          onClick={() => navigate('/vault-graph')} />
-        <ViewButton active={path.startsWith('/chat')}         icon={<MessageSquare size={13} />}   label="CHAT"           onClick={() => navigate('/chat')} />
+        <ViewButton active={false}                             icon={<Share2 size={13} />}          label="BRAIN"          onClick={() => window.open('obsidian://open?vault=BRAIN', '_blank')} />
       </div>
 
       {/* RIGHT — pills + clock */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-1 justify-end">
         {pills.map((p) => (
           <StatusPill key={p.label} pill={p} />
         ))}

@@ -709,6 +709,45 @@
   /* Keep project radius tokens — don't override with shadcn calc values */
 }
 /* ─────────────────────────────────────────────────────────
+ *  Nexus9 — Jarvis HUD logo animations (CSS-only, no JS cost)
+ * ───────────────────────────────────────────────────────── */
+@keyframes jarvis-breathe {
+  0%, 100% { opacity: 0.88; transform: scale(1); }
+  50%       { opacity: 1;    transform: scale(1.045); }
+}
+@keyframes jarvis-pulse {
+  0%, 100% { opacity: 0.82; transform: scale(0.96); }
+  50%       { opacity: 1;    transform: scale(1.07); }
+}
+@keyframes jarvis-spin-cw {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes jarvis-spin-ccw {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+@keyframes jarvis-glow-fade {
+  0%, 100% { box-shadow: 0 0 28px 4px rgba(0,212,255,0.35), 0 0 60px 10px rgba(0,212,255,0.12); }
+  50%       { box-shadow: 0 0 48px 10px rgba(0,212,255,0.6), 0 0 100px 20px rgba(0,212,255,0.22); }
+}
+@keyframes jarvis-glow-talk {
+  0%, 100% { box-shadow: 0 0 40px 8px rgba(0,212,255,0.55), 0 0 90px 20px rgba(0,212,255,0.25); }
+  50%       { box-shadow: 0 0 70px 18px rgba(0,212,255,0.8), 0 0 140px 40px rgba(0,212,255,0.4); }
+}
+@keyframes jarvis-text-flicker {
+  0%, 95%, 100% { opacity: 1; }
+  96%            { opacity: 0.4; }
+  97%            { opacity: 1; }
+  98%            { opacity: 0.2; }
+  99%            { opacity: 1; }
+}
+/* hardware-bar fill animation */
+@keyframes hw-bar-fill {
+  from { width: 0%; }
+}
+
+/* ─────────────────────────────────────────────────────────
  *  Nexus9 — Module identity colors
  *  Each major system has a fixed hue used everywhere
  *  (CC cards, sidebar, planets, alerts).

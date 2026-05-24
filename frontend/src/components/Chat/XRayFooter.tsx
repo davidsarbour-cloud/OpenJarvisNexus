@@ -16,7 +16,6 @@ export function XRayFooter({ usage, telemetry }: Props) {
 
   // Build collapsed summary parts
   const parts: string[] = [];
-  if (telemetry?.memory?.retrieved) parts.push(`🧠 ${telemetry.memory.fragments} vault fragments`);
   if (telemetry?.engine) parts.push(telemetry.engine);
   if (telemetry?.model_id) parts.push(telemetry.model_id);
   if (telemetry?.complexity_tier) parts.push(telemetry.complexity_tier);
@@ -69,13 +68,6 @@ export function XRayFooter({ usage, telemetry }: Props) {
     if (telemetry.ttft_ms != null) latencyParts.push(`TTFT ${formatMs(telemetry.ttft_ms)}`);
     if (telemetry.total_ms != null) latencyParts.push(`Total ${formatMs(telemetry.total_ms)}`);
     rows.push({ label: 'Latency', value: latencyParts.join(' \u00B7 ') });
-  }
-  if (telemetry?.memory?.retrieved) {
-    const mem = telemetry.memory;
-    rows.push({
-      label: '\uD83E\uDDE0 Memory',
-      value: `${mem.fragments} fragments injected \u00B7 ${mem.confidence}% confidence \u00B7 ${formatMs(mem.ms)}`,
-    });
   }
 
   return (

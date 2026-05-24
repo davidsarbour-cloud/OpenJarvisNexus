@@ -2,8 +2,8 @@ import { useNavigate, useLocation } from 'react-router';
 import {
   Cpu, Hammer, Lock, Eye, ShoppingBag,
   LineChart, BarChart3, Bug, Database, Container,
-  BookOpen, Sparkles, Workflow, MessageSquare,
-  Grid3x3, Globe, Network, Share2, X,
+  BookOpen, Sparkles, Workflow,
+  Network, Share2, X,
 } from 'lucide-react';
 import { cssVar, type ModuleKey } from '../../lib/colors';
 
@@ -27,15 +27,12 @@ const SECTIONS: Section[] = [
   {
     title: 'VIEWS',
     entries: [
-      { label: 'Command Center', icon: Grid3x3,        colorKey: 'jarvis', route: '/',              status: 'on' },
-      { label: 'Orbital View',   icon: Globe,          colorKey: 'forge',  route: '/orbital',       status: 'on' },
       { label: 'Agent Network',  icon: Network,        colorKey: 'cortex', route: '/agent-network', status: 'on', escapable: true },
-      { label: 'Vault Graph',    icon: Share2,         colorKey: 'vault',  route: '/vault-graph',   status: 'on' },
-      { label: 'Chat',           icon: MessageSquare,  colorKey: 'jarvis', route: '/chat',          status: 'on' },
+      { label: 'Brain Hub',      icon: Share2,         colorKey: 'vault',  route: '/brain',         status: 'on' },
     ],
   },
   {
-    title: 'ENTITIES',
+    title: 'WORLD',
     entries: [
       { label: 'JARVIS',    icon: Cpu,        colorKey: 'jarvis',    status: 'on' },
       { label: 'Forge',     icon: Hammer,     colorKey: 'forge',     status: 'on' },

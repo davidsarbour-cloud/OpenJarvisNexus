@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
  * Nexus9 — useVaultGraph
  *
  * Hook React qui se connecte au sidecar `services/vault_graph/`
- * (par defaut ws://localhost:8083) et expose le graphe vivant.
+ * (par defaut ws://localhost:8084) et expose le graphe vivant.
  *
  * - Reconnexion automatique avec backoff exponentiel (cap 15s).
  * - StrictMode-safe : on attend `OPEN` avant de close pour eviter
@@ -31,12 +31,12 @@ export interface VaultGraphData {
 export type VaultGraphState = 'connecting' | 'open' | 'closed' | 'error';
 
 interface ServerMessage {
-  type: 'graph';
-  data: VaultGraphData;
+  type: 'vault:graph' | 'vault:refreshing';
+  payload: VaultGraphData | boolean;
 }
 
 interface UseVaultGraphOptions {
-  /** Override de l'URL WebSocket. Default ws://localhost:8083. */
+  /** Override de l'URL WebSocket. Default ws://localhost:8084. */
   url?: string;
   /** Active/desactive la connexion (utile pour ne pas ouvrir tant que l'overlay est ferme). */
   enabled?: boolean;
@@ -49,7 +49,7 @@ export interface UseVaultGraphResult {
   error: string | null;
 }
 
-const DEFAULT_URL = 'ws://localhost:8083';
+const DEFAULT_URL = 'ws://localhost:8084';
 const INITIAL_DELAY_MS = 1000;
 const MAX_DELAY_MS = 15_000;
 
@@ -92,8 +92,8 @@ export function useVaultGraph(options: UseVaultGraphOptions = {}): UseVaultGraph
       socket.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data) as ServerMessage;
-          if (msg.type === 'graph') {
-            setGraph(msg.data);
+          if (msg.type === 'vault:graph') {
+            setGraph(msg.payload as VaultGraphData);
           }
         } catch {
           /* ignore frames non-JSON */

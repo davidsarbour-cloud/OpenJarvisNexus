@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ForceGraph2D, { type ForceGraphMethods } from 'react-force-graph-2d';
+import ForceGraph2D from 'react-force-graph-2d';
 import {
   useVaultGraph,
   type VaultGraphData,
   type VaultGraphNode,
 } from './useVaultGraph';
+
+/** Subset minimal de l'API imperative de ForceGraph2D dont on a besoin. */
+interface ForceGraphHandle {
+  zoomToFit(ms?: number, padding?: number): void;
+}
 
 /**
  * Nexus9 — VaultGraphOverlay
@@ -70,7 +75,8 @@ const BG           = '#0a0a0f';
 export function VaultGraphOverlay({ open, onClose }: VaultGraphOverlayProps) {
   const { graph, state, error } = useVaultGraph({ enabled: open });
   const { width, height } = useFullscreenSize();
-  const fgRef = useRef<ForceGraphMethods | undefined>(undefined);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fgRef = useRef<any>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
 
   // Decoration calculee une seule fois par snapshot.
@@ -317,9 +323,7 @@ export function VaultGraphOverlay({ open, onClose }: VaultGraphOverlayProps) {
               letterSpacing: '0.25em',
             }}
           >
-            {state === 'connecting'
-              ? 'CONNECTING TO VAULT GRAPH SYNC · ws://localhost:8083'
-              : `VAULT GRAPH ${statusLabel[state]}${error ? ` · ${error}` : ''}`}
+            {state === 'connecting' ? 'CONNECTING TO VAULT…' : 'VAULT OFFLINE · START vault_graph SERVICE'}
           </div>
         )}
       </div>

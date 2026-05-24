@@ -16,11 +16,12 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
   },
   "include": ["src"],
-  "exclude": ["src/components/Desktop", "src/**/*.backup-*"]
+  "exclude": ["src/components/Desktop"]
 }

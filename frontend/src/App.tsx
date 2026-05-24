@@ -6,6 +6,7 @@ import { CommandCenterPage } from './pages/CommandCenterPage';
 import { OrbitalPage } from './pages/OrbitalPage';
 import { JarvisChatPage } from './pages/JarvisChatPage';
 import { BrainPage } from './pages/BrainPage';
+import { BrainHubPage } from './pages/BrainHubPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { GetStartedPage } from './pages/GetStartedPage';
@@ -180,6 +181,7 @@ export default function App() {
         <Route element={<HudLayout />}>
           <Route index element={<CommandCenterPage />} />
           <Route path="orbital" element={<OrbitalPage />} />
+          <Route path="brain" element={<BrainHubPage />} />
           <Route path="chat" element={<JarvisChatPage />} />
           <Route
             path="agent-network"

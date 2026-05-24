@@ -3,7 +3,7 @@ import { TopBar } from './TopBar';
 import { HudSidebar } from './HudSidebar';
 import { RightPanel } from './RightPanel';
 import { BottomPanel } from './BottomPanel';
-import { AlertBanner, useAlertGc } from '../../systems/alerts';
+import { useAlertGc } from '../../systems/alerts';
 import { TacticalOverlay } from '../../systems/TacticalOverlay';
 
 /**
@@ -46,7 +46,6 @@ export function HudLayout() {
         backgroundSize: '32px 32px, 32px 32px',
       }}
     >
-      <AlertBanner />
       <TopBar />
 
       <div className="flex flex-1 min-h-0 relative">
