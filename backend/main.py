@@ -1862,7 +1862,7 @@ def chat_completion(req: ChatRequest, request: Request):
         new_msgs = [
             {"role": m.role, "content": m.content}
             for m in req.messages
-            if m.role in ("user", "assistant")
+            if m.role in ("user", "assistant") and m.content.strip()  # skip empty-content (aborted stream placeholders)
         ]
         last_user = next(
             (m["content"] for m in reversed(new_msgs) if m["role"] == "user"),

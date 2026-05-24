@@ -1,6 +1,7 @@
-import { useRef, useEffect, useState } from 'react';
-import { ChevronRight, ChevronLeft, Cpu, ChevronDown } from 'lucide-react';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { ChevronRight, ChevronLeft, Cpu, ChevronDown, Volume2, VolumeX } from 'lucide-react';
 import { useAppStore } from '../lib/store';
+import { getBase } from '../lib/api';
 import { MessageBubble } from '../components/Chat/MessageBubble';
 import { InputArea } from '../components/Chat/InputArea';
 import { StreamingDots } from '../components/Chat/StreamingDots';
@@ -43,6 +44,11 @@ export function JarvisChatPage() {
 
   const [collapsed,       setCollapsed]       = useState(true);  // sidebar closed on mount
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [ttsPlaying,      setTtsPlaying]      = useState(false);
+  const [ttsEnabled,      setTtsEnabled]      = useState(true);  // auto-play toggle
+  const ttsAudioRef  = useRef<HTMLAudioElement | null>(null);
+  const ttsUrlRef    = useRef<string | null>(null);
+  const prevStreaming = useRef(false);
 
   const empty = messages.length === 0 && !streamState.isStreaming;
 
@@ -83,6 +89,61 @@ export function JarvisChatPage() {
     window.addEventListener('click', handler);
     return () => window.removeEventListener('click', handler);
   }, [modelPickerOpen]);
+
+  // ── TTS helper: speak any text via backend Edge TTS ─────────────────────
+  const speakText = useCallback(async (text: string) => {
+    if (!text.trim()) return;
+    // Stop any existing audio
+    ttsAudioRef.current?.pause();
+    if (ttsUrlRef.current) { URL.revokeObjectURL(ttsUrlRef.current); ttsUrlRef.current = null; }
+    ttsAudioRef.current = null;
+
+    // Strip markdown for clean audio
+    const clean = text
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/`[^`]+`/g, '')
+      .replace(/#{1,6}\s/g, '')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .trim()
+      .slice(0, 2000);  // 2000 char limit for auto-play
+
+    if (!clean) return;
+    setTtsPlaying(true);
+    try {
+      const res = await fetch(`${getBase()}/v1/tts?text=${encodeURIComponent(clean)}`);
+      if (!res.ok) throw new Error(`TTS ${res.status}`);
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      ttsUrlRef.current = url;
+      const audio = new Audio(url);
+      ttsAudioRef.current = audio;
+      audio.onended = () => { URL.revokeObjectURL(url); ttsUrlRef.current = null; ttsAudioRef.current = null; setTtsPlaying(false); };
+      audio.onerror = () => { if (ttsUrlRef.current) { URL.revokeObjectURL(ttsUrlRef.current); ttsUrlRef.current = null; } ttsAudioRef.current = null; setTtsPlaying(false); };
+      await audio.play();
+    } catch {
+      setTtsPlaying(false);
+    }
+  }, []);
+
+  const stopTts = useCallback(() => {
+    ttsAudioRef.current?.pause();
+    if (ttsUrlRef.current) { URL.revokeObjectURL(ttsUrlRef.current); ttsUrlRef.current = null; }
+    ttsAudioRef.current = null;
+    setTtsPlaying(false);
+  }, []);
+
+  // ── Auto-play TTS when JARVIS finishes responding ────────────────────────
+  useEffect(() => {
+    const wasStreaming = prevStreaming.current;
+    prevStreaming.current = speaking;
+    // Detect transition: streaming just stopped
+    if (wasStreaming && !speaking && ttsEnabled) {
+      const last = [...messages].reverse().find((m) => m.role === 'assistant' && m.content);
+      if (last?.content) speakText(last.content);
+    }
+  }, [speaking, messages, ttsEnabled, speakText]);
 
   return (
     <div className="flex h-full" style={{ background: 'var(--hud-bg)' }}>
@@ -213,30 +274,58 @@ export function JarvisChatPage() {
 
           {/* Live transcript / last reply */}
           {liveText ? (
-            <div
-              ref={transcriptRef}
-              className="w-full overflow-y-auto px-4 py-3 text-[13px] leading-relaxed"
-              style={{
-                maxWidth:   700,
-                maxHeight:  220,
-                background: 'rgba(0,0,0,0.28)',
-                border:     `1px solid ${speaking ? 'var(--color-jarvis)' : 'var(--hud-border)'}`,
-                color:      'var(--hud-text)',
-                fontFamily: 'inherit',
-                whiteSpace: 'pre-wrap',
-                wordBreak:  'break-word',
-                transition: 'border-color 0.3s ease',
-              }}
-            >
-              {liveText}
-              {speaking && (
-                <span
-                  className="animate-pulse"
-                  style={{ color: 'var(--color-jarvis)', marginLeft: 1 }}
+            <div className="w-full flex flex-col gap-1" style={{ maxWidth: 700 }}>
+              {/* Toolbar: TTS toggle + speak/stop */}
+              <div className="flex items-center gap-2 px-1">
+                <button
+                  onClick={() => setTtsEnabled((v) => !v)}
+                  className="flex items-center gap-1 text-[8px] font-bold tracking-[0.2em] cursor-pointer"
+                  style={{ color: ttsEnabled ? 'var(--color-jarvis)' : 'var(--hud-text-dim)' }}
+                  title={ttsEnabled ? 'Désactiver auto-voix' : 'Activer auto-voix'}
                 >
-                  ▊
+                  {ttsEnabled ? <Volume2 size={10} /> : <VolumeX size={10} />}
+                  <span>{ttsEnabled ? 'VOIX AUTO' : 'VOIX OFF'}</span>
+                </button>
+                {!speaking && liveText && (
+                  <button
+                    onClick={() => ttsPlaying ? stopTts() : speakText(liveText)}
+                    className="flex items-center gap-1 text-[8px] font-bold tracking-[0.2em] cursor-pointer ml-2"
+                    style={{ color: ttsPlaying ? 'var(--color-jarvis)' : 'var(--hud-text-dim)' }}
+                    title={ttsPlaying ? 'Arrêter' : 'Écouter'}
+                  >
+                    {ttsPlaying ? <VolumeX size={10} /> : <Volume2 size={10} />}
+                    <span>{ttsPlaying ? 'STOP' : '▶ ÉCOUTER'}</span>
+                  </button>
+                )}
+                <span className="ml-auto text-[8px]" style={{ color: 'var(--hud-text-dim)' }}>
+                  {liveText.length} chars
                 </span>
-              )}
+              </div>
+
+              <div
+                ref={transcriptRef}
+                className="w-full overflow-y-auto px-4 py-3 text-[13px] leading-relaxed"
+                style={{
+                  maxHeight:  220,
+                  background: 'rgba(0,0,0,0.28)',
+                  border:     `1px solid ${speaking ? 'var(--color-jarvis)' : ttsPlaying ? 'var(--color-jarvis)' : 'var(--hud-border)'}`,
+                  color:      'var(--hud-text)',
+                  fontFamily: 'inherit',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak:  'break-word',
+                  transition: 'border-color 0.3s ease',
+                }}
+              >
+                {liveText}
+                {speaking && (
+                  <span
+                    className="animate-pulse"
+                    style={{ color: 'var(--color-jarvis)', marginLeft: 1 }}
+                  >
+                    ▊
+                  </span>
+                )}
+              </div>
             </div>
           ) : speaking ? (
             /* Waiting for first token */

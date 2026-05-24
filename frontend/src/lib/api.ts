@@ -97,7 +97,8 @@ export async function fetchModels(): Promise<ModelInfo[]> {
   const res = await fetch(`${getBase()}/v1/models`);
   if (!res.ok) throw new Error(`Failed to fetch models: ${res.status}`);
   const data = await res.json();
-  return data.data || [];
+  // Backend returns { models: [...] }; OpenAI-compat returns { data: [...] }
+  return data.data || data.models || [];
 }
 
 export async function fetchRecommendedModel(): Promise<{ model: string; reason: string }> {
