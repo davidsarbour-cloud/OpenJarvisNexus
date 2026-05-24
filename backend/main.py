@@ -1355,10 +1355,19 @@ def logs_list():
 
 @app.get("/v1/models")
 def models_list():
-    models = [{"id": CLAUDE_MODEL, "provider": "anthropic", "available": True}]
+    # Embedding / non-chat models — never appear in the chat model picker
+    _EMBED_SKIP = re.compile(
+        r"(embed|embedding|vision-only|clip|rerank|bge-|e5-|nomic-embed|all-minilm)",
+        re.I,
+    )
+    models = [{"id": CLAUDE_MODEL,      "provider": "anthropic", "available": True}]
+    # Add Sonnet only if user hasn't run out of credits (budget guard)
+    if _budget_ok():
+        models.append({"id": CLAUDE_MODEL_GROS, "provider": "anthropic", "available": True})
     if is_ollama_available():
         for m in list_local_models():
-            models.append({"id": m, "provider": "ollama", "available": True})
+            if not _EMBED_SKIP.search(m):   # skip embedding / non-chat models
+                models.append({"id": m, "provider": "ollama", "available": True})
     return {"models": models}
 
 @app.get("/v1/managed-agents")
