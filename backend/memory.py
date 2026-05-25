@@ -6,13 +6,91 @@ Jarvis Memory System v2
 """
 
 import json
+import os
 import time
+from datetime import date
 from pathlib import Path
 
 BASE_DIR      = Path(__file__).parent
 MEMORY_FILE   = BASE_DIR / "memory.json"
 SESSIONS_FILE = BASE_DIR / "sessions.json"
 CONFIG_FILE   = BASE_DIR / "config.json"
+
+# ── Obsidian Vault Memory ────────────────────────────────
+VAULT_PATH = Path(os.getenv("OBSIDIAN_VAULT_PATH", "/app/BRAIN/BRAIN"))
+_VAULT_TTL = 300.0  # relit le vault toutes les 5 minutes
+
+_vault_cache: str = ""
+_vault_cache_ts: float = 0.0
+
+
+def load_vault_memory(max_chars: int = 12000, max_per_note: int = 1000) -> str:
+    """Lit 00_Core/*.md + note du jour depuis le vault Obsidian.
+    Résultat mis en cache 5 minutes pour ne pas lire le disque à chaque message."""
+    global _vault_cache, _vault_cache_ts
+    if _vault_cache and (time.time() - _vault_cache_ts) < _VAULT_TTL:
+        return _vault_cache
+
+    if not VAULT_PATH.exists():
+        return ""
+
+    sections: list[str] = []
+    total = 0
+
+    # ── 1. 00_Core/*.md ─────────────────────────────────
+    core_dir = VAULT_PATH / "00_Core"
+    if core_dir.exists():
+        for note in sorted(core_dir.glob("*.md")):
+            try:
+                content = note.read_text(encoding="utf-8").strip()
+                if not content:
+                    continue
+                # Cap par note pour qu'une grosse note ne monopolise pas tout
+                if len(content) > max_per_note:
+                    content = content[:max_per_note] + "\n…"
+                entry = f"[{note.stem}]\n{content}"
+                if total + len(entry) > max_chars:
+                    # tronque si on approche la limite
+                    remaining = max_chars - total
+                    if remaining > 200:
+                        entry = entry[:remaining] + "\n…"
+                    else:
+                        break
+                sections.append(entry)
+                total += len(entry)
+            except Exception:
+                continue
+
+    # ── 2. Note du jour ──────────────────────────────────
+    today_file = VAULT_PATH / f"{date.today().isoformat()}.md"
+    if not today_file.exists():
+        # fallback : note la plus récente dans le vault root
+        candidates = sorted(VAULT_PATH.glob("20??-??-??.md"), reverse=True)
+        today_file = candidates[0] if candidates else None
+
+    if today_file and today_file.exists() and total < max_chars:
+        try:
+            content = today_file.read_text(encoding="utf-8").strip()
+            if content:
+                entry = f"[note du jour: {today_file.stem}]\n{content}"
+                remaining = max_chars - total
+                if len(entry) > remaining:
+                    entry = entry[:remaining] + "\n…"
+                sections.append(entry)
+        except Exception:
+            pass
+
+    if not sections:
+        return ""
+
+    result = (
+        "\n\n━━━ VAULT OBSIDIAN ━━━\n"
+        + "\n\n".join(sections)
+        + "\n━━━ FIN VAULT ━━━"
+    )
+    _vault_cache    = result
+    _vault_cache_ts = time.time()
+    return result
 
 MAX_HISTORY = 40
 SESSION_TTL = 86400  # 24 heures
@@ -337,6 +415,9 @@ def build_system_prompt(base: str, facts: dict) -> str:
             "Never tell David you don't remember."
         )
 
+    # Vault Obsidian memory block (00_Core + note du jour)
+    vault_block = load_vault_memory()
+
     # Language rule is prepended first so it's never overridden — driven by config.json
     _lang = language.lower()
     if "english" in _lang or "anglais" in _lang:
@@ -345,5 +426,5 @@ def build_system_prompt(base: str, facts: dict) -> str:
         lang_first = f"CRITIQUE : Tu réponds TOUJOURS en {language} uniquement. David peut écrire ou parler en n'importe quelle langue — comprends-le parfaitement mais réponds TOUJOURS en {language}.\n\n"
     return (
         lang_first + personality + lang_block + style_block
-        + expertise_block + rules_block + memory_block
+        + expertise_block + rules_block + memory_block + vault_block
     )
