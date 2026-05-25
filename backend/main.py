@@ -279,6 +279,7 @@ from brain_router import router as brain_router
 from commerce.commerce_router import router as commerce_router
 from commerce.etsy_oauth import router as etsy_oauth_router
 from daily_briefing import router as briefing_router
+from daily_router import router as daily_router
 from daily_tasks import create_scheduler
 from docker_router import router as docker_router
 from forge_room.forge_engine import router as forge_router
@@ -312,6 +313,7 @@ app.include_router(speech_router)
 app.include_router(reports_router)
 app.include_router(memory_router)
 app.include_router(brain_router)
+app.include_router(daily_router)
 
 # ── Sert Nexus9.html (UI principale) à la racine ─────────
 # Permet l'accès micro (Web Speech API exige un contexte sécurisé : localhost OK, file:// bloqué)
@@ -430,154 +432,7 @@ async def favicon():
 # ── Lancement d'apps locales (whitelist) ─────────────────
 # Permet à Jarvis d'ouvrir VS Code, Claude desktop, ou une URL depuis Nexus9.html
 import subprocess
-import webbrowser
 
-VSCODE_PATH = os.getenv("VSCODE_PATH", r"C:\Users\bobby\AppData\Local\Programs\Microsoft VS Code\Code.exe")
-CLAUDE_APP_PATH = os.getenv("CLAUDE_APP_PATH", r"C:\Users\bobby\AppData\Local\AnthropicClaude\Claude.exe")
-MORNING_YOUTUBE_URL = os.getenv("MORNING_YOUTUBE_URL", "https://www.youtube.com/watch?v=EJqFjvKF8HU")
-
-class OpenRequest(BaseModel):
-    target: str  # 'vscode' | 'claude' | 'youtube' | 'url' | 'morning'
-    url: Optional[str] = None
-
-def _launch_target(target: str, url: Optional[str] = None) -> dict:
-    """Lance une app whitelistée. Retourne {ok, target, detail}."""
-    try:
-        if target == "vscode":
-            if not os.path.exists(VSCODE_PATH):
-                return {"ok": False, "target": target, "detail": f"VS Code introuvable: {VSCODE_PATH}"}
-            subprocess.Popen([VSCODE_PATH], creationflags=subprocess.DETACHED_PROCESS if os.name == "nt" else 0)
-            return {"ok": True, "target": target, "detail": "VS Code lancé"}
-        if target == "claude":
-            if not os.path.exists(CLAUDE_APP_PATH):
-                return {"ok": False, "target": target, "detail": f"Claude app introuvable: {CLAUDE_APP_PATH}"}
-            subprocess.Popen([CLAUDE_APP_PATH], creationflags=subprocess.DETACHED_PROCESS if os.name == "nt" else 0)
-            return {"ok": True, "target": target, "detail": "Claude app lancée"}
-        if target == "youtube":
-            webbrowser.open(MORNING_YOUTUBE_URL)
-            return {"ok": True, "target": target, "detail": MORNING_YOUTUBE_URL}
-        if target == "url":
-            if not url or not (url.startswith("http://") or url.startswith("https://")):
-                return {"ok": False, "target": target, "detail": "URL invalide (doit commencer par http(s)://)"}
-            webbrowser.open(url)
-            return {"ok": True, "target": target, "detail": url}
-        return {"ok": False, "target": target, "detail": f"Target inconnu: {target}"}
-    except Exception as e:
-        return {"ok": False, "target": target, "detail": str(e)}
-
-@app.post("/v1/system/open")
-async def system_open(req: OpenRequest):
-    """Lance une app locale (whitelistée) ou une URL."""
-    return _launch_target(req.target, req.url)
-
-@app.post("/v1/system/morning-routine")
-async def morning_routine():
-    """Routine matinale : YouTube + VS Code + Claude app dans l'ordre."""
-    results = [
-        _launch_target("youtube"),
-        _launch_target("vscode"),
-        _launch_target("claude"),
-    ]
-    return {"opened": results, "count_ok": sum(1 for r in results if r["ok"])}
-
-@app.post("/v1/pipeline/start-all")
-async def pipeline_start_all():
-    """Lance START_ALL.bat dans une nouvelle fenêtre console (détachée)."""
-    import subprocess
-    bat = r"C:\OpenJarvisNexus\START_ALL.bat"
-    try:
-        subprocess.Popen(  # NOSONAR - intentional detached fire-and-forget
-            ["cmd", "/c", bat],
-            cwd=r"C:\OpenJarvisNexus",
-            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_CONSOLE,
-        )
-        return {"status": "launched", "message": "START_ALL.bat lancé dans une nouvelle fenêtre"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# (Scheduler démarré dans _lifespan — voir début du fichier)
-
-@app.post("/v1/pipeline/daily/start")
-def daily_research_start():
-    """Lance le daily research en background — retourne immédiatement."""
-    from pipeline_runner import start_daily_research_background
-    return start_daily_research_background()
-
-
-@app.get("/v1/pipeline/daily/status")
-def daily_research_status():
-    """Statut en temps réel du daily research (polling toutes les 5s)."""
-    from pipeline_runner import get_research_state
-    return get_research_state()
-
-
-@app.post("/v1/daily/run-task")
-async def daily_run_task(body: dict):
-    """Exécute une daily task par nom. Body: {"task": "vault_cleanup"}"""
-    from daily_tasks import (
-        task_commerce_analytics,
-        task_daily_smoke_tests,
-        task_error_logs_cleanup,
-        task_forge_analytics,
-        task_jarvis_workspace_index,
-        task_orchestration_diagnostics,
-        task_stl_directory_sync,
-        task_system_health_log,
-        task_vault_cleanup,
-        task_vault_maintenance,
-    )
-    _task_map = {
-        "vault_cleanup":             task_vault_cleanup,
-        "forge_analytics":           task_forge_analytics,
-        "stl_sync":                  task_stl_directory_sync,
-        "health_log":                task_system_health_log,
-        "error_log_cleanup":         task_error_logs_cleanup,
-        "vault_maintenance":         task_vault_maintenance,
-        "commerce_analytics":        task_commerce_analytics,
-        "jarvis_workspace_index":    task_jarvis_workspace_index,
-        "daily_smoke_tests":         task_daily_smoke_tests,
-        "orchestration_diagnostics": task_orchestration_diagnostics,
-    }
-    name = body.get("task", "")
-    fn   = _task_map.get(name)
-    if not fn:
-        raise HTTPException(404, f"Tâche inconnue: {name}. Dispo: {list(_task_map)}")
-    try:
-        await fn()
-        return {"ok": True, "task": name, "message": f"{name} exécutée avec succès"}
-    except Exception as e:
-        return {"ok": False, "task": name, "message": str(e)}
-
-
-@app.post("/v1/daily/run-all")
-async def daily_run_all():
-    """Exécute toutes les daily tasks et retourne le rapport complet."""
-    from pipeline_runner import run_daily_tasks, save_report
-    daily = await run_daily_tasks()
-    save_report("daily", daily)
-    return daily
-
-
-@app.post("/v1/report/save")
-async def report_save(body: dict):
-    """Sauvegarde un rapport dans le brain (08_Command-Center/reports/{type})."""
-    from pipeline_runner import save_report
-    type_ = body.get("type", "pipelines")
-    data  = body.get("data", {})
-    path  = save_report(type_, data)
-    return {"ok": bool(path), "path": str(path) if path else None}
-
-
-@app.get("/v1/daily/status")
-def daily_status():
-    """Statut du scheduler de tâches quotidiennes."""
-    if not hasattr(app.state, "scheduler"):
-        return {"status": "not_started"}
-    jobs = [
-        {"id": j.id, "name": j.name, "next_run": str(j.next_run_time)}
-        for j in app.state.scheduler.get_jobs()
-    ]
-    return {"status": "running", "jobs": jobs}
 
 # ── Schémas ──────────────────────────────────────────────
 class ChatMessage(BaseModel):
