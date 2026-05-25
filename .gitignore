@@ -158,3 +158,5 @@ frontend/e2e/*.png
 backend/budget_logs.json
 backend/forge_missions_cache.json
 backend/error_logs/
+backend/vault/claude-mem
+session_logs/

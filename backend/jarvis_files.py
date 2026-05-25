@@ -152,7 +152,8 @@ def api_list(subdir: str = Query(""), max_files: int = Query(200), recursive: bo
         "total":       len(files),
         "dirs_count":  len(dirs),
         "files_count": len(txts),
-        "tree":        files,
+        "files":       txts,   # alias for smoke_tests compat
+        "tree":        files,  # full tree (dirs + files)
     }
 
 

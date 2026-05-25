@@ -233,9 +233,11 @@ async def chromadb_stats():
             hb.raise_for_status()
             heartbeat = hb.json()
 
-            # Liste des collections (peut échouer sur v2 sans tenant)
+            # Liste des collections — v2 préféré, fallback v1
             try:
-                cols = await c.get(f"{CHROMADB_URL}/api/v1/collections")
+                cols = await c.get(f"{CHROMADB_URL}/api/v2/collections", params={"tenant": "default_tenant", "database": "default_database"})
+                if cols.status_code in (404, 422):
+                    cols = await c.get(f"{CHROMADB_URL}/api/v1/collections")
                 cols.raise_for_status()
                 collections_count = len(cols.json())
             except Exception:
