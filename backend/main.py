@@ -1941,8 +1941,16 @@ def chat_completion(req: ChatRequest, request: Request):
         except Exception as _de:
             _docker_resp = f"Erreur Docker : {_de}"
         add_message(session_id, "assistant", _docker_resp)
+        _dreq_id = f"chatcmpl-docker-{int(time.time())}"
+        # Le frontend envoie toujours stream=True — on retourne du SSE
+        if req.stream:
+            return StreamingResponse(
+                _stream_text(_docker_resp, "docker-direct", _dreq_id),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
         return {
-            "id":      f"chatcmpl-docker-{int(time.time())}",
+            "id":      _dreq_id,
             "object":  "chat.completion",
             "model":   "docker-direct",
             "created": int(time.time()),
