@@ -35,12 +35,10 @@ from pydantic import BaseModel
 from memory import (
     add_message,
     build_system_prompt,
-    clear_session,
     compress_session_sync,
     get_history,
     get_last_session_summary,
     is_new_session,
-    list_sessions,
     load_config,
     load_facts,
     save_facts,
@@ -286,6 +284,7 @@ from daily_tasks import create_scheduler
 from docker_router import router as docker_router
 from forge_room.forge_engine import router as forge_router
 from jarvis_files import router as files_router
+from memory_router import router as memory_router
 from monitoring_router import router as monitoring_router
 from orchestrator import classify_intent, orchestrate
 from reports_router import router as reports_router
@@ -312,6 +311,7 @@ app.include_router(trends_router)
 app.include_router(docker_router)
 app.include_router(speech_router)
 app.include_router(reports_router)
+app.include_router(memory_router)
 
 # ── Sert Nexus9.html (UI principale) à la racine ─────────
 # Permet l'accès micro (Web Speech API exige un contexte sécurisé : localhost OK, file:// bloqué)
@@ -716,7 +716,7 @@ async def import_setup():
     # Règle : memory.json = injecté dans CHAQUE prompt → garder minimal.
     # Données riches (goals, stack, observations) → restent dans le Vault Obsidian
     # et sont récupérées via ChromaDB/_needs_memory() uniquement quand pertinent.
-    from memory import load_facts, save_facts
+    from memory import load_facts
     facts = load_facts()
 
     # Projets actifs : top 5 max (ce qui est TOUJOURS pertinent)
@@ -865,16 +865,6 @@ class ChatRequest(BaseModel):
     temperature: float                       = 0.7
     stream:      bool                        = False
     session_id:  str                         = "default"
-
-class FactsUpdate(BaseModel):
-    user_name:   Optional[str]       = None
-    full_name:   Optional[str]       = None
-    location:    Optional[str]       = None
-    projects:    Optional[list[str]] = None
-    preferences: Optional[list[str]] = None
-    tech_stack:  Optional[list[str]] = None
-    goals:       Optional[list[str]] = None
-    notes:       Optional[list[str]] = None
 
 class CrewRequest(BaseModel):
     mission:      str
@@ -1531,50 +1521,6 @@ def agent_status(agent_name: str):
     status = _agents_status.get(agent_name, "unknown")
     return {"agent": agent_name, "status": status}
 
-# ════════════════════════════════════════════════════════
-# ROUTES MÉMOIRE
-# ════════════════════════════════════════════════════════
-
-@app.get("/v1/memory")
-def get_memory():
-    return {"facts": load_facts(), "sessions": list_sessions()}
-
-@app.post("/v1/memory/facts")
-def update_facts(update: FactsUpdate):
-    facts = load_facts()
-    if update.user_name   is not None: facts["user_name"]   = update.user_name
-    if update.full_name   is not None: facts["full_name"]   = update.full_name
-    if update.location    is not None: facts["location"]    = update.location
-    if update.projects    is not None: facts["projects"]    = update.projects
-    if update.preferences is not None: facts["preferences"] = update.preferences
-    if update.tech_stack  is not None: facts["tech_stack"]  = update.tech_stack
-    if update.goals       is not None: facts["goals"]       = update.goals
-    if update.notes       is not None: facts["notes"]       = update.notes
-    save_facts(facts)
-    return {"ok": True, "facts": facts}
-
-@app.post("/v1/memory/note")
-def add_note(body: dict):
-    note = body.get("note", "")
-    if not note:
-        raise HTTPException(400, "Champ 'note' requis")
-    facts = load_facts()
-    facts.setdefault("notes", []).append(note)
-    save_facts(facts)
-    return {"ok": True, "notes": facts["notes"]}
-
-@app.delete("/v1/memory/session/{session_id}")
-def clear_session_route(session_id: str):
-    clear_session(session_id)
-    return {"ok": True, "cleared": session_id}
-
-@app.delete("/v1/memory/facts")
-def clear_facts():
-    save_facts({
-        "user_name": None, "projects": [], "preferences": [],
-        "notes": [], "updated_at": None,
-    })
-    return {"ok": True}
 
 # ════════════════════════════════════════════════════════
 # ROUTES CREWAI
