@@ -28,7 +28,7 @@ from memory import (
 )
 from ollama_client import (
     is_ollama_available, list_local_models,
-    ask_ollama_chat, should_use_claude, stream_ollama_chat, strip_think_tags,
+    ask_ollama_chat, should_use_claude, get_claude_model, stream_ollama_chat, strip_think_tags,
     OLLAMA_MODEL,
 )
 from tools.docker_tools import (
@@ -2306,8 +2306,10 @@ def chat_completion(req: ChatRequest, request: Request):
             )
             model_used = "bloqué"
         else:
-            print("[chat] 🔵 CLAUDE — question complexe")
-            model_used = (req.model if req.model and req.model.strip() else CLAUDE_MODEL)
+            _auto_model = get_claude_model(last_user_msg, CLAUDE_MODEL, CLAUDE_MODEL_GROS)
+            model_used  = (req.model if req.model and req.model.strip() else _auto_model)
+            _tag = "SONNET" if model_used == CLAUDE_MODEL_GROS else "HAIKU"
+            print(f"[chat] 🔵 CLAUDE {_tag} — routing auto")
             try:
                 _docker_tools = _DOCKER_TOOL_DEFS if _needs_docker else []
                 _all_tools    = _docker_tools + _SKILL_TOOL_DEFS

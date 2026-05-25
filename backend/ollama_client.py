@@ -97,36 +97,42 @@ def ask_ollama_chat(messages: list[dict], model: str = OLLAMA_MODEL) -> str:
         return None
 
 
-# Mots-clés qui déclenchent Claude (questions complexes)
-CLAUDE_KEYWORDS = [
+# Mots-clés qui déclenchent Sonnet (questions complexes / architecturales)
+SONNET_KEYWORDS = [
     "architecture", "conçois", "planifie", "analyse", "explique pourquoi",
     "stratégie", "compare", "débogue", "refactor", "optimise",
-    "multi-agent", "design pattern", "revue de code", "!claude",
-    "crée une skill", "installe skill", "utilise le skill", "skill arxiv",
-    "skill github", "skill plan", "skill debug",
+    "multi-agent", "design pattern", "revue de code",
+    "crée une skill", "installe skill",
+    "implémente", "développe", "créé un", "créer un", "génère",
+    "écris un script", "écris une fonction", "code complet",
 ]
 
-# Mots-clés pour forcer Ollama
-OLLAMA_KEYWORDS = ["!local", "!ollama", "!gratuit"]
+# Mots-clés pour forcer Ollama (local, privé, gratuit)
+OLLAMA_KEYWORDS = ["!local", "!ollama", "!gratuit", "!privé"]
 
 
 def should_use_claude(message: str) -> bool:
     """
-    Décide si la question mérite Claude (payant) ou Ollama (gratuit).
-    Règle : local-first — Ollama par défaut sauf si complexe.
+    Routing : Haiku par défaut (rapide < 1s).
+    Ollama seulement si !local / !ollama explicite.
+    Sonnet pour questions complexes (voir get_claude_model).
     """
     msg_lower = message.lower()
 
-    # Force Claude
-    if any(k in msg_lower for k in CLAUDE_KEYWORDS):
-        return True
-
-    # Force Ollama
+    # Force Ollama — local/privé explicite
     if any(k in msg_lower for k in OLLAMA_KEYWORDS):
         return False
 
-    # Par défaut : Ollama (gratuit)
-    return False
+    # Tout le reste → Claude (Haiku par défaut, Sonnet si complexe)
+    return True
+
+
+def get_claude_model(message: str, haiku: str, sonnet: str) -> str:
+    """Retourne Haiku pour les questions simples, Sonnet pour les complexes."""
+    msg_lower = message.lower()
+    if any(k in msg_lower for k in SONNET_KEYWORDS):
+        return sonnet
+    return haiku
 
 
 def stream_ollama_chat(
