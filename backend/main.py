@@ -1933,8 +1933,19 @@ def chat_completion(req: ChatRequest, request: Request):
                 for _c in _dstat["containers"]:
                     _state = "UP  " if _c["running"] else "DOWN"
                     _name  = _c["name"].replace("nexus_", "")
-                    _ports = f"  [{_c['ports']}]" if _c["ports"] else ""
-                    _rows.append(f"  {_state}  {_name:<20}{_c['status']}{_ports}")
+                    # Ports : seulement les ports hote (ex: [8000, 5173])
+                    _raw_ports = _c.get("ports", "") or ""
+                    _plist = []
+                    for _pp in _raw_ports.split(","):
+                        _pp = _pp.strip()
+                        if "->" in _pp:
+                            _hp = _pp.split("->")[0].split(":")[-1]
+                            if _hp and _hp not in _plist:
+                                _plist.append(_hp)
+                    _ports = f"  [{', '.join(_plist)}]" if _plist else ""
+                    # Status : sans les parens de sante
+                    _st = _c["status"].split("(")[0].strip()
+                    _rows.append(f"  {_state}  {_name:<20}{_st}{_ports}")
                 _docker_resp = f"{_up}/{_tot} containers en ligne.\n\n" + "\n".join(_rows)
             else:
                 _docker_resp = f"Docker inaccessible : {_dstat.get('error', '?')}"
