@@ -13,7 +13,7 @@ from typing import Optional
 import httpx
 from anthropic import APIError
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from ollama_client import (
@@ -198,9 +198,8 @@ from health_router import router as health_router
 from jarvis_files import router as files_router
 from memory_router import router as memory_router
 from monitoring_router import router as monitoring_router
-from orchestrator import classify_intent, orchestrate
+from orchestrate_router import router as orchestrate_router
 from reports_router import router as reports_router
-from smoke_tests import run_smoke_tests
 from speech_router import router as speech_router
 from stl_agent import router as stl_router
 from stl_researcher import generate_daily_report
@@ -228,6 +227,7 @@ app.include_router(brain_router)
 app.include_router(daily_router)
 app.include_router(health_router)
 app.include_router(crew_router)
+app.include_router(orchestrate_router)
 
 # ── Sert Nexus9.html (UI principale) à la racine ─────────
 # Permet l'accès micro (Web Speech API exige un contexte sécurisé : localhost OK, file:// bloqué)
@@ -1364,125 +1364,6 @@ def chat_completion(req: ChatRequest, request: Request):
             "total_tokens":      0,
         },
     }
-
-# ════════════════════════════════════════════════════════
-# ORCHESTRATION JARVIS
-# ════════════════════════════════════════════════════════
-
-class OrchestrateRequest(BaseModel):
-    text: str
-    model: str = "claude-haiku-4-5-20251001"
-
-@app.post("/v1/orchestrate")
-async def orchestrate_request(req: OrchestrateRequest):
-    """
-    Endpoint d'orchestration JARVIS complet.
-    Classifie l'intention, requête le Vault, route vers les agents appropriés.
-    """
-    try:
-        orch = await orchestrate(req.text, req.model)
-        return orch.to_dict()
-    except Exception as e:
-        return {"success": False, "error": str(e), "intent": "unknown", "agents": ["JARVIS"]}
-
-@app.get("/v1/orchestrate/classify")
-async def classify_only(text: str):
-    """Classification rapide d'une requête sans exécution."""
-    return classify_intent(text)
-
-# ════════════════════════════════════════════════════════
-# SMOKE TESTS
-# ════════════════════════════════════════════════════════
-
-@app.post("/v1/smoke-test")
-async def run_smoke_test_endpoint(background_tasks: BackgroundTasks):
-    """Lance tous les smoke tests et retourne le rapport."""
-    report = await run_smoke_tests()
-    # Log dans Vault si disponible
-    try:
-        from vault.memory_manager import add_memory
-        summary = report["summary"]
-        background_tasks.add_task(
-            add_memory, "orchestration",
-            f"Smoke test: {summary['passed']}/{summary['total']} passed, {report['health_pct']}% health",
-            {"type": "smoke_test", "health_pct": str(report["health_pct"])},
-        )
-    except Exception:
-        pass
-    return report
-
-
-@app.get("/v1/smoke-test/quick")
-async def quick_smoke_test():
-    """Smoke test rapide des systèmes critiques seulement (5 tests)."""
-    from smoke_tests import (
-        test_backend_health,
-        test_forge_endpoint,
-        test_jarvis_orchestration,
-        test_ollama_connectivity,
-        test_vault_read,
-    )
-    return await run_smoke_tests([
-        test_backend_health,
-        test_ollama_connectivity,
-        test_vault_read,
-        test_jarvis_orchestration,
-        test_forge_endpoint,
-    ])
-
-
-# ════════════════════════════════════════════════════════
-# ECOSYSTEM HEALTH SCORE
-# ════════════════════════════════════════════════════════
-
-from health_score import compute_health_score, get_forge_reliability
-
-
-@app.get("/v1/ecosystem/health")
-async def ecosystem_health():
-    """Score de santé pondéré de l'écosystème Nexus9 (0-100)."""
-    return await compute_health_score()
-
-@app.get("/v1/ecosystem/health/quick")
-async def ecosystem_health_quick():
-    """Score rapide sans tests Claude (évite les coûts)."""
-    return await compute_health_score(skip_claude=True)
-
-@app.get("/v1/ecosystem/forge/reliability")
-def forge_reliability():
-    """Métriques de fiabilité du pipeline Forge Room (success_rate, avg_score, bambu_ready_pct)."""
-    return get_forge_reliability()
-
-
-# ════════════════════════════════════════════════════════
-# CHEAT CODE ULTIME — Orbital Pipeline HUB
-# ════════════════════════════════════════════════════════
-
-@app.post("/v1/cheat-code")
-async def cheat_code_run(voice: bool = True):
-    """
-    One-Click Cheat Code : sync agents, vérifie pipelines, met à jour le Vault, notifie David.
-    Déclenché aussi par JARVIS: RUN CHEAT CODE dans le chat.
-    """
-    from pipeline_runner import run_cheat_code
-    report = await run_cheat_code(voice=voice)
-    return report
-
-
-
-@app.get("/v1/cheat-code/status")
-def cheat_code_status():
-    """Dernier rapport Cheat Code exécuté."""
-    from pipeline_runner import get_last_report
-    report = get_last_report()
-    if not report:
-        return {"status": "never_run", "message": "Lance POST /v1/cheat-code pour démarrer."}
-    return report
-
-
-# ════════════════════════════════════════════════════════
-# DOCKER REST ENDPOINTS — direct access from frontend
-# ════════════════════════════════════════════════════════
 
 # ════════════════════════════════════════════════════════
 # PHASE 4 stubs — silence frontend boot 404s
