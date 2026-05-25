@@ -126,3 +126,18 @@ _agents_status: dict[str, str] = {
     "CORTANA":  "idle",     # deepseek-coder:6.7b
     "BRUCE":    "offline",  # openhands + qwen3:14b — repair + autonome
 }
+
+# ── Client HTTP partagé (connection pooling) ─────────────
+# Set by main's lifespan via set_http(); read everywhere via get_http().
+# Returns None before startup, so callers can guard with `if get_http() is None`.
+_http = None
+
+
+def set_http(client) -> None:
+    global _http
+    _http = client
+
+
+def get_http():
+    """Return the shared httpx.AsyncClient (None before lifespan startup)."""
+    return _http

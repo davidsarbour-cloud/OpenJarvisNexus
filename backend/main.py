@@ -80,25 +80,23 @@ from app_state import (
     _enregistrer_cout,
     _log_error_500,
     claude,
+    get_http,
+    set_http,
 )
 
+
 # ── Client HTTP partagé (connection pooling) ─────────────
-# Initialisé dans _lifespan, fermé proprement au shutdown.
-# Utiliser _http pour tous les appels httpx dans main.py.
-_http: httpx.AsyncClient | None = None
-
-
+# Vit dans app_state : set_http() dans le lifespan, get_http() partout.
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     """Gère le cycle de vie de l'app (remplace @app.on_event deprecated)."""
     import asyncio as _asyncio
 
     # ── STARTUP ──────────────────────────────────────────
-    global _http
-    _http = httpx.AsyncClient(
+    set_http(httpx.AsyncClient(
         timeout=30.0,
         limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),
-    )
+    ))
 
     from memory import load_config as _lc
     _cfg = _lc().get("jarvis", {})
@@ -144,7 +142,7 @@ async def _lifespan(app: FastAPI):
             _hour = _dt.now().hour
             if 7 <= _hour < 23:
                 try:
-                    await _http.post(_hb_url, json={
+                    await get_http().post(_hb_url, json={
                         "model":  _OHB_MODEL,
                         "prompt": "",
                         "stream": False,
@@ -164,7 +162,8 @@ async def _lifespan(app: FastAPI):
     if hasattr(app.state, "scheduler"):
         app.state.scheduler.shutdown()
         print("[Daily] Scheduler arrêté")
-    await _http.aclose()
+    if get_http() is not None:
+        await get_http().aclose()
     # Close shared Playwright browser if it was used
     try:
         from scrapers.browser import close_browser as _close_browser
@@ -472,10 +471,10 @@ async def _hc_meshy() -> str:
     meshy_key = os.getenv("MESHY_API_KEY", "")
     if not meshy_key:
         return "not_configured"
-    if _http is None:
+    if get_http() is None:
         return "error: client_not_ready"
     try:
-        r = await _http.get(
+        r = await get_http().get(
             "https://api.meshy.ai/v2/text-to-3d",
             headers={"Authorization": f"Bearer {meshy_key}"},
             timeout=3.0,
@@ -741,10 +740,10 @@ async def _run_cortana(task: str) -> dict:
 
 async def _run_bruce(task: str) -> dict:
     """BRUCE — OpenHands autonome — utilise le client HTTP partagé."""
-    if _http is None:
+    if get_http() is None:
         return {"ok": False, "agent": "BRUCE", "error": "Client HTTP non initialisé — backend pas encore prêt."}
     try:
-        r = await _http.post(
+        r = await get_http().post(
             f"{OPENHANDS_URL}/api/conversations",
             json={"initial_user_msg": task},
             timeout=15,
