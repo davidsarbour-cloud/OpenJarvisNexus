@@ -44,7 +44,7 @@ export function JarvisChatPage() {
 
   const ttsAudioRef  = useRef<HTMLAudioElement | null>(null);
   const ttsUrlRef    = useRef<string | null>(null);
-  const ttsStopRef   = useRef(false);   // signal d'arrêt inter-phrases
+  const ttsGenRef    = useRef(0);        // generation counter — chaque speakText incrémente, les anciennes boucles se suicident
   const prevStreaming = useRef(false);
 
   const empty = messages.length === 0 && !streamState.isStreaming;
@@ -127,14 +127,13 @@ export function JarvisChatPage() {
   const speakText = useCallback(async (text: string, msgId?: string) => {
     if (!text.trim()) return;
 
-    // Stoppe le TTS précédent
-    ttsStopRef.current = true;
+    // Incrémente la génération — toutes les boucles précédentes vont se stopper
+    const myGen = ++ttsGenRef.current;
+
+    // Stoppe l'audio en cours immédiatement
     ttsAudioRef.current?.pause();
     if (ttsUrlRef.current) { URL.revokeObjectURL(ttsUrlRef.current); ttsUrlRef.current = null; }
     ttsAudioRef.current = null;
-    // Reset du signal d'arrêt après un tick pour que la boucle précédente se termine
-    await new Promise(r => setTimeout(r, 0));
-    ttsStopRef.current = false;
 
     const clean = _cleanTts(text);
     if (!clean) return;
@@ -147,10 +146,10 @@ export function JarvisChatPage() {
     let nextFetch: Promise<string | null> = _fetchAudioUrl(sentences[0]);
 
     for (let i = 0; i < sentences.length; i++) {
-      if (ttsStopRef.current) break;
+      if (ttsGenRef.current !== myGen) break;  // une nouvelle voix a démarré → on s'arrête
 
       const url = await nextFetch;
-      if (!url || ttsStopRef.current) break;
+      if (!url || ttsGenRef.current !== myGen) break;
 
       // Lance le prefetch de la phrase suivante en parallèle
       if (i + 1 < sentences.length) {
@@ -160,14 +159,15 @@ export function JarvisChatPage() {
       await _playUrl(url);
     }
 
-    if (!ttsStopRef.current) {
+    // Ne reset l'état que si c'est toujours nous qui jouons
+    if (ttsGenRef.current === myGen) {
       setTtsPlaying(false);
       setPlayingMsgId(null);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stopTts = useCallback(() => {
-    ttsStopRef.current = true;
+    ttsGenRef.current++;  // invalide toute boucle en cours
     ttsAudioRef.current?.pause();
     if (ttsUrlRef.current) { URL.revokeObjectURL(ttsUrlRef.current); ttsUrlRef.current = null; }
     ttsAudioRef.current = null;
