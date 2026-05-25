@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     curl \
+    git \
     # Playwright / Chromium headless deps
     libnss3 \
     libatk1.0-0 \
@@ -40,6 +41,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Playwright's Chromium browser binary
 RUN python -m playwright install chromium
+
+# blogwatcher-cli (Go binary — skill dependency)
+RUN curl -sL https://github.com/JulienTant/blogwatcher-cli/releases/latest/download/blogwatcher-cli_linux_amd64.tar.gz \
+    | tar xz -C /usr/local/bin blogwatcher-cli \
+    && chmod +x /usr/local/bin/blogwatcher-cli
 
 # Application source
 COPY . .

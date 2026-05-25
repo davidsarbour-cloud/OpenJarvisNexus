@@ -26,6 +26,8 @@ services:
       - ./backend/stl_output:/app/stl_output
       - ./backend/research_logs:/app/research_logs
       - ./backend/session_logs:/app/session_logs
+      - ./backend/skills:/app/skills
+      - ./backend/BRAIN:/app/BRAIN
       - ./frontend/dist:/frontend/dist:ro
       - ./archive/legacy/Nexus9.html:/archive/legacy/Nexus9.html:ro
       - ./archive/legacy/orbital_ui_vanilla:/archive/legacy/orbital_ui_vanilla:ro
@@ -39,6 +41,8 @@ services:
       - POSTGRES_URL=postgresql://nexus:nexus@postgres:5432/nexus
       - REDIS_URL=redis://redis:6379/0
       - CORS_ORIGINS=http://localhost:5173,http://localhost:80,http://frontend:80
+      - SKILLS_DIR=/app/skills
+      - OBSIDIAN_VAULT_PATH=/app/BRAIN/BRAIN
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

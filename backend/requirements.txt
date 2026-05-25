@@ -27,3 +27,4 @@ gspread>=6.0.0
 google-auth>=2.0.0
 psutil>=5.9.0
 playwright>=1.40.0
+pygount>=1.8.0
