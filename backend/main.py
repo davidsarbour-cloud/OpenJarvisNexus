@@ -1926,6 +1926,24 @@ _DOCKER_KW = re.compile(
     re.I,
 )
 
+# Docker status/action + Skill-list detectors — compiled once at import, used per request
+_DOCKER_SHOW_KW = re.compile(
+    r"\b(montre|liste|affiche|show|donne|quels?|combien|ps|status|statut|état|voir|check|ping)\b"
+    r"|\bup\b|\bdown\b|\brunning\b",
+    re.I,
+)
+_DOCKER_ACTION_KW = re.compile(
+    r"\b(restart|redémarre|stop|arrête|start|démarre|lance|kill|rm|remove)\b", re.I
+)
+_SKILL_LIST_KW = re.compile(
+    r"\bskill?s?\b|skils?\b|comp[eé]tences?\b|capacit[eé]s?\b|\bsavoir-faire\b|\bprocédures?\b",
+    re.I,
+)
+_SKILL_LIST_SHOW_KW = re.compile(
+    r"\b(liste|list|montre|affiche|show|quels?|quelles?|donne|voir|dis.?moi|what|have|got|as-tu|avez)\b",
+    re.I,
+)
+
 
 def _needs_memory(msg: str) -> bool:
     """Déclenche l'injection brain/vault : message long, complexe, ou debug."""
@@ -1977,14 +1995,6 @@ def chat_completion(req: ChatRequest, request: Request):
     # ── Shortcut Docker STATUS — bypass LLM entièrement ─────
     # Si la question concerne l'affichage/liste des containers (pas une action start/stop/restart),
     # on formate la réponse directement depuis l'API Docker sans passer par Claude ou Ollama.
-    _DOCKER_SHOW_KW = re.compile(
-        r"\b(montre|liste|affiche|show|donne|quels?|combien|ps|status|statut|état|voir|check|ping)\b"
-        r"|\bup\b|\bdown\b|\brunning\b",
-        re.I,
-    )
-    _DOCKER_ACTION_KW = re.compile(
-        r"\b(restart|redémarre|stop|arrête|start|démarre|lance|kill|rm|remove)\b", re.I
-    )
     if _needs_docker and _DOCKER_SHOW_KW.search(last_user_msg) and not _DOCKER_ACTION_KW.search(last_user_msg):
         try:
             from tools.docker_tools import docker_status as _ds
@@ -2034,14 +2044,6 @@ def chat_completion(req: ChatRequest, request: Request):
     # ─────────────────────────────────────────────────────────
 
     # ── Shortcut SKILLS — liste directe sans LLM ─────────────
-    _SKILL_LIST_KW = re.compile(
-        r"\bskill?s?\b|skils?\b|comp[eé]tences?\b|capacit[eé]s?\b|\bsavoir-faire\b|\bprocédures?\b",
-        re.I,
-    )
-    _SKILL_LIST_SHOW_KW = re.compile(
-        r"\b(liste|list|montre|affiche|show|quels?|quelles?|donne|voir|dis.?moi|what|have|got|as-tu|avez)\b",
-        re.I,
-    )
     _skill_msg_short = len(last_user_msg.strip().split()) <= 4
     if _SKILL_LIST_KW.search(last_user_msg) and (
         _SKILL_LIST_SHOW_KW.search(last_user_msg) or _skill_msg_short
