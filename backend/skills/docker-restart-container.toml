@@ -1,0 +1,13 @@
+[skill]
+name = "docker-restart-container"
+description = "Redémarre un container Docker spécifique"
+
+[[skill.steps]]
+tool_name = "docker_status"
+arguments_template = '{}'
+output_key = "before"
+
+[[skill.steps]]
+tool_name = "docker_container_action"
+arguments_template = '{"name": "{container}", "action": "restart"}'
+output_key = "result"

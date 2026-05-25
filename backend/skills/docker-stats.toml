@@ -1,0 +1,8 @@
+[skill]
+name = "docker-stats"
+description = "Affiche la consommation CPU et mémoire de tous les containers"
+
+[[skill.steps]]
+tool_name = "docker_stats"
+arguments_template = '{}'
+output_key = "stats"

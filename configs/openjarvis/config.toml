@@ -105,6 +105,19 @@ steady_state_threshold = 0.05            # Coefficient of variation threshold fo
 enabled = true                            # Record traces for analysis
 db_path = "~/.openjarvis/traces.db"
 
+# ═══════════════════════════════════════════════════════════════
+# PILLAR 6: Skills — Reusable procedural knowledge
+# ═══════════════════════════════════════════════════════════════
+[skills]
+
+[[skills.sources]]
+source = "hermes"
+auto_update = false
+
+[[skills.sources]]
+source = "openclaw"
+auto_update = false
+
 [server]
 host = "0.0.0.0"
 port = 8000

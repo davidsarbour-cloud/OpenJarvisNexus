@@ -102,6 +102,8 @@ CLAUDE_KEYWORDS = [
     "architecture", "conçois", "planifie", "analyse", "explique pourquoi",
     "stratégie", "compare", "débogue", "refactor", "optimise",
     "multi-agent", "design pattern", "revue de code", "!claude",
+    "crée une skill", "installe skill", "utilise le skill", "skill arxiv",
+    "skill github", "skill plan", "skill debug",
 ]
 
 # Mots-clés pour forcer Ollama

@@ -1645,6 +1645,7 @@ def load_config(path: Optional[Path] = None) -> JarvisConfig:
             "optimize",
             "agent_manager",
             "digest",
+            "skills",
         )
         for section_name in top_sections:
             if section_name in data:

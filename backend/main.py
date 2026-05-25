@@ -36,6 +36,11 @@ from tools.docker_tools import (
     dispatch as _docker_dispatch,
     quick_status_text as _docker_quick_status,
 )
+from tools.skill_tools import (
+    CLAUDE_TOOL_DEFS as _SKILL_TOOL_DEFS,
+    dispatch as _skill_dispatch,
+    skill_catalog_text as _skill_catalog_text,
+)
 
 # ── Environnement ────────────────────────────────────────
 load_dotenv(override=True)
@@ -1970,6 +1975,47 @@ def chat_completion(req: ChatRequest, request: Request):
         }
     # ─────────────────────────────────────────────────────────
 
+    # ── Shortcut SKILLS — liste directe sans LLM ─────────────
+    _SKILL_LIST_KW = re.compile(
+        r"\bskill?s?\b|skils?\b|comp[eé]tences?\b|capacit[eé]s?\b|\bsavoir-faire\b|\bprocédures?\b",
+        re.I,
+    )
+    _SKILL_LIST_SHOW_KW = re.compile(
+        r"\b(liste|list|montre|affiche|show|quels?|quelles?|donne|voir|dis.?moi|what|have|got|as-tu|avez)\b",
+        re.I,
+    )
+    _skill_msg_short = len(last_user_msg.strip().split()) <= 4
+    if _SKILL_LIST_KW.search(last_user_msg) and (
+        _SKILL_LIST_SHOW_KW.search(last_user_msg) or _skill_msg_short
+    ):
+        try:
+            from tools.skill_tools import skill_list as _sl
+            _sdata = _sl()
+            if _sdata["ok"] and _sdata["total"] > 0:
+                _slines = [f"{_sdata['total']} skills installées :"]
+                for _sk in _sdata["skills"]:
+                    _slines.append(f"  {_sk['name']} — {_sk['description']}")
+                _skill_resp = "\n".join(_slines)
+            else:
+                _skill_resp = "Aucune skill installée."
+        except Exception as _se:
+            _skill_resp = f"Erreur lecture skills : {_se}"
+        add_message(session_id, "assistant", _skill_resp)
+        _sreq_id = f"chatcmpl-skill-{int(time.time())}"
+        if req.stream:
+            return StreamingResponse(
+                _stream_text(_skill_resp, "skill-direct", _sreq_id),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+        return {
+            "id": _sreq_id, "object": "chat.completion", "model": "skill-direct",
+            "created": int(time.time()),
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": _skill_resp}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        }
+    # ─────────────────────────────────────────────────────────
+
     # ── Shortcut JARVIS: RUN CHEAT CODE ─────────────────────
     if "jarvis" in last_user_msg.lower() and "cheat" in last_user_msg.lower():
         import asyncio as _asyncio
@@ -2069,6 +2115,14 @@ def chat_completion(req: ChatRequest, request: Request):
     else:
         system += f"\n\n[OBLIGATOIRE] Tu réponds UNIQUEMENT en {_chat_lang}. 1 à 2 phrases maximum sauf si détail explicitement demandé. Texte brut — pas de markdown, pas de listes, pas de titres. ZERO emoji — aucun, jamais."
 
+    # ── Skills catalog — injection compacte dans le system prompt ───────────
+    try:
+        _skill_cat = _skill_catalog_text()
+        if _skill_cat:
+            system += f"\n\n{_skill_cat}"
+    except Exception:
+        pass
+
     # ── Brain/Vault contextuel (option 2 — triggers: long / complexe / debug) ──
     memory_meta = {"retrieved": False, "fragments": 0, "ms": 0, "confidence": 0}
     if _needs_memory(last_user_msg):
@@ -2161,6 +2215,28 @@ def chat_completion(req: ChatRequest, request: Request):
                         "model": _mid,
                         "choices": [{"index": 0, "delta": {"content": _chunk}, "finish_reason": None}],
                     })
+                # Fallback si Ollama retourne rien (crash / think-only / timeout)
+                if not full_text.strip():
+                    full_text = "Réponds à cette question." if False else (
+                        ask_ollama_chat(
+                            [{"role": "user", "content": last_user_msg}],
+                            OLLAMA_MODEL,
+                        ) or ""
+                    )
+                    if full_text:
+                        full_text = strip_think_tags(full_text)
+                        yield _sse({
+                            "id": _rid, "object": "chat.completion.chunk",
+                            "model": _mid,
+                            "choices": [{"index": 0, "delta": {"content": full_text}, "finish_reason": None}],
+                        })
+                    else:
+                        full_text = "Modele local indisponible. Relance Ollama ou utilise !claude."
+                        yield _sse({
+                            "id": _rid, "object": "chat.completion.chunk",
+                            "model": _mid,
+                            "choices": [{"index": 0, "delta": {"content": full_text}, "finish_reason": None}],
+                        })
                 # final chunk + [DONE]
                 _final = {
                     "id": _rid, "object": "chat.completion.chunk",
@@ -2176,7 +2252,7 @@ def chat_completion(req: ChatRequest, request: Request):
                     add_message(_sid, "assistant", full_text)
                     print(f"[chat] ollama-stream modèle={_mid} '{full_text[:50]}...'")
                 else:
-                    print("[chat] ollama-stream — pas de réponse, fallback non déclenché")
+                    print("[chat] ollama-stream — pas de réponse")
 
             return StreamingResponse(
                 _ollama_real_stream(),
@@ -2209,6 +2285,7 @@ def chat_completion(req: ChatRequest, request: Request):
             model_used = (req.model if req.model and req.model.strip() else CLAUDE_MODEL)
             try:
                 _docker_tools = _DOCKER_TOOL_DEFS if _needs_docker else []
+                _all_tools    = _docker_tools + _SKILL_TOOL_DEFS
                 _tool_msgs    = list(anthropic_messages)  # working copy for tool loop
                 _total_in, _total_out = 0, 0
 
@@ -2220,8 +2297,8 @@ def chat_completion(req: ChatRequest, request: Request):
                         system=system,
                         messages=_tool_msgs,
                     )
-                    if _docker_tools:
-                        _create_kw["tools"] = _docker_tools
+                    if _all_tools:
+                        _create_kw["tools"] = _all_tools
 
                     resp = claude.messages.create(**_create_kw)
                     _total_in  += resp.usage.input_tokens
@@ -2232,8 +2309,12 @@ def chat_completion(req: ChatRequest, request: Request):
                         _tool_results = []
                         for _blk in resp.content:
                             if getattr(_blk, "type", None) == "tool_use":
-                                print(f"[docker-tool] calling {_blk.name} {_blk.input}")
-                                _res_str = _docker_dispatch(_blk.name, _blk.input)
+                                _tname = _blk.name
+                                print(f"[tool] calling {_tname} {_blk.input}")
+                                if _tname.startswith("skill_"):
+                                    _res_str = _skill_dispatch(_tname, _blk.input)
+                                else:
+                                    _res_str = _docker_dispatch(_tname, _blk.input)
                                 _tool_results.append({
                                     "type":        "tool_result",
                                     "tool_use_id": _blk.id,

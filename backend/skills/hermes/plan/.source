@@ -1,0 +1,7 @@
+source = "hermes:plan"
+commit = "7e165e843d0c4829758f4aa7771560eba1e302dd"
+category = "software-development"
+installed_at = "2026-05-25T03:24:17Z"
+translated_tools = ["Write->file_write"]
+missing_tools = []
+scripts_imported = false

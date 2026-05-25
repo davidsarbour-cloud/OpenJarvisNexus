@@ -1,0 +1,8 @@
+[skill]
+name = "docker-health"
+description = "Vérifie l'état de tous les containers Docker et signale ceux qui sont down"
+
+[[skill.steps]]
+tool_name = "docker_status"
+arguments_template = '{}'
+output_key = "status"

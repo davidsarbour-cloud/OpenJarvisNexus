@@ -1,0 +1,8 @@
+[skill]
+name = "docker-logs-check"
+description = "Récupère les logs récents d'un container pour diagnostiquer une erreur"
+
+[[skill.steps]]
+tool_name = "docker_logs"
+arguments_template = '{"name": "{container}", "lines": 50}'
+output_key = "logs"

@@ -1,0 +1,7 @@
+source = "hermes:polymarket"
+commit = "7e165e843d0c4829758f4aa7771560eba1e302dd"
+category = "research"
+installed_at = "2026-05-25T04:19:08Z"
+translated_tools = []
+missing_tools = []
+scripts_imported = false

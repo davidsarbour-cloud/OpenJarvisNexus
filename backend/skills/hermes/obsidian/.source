@@ -1,0 +1,7 @@
+source = "hermes:obsidian"
+commit = "7e165e843d0c4829758f4aa7771560eba1e302dd"
+category = "note-taking"
+installed_at = "2026-05-25T04:11:51Z"
+translated_tools = ["Read->file_read"]
+missing_tools = []
+scripts_imported = false
