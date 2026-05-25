@@ -75,7 +75,6 @@ from app_state import (
     _budget,
     _budget_ok,
     _build_base_system,
-    _crew_jobs,
     _enregistrer_cout,
     _log_error_500,
     claude,
@@ -189,6 +188,7 @@ import budget_tracker
 from brain_router import router as brain_router
 from commerce.commerce_router import router as commerce_router
 from commerce.etsy_oauth import router as etsy_oauth_router
+from crew_router import router as crew_router
 from daily_briefing import router as briefing_router
 from daily_router import router as daily_router
 from daily_tasks import create_scheduler
@@ -227,6 +227,7 @@ app.include_router(memory_router)
 app.include_router(brain_router)
 app.include_router(daily_router)
 app.include_router(health_router)
+app.include_router(crew_router)
 
 # ── Sert Nexus9.html (UI principale) à la racine ─────────
 # Permet l'accès micro (Web Speech API exige un contexte sécurisé : localhost OK, file:// bloqué)
@@ -360,10 +361,6 @@ class ChatRequest(BaseModel):
     temperature: float                       = 0.7
     stream:      bool                        = False
     session_id:  str                         = "default"
-
-class CrewRequest(BaseModel):
-    mission:      str
-    mission_type: str = "auto"
 
 # ── Helpers ──────────────────────────────────────────────
 def _sse(payload: dict) -> str:
@@ -799,59 +796,6 @@ def agent_status(agent_name: str):
     status = _agents_status.get(agent_name, "unknown")
     return {"agent": agent_name, "status": status}
 
-
-# ════════════════════════════════════════════════════════
-# ROUTES CREWAI
-# ════════════════════════════════════════════════════════
-
-@app.post("/v1/crew/run")
-def run_crew_endpoint(req: CrewRequest, background: BackgroundTasks):
-    job_id = f"crew_{int(time.time())}"
-    _crew_jobs[job_id] = {
-        "id":         job_id,
-        "mission":    req.mission,
-        "status":     "running",
-        "started_at": time.time(),
-        "result":     None,
-    }
-
-    def _run():
-        try:
-            from crew_factory import run_crew
-            result = run_crew(req.mission, req.mission_type)
-            _crew_jobs[job_id].update({
-                "status":   "done",
-                "result":   result,
-                "ended_at": time.time(),
-            })
-        except Exception as e:
-            _crew_jobs[job_id].update({
-                "status":   "failed",
-                "error":    str(e),
-                "ended_at": time.time(),
-            })
-            print(f"[crew] erreur: {e}")
-
-    background.add_task(_run)
-    timeout = 300
-    start   = time.time()
-    while _crew_jobs[job_id]["status"] == "running":
-        if time.time() - start > timeout:
-            return {"error": "Timeout — crew trop long"}
-        time.sleep(1)
-
-    return _crew_jobs[job_id].get("result", {"error": _crew_jobs[job_id].get("error")})
-
-@app.get("/v1/crew/jobs")
-def list_crew_jobs():
-    return {"jobs": list(_crew_jobs.values())}
-
-@app.get("/v1/crew/jobs/{job_id}")
-def get_crew_job(job_id: str):
-    job = _crew_jobs.get(job_id)
-    if not job:
-        raise HTTPException(404, "Mission non trouvée")
-    return job
 
 # ════════════════════════════════════════════════════════
 # CHAT PRINCIPAL
