@@ -217,7 +217,7 @@ async def _lifespan(app: FastAPI):
                 except Exception:
                     pass  # Ollama indisponible — silencieux
 
-    _asyncio.create_task(_ollama_heartbeat())
+    app.state.ollama_heartbeat_task = _asyncio.create_task(_ollama_heartbeat())
     from config import OLLAMA_MODEL as _hb_model_name
     print(f"[Ollama] Heartbeat démarré — {_hb_model_name} restera chaud 07h-23h.")
 

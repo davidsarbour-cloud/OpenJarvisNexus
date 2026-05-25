@@ -25,6 +25,16 @@ from pydantic import BaseModel
 
 router = APIRouter(tags=["events"])
 
+# Keep strong refs to fire-and-forget tasks so the loop can't GC them mid-flight
+_background_tasks: set[asyncio.Future[Any]] = set()
+
+
+def _track(task: asyncio.Future[Any]) -> asyncio.Future[Any]:
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
+
 # ─────────────────────────────────────────────────────────
 # Hub in-memory
 # ─────────────────────────────────────────────────────────
@@ -94,7 +104,7 @@ async def _seed_history() -> None:
 try:
     loop = asyncio.get_event_loop()
     if loop.is_running():
-        loop.create_task(_seed_history())
+        _track(loop.create_task(_seed_history()))
 except RuntimeError:
     # Pas d'event loop encore — sera fait au premier publish
     pass
@@ -190,6 +200,6 @@ def emit_sync(level: str, source: str, msg: str, **extra: Any) -> None:
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            asyncio.ensure_future(emit(level, source, msg, **extra))
+            _track(asyncio.ensure_future(emit(level, source, msg, **extra)))
     except RuntimeError:
         pass
