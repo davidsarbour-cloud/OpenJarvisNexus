@@ -3,48 +3,72 @@ OpenJarvis Nexus — Backend v0.5.0
 FastAPI + Claude + Ollama + CrewAI + SSE Streaming + Mémoire
 """
 
-import os
-import re
-import time
 import json
 import logging
-import traceback
+import os
+import re
 import tempfile
-from pathlib import Path
+import time
+import traceback
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, Query, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, FileResponse
-from pydantic import BaseModel
-from dotenv import load_dotenv
-from anthropic import Anthropic, APIError
+
 import httpx
+from anthropic import Anthropic, APIError
+from dotenv import load_dotenv
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
+from ollama_client import (
+    OLLAMA_MODEL,
+    ask_ollama_chat,
+    get_claude_model,
+    is_ollama_available,
+    list_local_models,
+    should_use_claude,
+    stream_ollama_chat,
+    strip_think_tags,
+)
+from pydantic import BaseModel
 
 from memory import (
-    get_history, add_message, clear_session, list_sessions,
-    load_facts, save_facts, build_system_prompt, load_config,
-    get_last_session_summary, is_new_session, compress_session_sync,
+    add_message,
+    build_system_prompt,
+    clear_session,
+    compress_session_sync,
+    get_history,
+    get_last_session_summary,
+    is_new_session,
+    list_sessions,
+    load_config,
+    load_facts,
+    save_facts,
 )
-from ollama_client import (
-    is_ollama_available, list_local_models,
-    ask_ollama_chat, should_use_claude, get_claude_model, stream_ollama_chat, strip_think_tags,
-    OLLAMA_MODEL,
+from tools.brain_tools import (
+    CLAUDE_TOOL_DEFS as _BRAIN_TOOL_DEFS,
+)
+from tools.brain_tools import (
+    dispatch as _brain_dispatch,
 )
 from tools.docker_tools import (
     CLAUDE_TOOL_DEFS as _DOCKER_TOOL_DEFS,
+)
+from tools.docker_tools import (
     dispatch as _docker_dispatch,
+)
+from tools.docker_tools import (
     quick_status_text as _docker_quick_status,
 )
 from tools.skill_tools import (
     CLAUDE_TOOL_DEFS as _SKILL_TOOL_DEFS,
-    dispatch as _skill_dispatch,
-    skill_catalog_text as _skill_catalog_text,
 )
-from tools.brain_tools import (
-    CLAUDE_TOOL_DEFS as _BRAIN_TOOL_DEFS,
-    dispatch as _brain_dispatch,
+from tools.skill_tools import (
+    dispatch as _skill_dispatch,
+)
+from tools.skill_tools import (
+    skill_catalog_text as _skill_catalog_text,
 )
 
 # ── Environnement ────────────────────────────────────────
@@ -201,7 +225,10 @@ async def _lifespan(app: FastAPI):
     async def _ollama_heartbeat():
         import asyncio as _aio
         from datetime import datetime as _dt
-        from config import OLLAMA_HOST as _OHB_HOST, OLLAMA_MODEL as _OHB_MODEL, OLLAMA_NUM_CTX as _OHB_CTX
+
+        from config import OLLAMA_HOST as _OHB_HOST
+        from config import OLLAMA_MODEL as _OHB_MODEL
+        from config import OLLAMA_NUM_CTX as _OHB_CTX
         _hb_url = f"{_OHB_HOST}/api/generate"
         while True:
             await _aio.sleep(240)  # 4 minutes
@@ -252,20 +279,23 @@ app.add_middleware(
 )
 
 import budget_tracker
-from stl_agent import router as stl_router
-from stl_researcher import router as research_router, generate_daily_report
-from forge_room.forge_engine import router as forge_router
-from daily_tasks import create_scheduler
-from vault.vault_router import router as vault_router
-from jarvis_files import router as files_router
-from orchestrator import orchestrate, classify_intent
-from smoke_tests import run_smoke_tests
 from commerce.commerce_router import router as commerce_router
 from commerce.etsy_oauth import router as etsy_oauth_router
-from monitoring_router import router as monitoring_router
-from ws_router import router as ws_router
 from daily_briefing import router as briefing_router
+from daily_tasks import create_scheduler
+from docker_router import router as docker_router
+from forge_room.forge_engine import router as forge_router
+from jarvis_files import router as files_router
+from monitoring_router import router as monitoring_router
+from orchestrator import classify_intent, orchestrate
+from smoke_tests import run_smoke_tests
+from stl_agent import router as stl_router
+from stl_researcher import generate_daily_report
+from stl_researcher import router as research_router
 from trend_hunter import router as trends_router
+from vault.vault_router import router as vault_router
+from ws_router import router as ws_router
+
 app.include_router(stl_router)
 app.include_router(research_router)
 app.include_router(forge_router)
@@ -277,6 +307,7 @@ app.include_router(monitoring_router)
 app.include_router(ws_router)
 app.include_router(briefing_router)
 app.include_router(trends_router)
+app.include_router(docker_router)
 
 # ── Sert Nexus9.html (UI principale) à la racine ─────────
 # Permet l'accès micro (Web Speech API exige un contexte sécurisé : localhost OK, file:// bloqué)
@@ -359,6 +390,7 @@ async def etsy_oauth_callback_root(code: str = None, state: str = None, error: s
 
 # ── Orbital UI — couche visuelle modulaire ────────────────
 from fastapi.staticfiles import StaticFiles
+
 _ORBITAL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "archive", "legacy", "orbital_ui_vanilla"))
 
 @app.get("/orbital", include_in_schema=False)
@@ -461,8 +493,12 @@ async def pipeline_start_all():
 
 # ── Brain note endpoints (read / write / search) ─────────────────────────────
 
-from tools.brain_tools import brain_read as _brain_read_fn, brain_write as _brain_write_fn, brain_search as _brain_search_fn
 from pydantic import BaseModel as _BM
+
+from tools.brain_tools import brain_read as _brain_read_fn
+from tools.brain_tools import brain_search as _brain_search_fn
+from tools.brain_tools import brain_write as _brain_write_fn
+
 
 class _BrainWriteReq(_BM):
     path:    str
@@ -573,7 +609,6 @@ async def import_setup():
     Ou depuis le chat : "JARVIS, importe la configuration nexus9-setup"
     """
     import re as _re
-    import asyncio as _aio
 
     brain_setup = (
         Path(__file__).parent / "BRAIN" / "BRAIN" / "08_Command-Center" / "nexus9-setup.md"
@@ -638,7 +673,6 @@ async def import_setup():
     # ── Infos personnelles ──
     projects   = _extract_block("Projets actifs (un par ligne)")
     goals      = _extract_block("Objectifs 2026 (un par ligne)")
-    stack      = _extract_block("Stack technique principale (un par ligne)")
     notes_raw  = _extract_block("Notes importantes (infos que JARVIS doit toujours retenir)")
 
     # ── Patch config.json ──
@@ -749,11 +783,16 @@ def daily_research_status():
 async def daily_run_task(body: dict):
     """Exécute une daily task par nom. Body: {"task": "vault_cleanup"}"""
     from daily_tasks import (
-        task_vault_cleanup, task_forge_analytics, task_stl_directory_sync,
-        task_system_health_log, task_error_logs_cleanup, task_vault_maintenance,
         task_commerce_analytics,
-        task_jarvis_workspace_index, task_daily_smoke_tests,
+        task_daily_smoke_tests,
+        task_error_logs_cleanup,
+        task_forge_analytics,
+        task_jarvis_workspace_index,
         task_orchestration_diagnostics,
+        task_stl_directory_sync,
+        task_system_health_log,
+        task_vault_cleanup,
+        task_vault_maintenance,
     )
     _task_map = {
         "vault_cleanup":             task_vault_cleanup,
@@ -1107,9 +1146,10 @@ def _get_kokoro_pipeline(lang_code: str):
 
 def _run_kokoro_sync(text: str, tts_voice: str) -> bytes:
     """Inference Kokoro synchrone — à appeler via asyncio.to_thread()."""
+    import io as _io
+
     import numpy as np
     import soundfile as sf
-    import io as _io
     lang_code = tts_voice[0] if tts_voice else "b"
     pipeline = _get_kokoro_pipeline(lang_code)
     chunks = []
@@ -1131,6 +1171,7 @@ async def text_to_speech(
 ):
     """Synthèse vocale — Edge TTS (gratuit, cloud) ou Kokoro (local, offline)."""
     import asyncio
+
     from memory import load_config
     cfg = load_config().get("jarvis", {})
 
@@ -1384,6 +1425,7 @@ async def generate_report(request: Request):
 
     # Destination brain selon le type de rapport (plus OneDrive)
     import shutil
+
     from config import BRAIN_REPORTS_DIR
     if report_type == "status":
         brain_dir = str(BRAIN_REPORTS_DIR / "status")
@@ -2079,6 +2121,7 @@ def chat_completion(req: ChatRequest, request: Request):
     # ── Shortcut JARVIS: RUN CHEAT CODE ─────────────────────
     if "jarvis" in last_user_msg.lower() and "cheat" in last_user_msg.lower():
         import asyncio as _asyncio
+
         from pipeline_runner import run_cheat_code
         try:
             report = _asyncio.run(run_cheat_code(voice=True))
@@ -2117,7 +2160,8 @@ def chat_completion(req: ChatRequest, request: Request):
     # ─────────────────────────────────────────────────────────
 
     # ── Pipelines : START ALL · DAILY RESEARCH · RAPPORT · STL ──
-    from pipeline_runner import detect_pipeline, execute_pipeline, format_response as _fmt_pipe
+    from pipeline_runner import detect_pipeline, execute_pipeline
+    from pipeline_runner import format_response as _fmt_pipe
     _pipe = detect_pipeline(last_user_msg)
     if _pipe:
         import asyncio as _asyncio2
@@ -2186,7 +2230,8 @@ def chat_completion(req: ChatRequest, request: Request):
     # ── Brain/Vault contextuel (option 2 — triggers: long / complexe / debug) ──
     memory_meta = {"retrieved": False, "fragments": 0, "ms": 0, "confidence": 0}
     if _needs_memory(last_user_msg):
-        import asyncio as _aio_mem, time as _t_mem
+        import asyncio as _aio_mem
+        import time as _t_mem
         _m0 = _t_mem.perf_counter()
         try:
             from vault.memory_manager import vault_query
@@ -2406,7 +2451,7 @@ def chat_completion(req: ChatRequest, request: Request):
                 # ── Crédit Anthropic épuisé → fallback Ollama + message clair ──
                 _is_credit = "credit balance" in _msg.lower() or "insufficient" in _msg.lower()
                 if _is_credit:
-                    print(f"[claude] ⚠️ Crédit épuisé — fallback Ollama")
+                    print("[claude] ⚠️ Crédit épuisé — fallback Ollama")
                     model_used = OLLAMA_MODEL
                     if ollama_available:
                         _fb_msgs = [{"role": "system", "content": system}] + anthropic_messages
@@ -2523,10 +2568,10 @@ async def quick_smoke_test():
     """Smoke test rapide des systèmes critiques seulement (5 tests)."""
     from smoke_tests import (
         test_backend_health,
+        test_forge_endpoint,
+        test_jarvis_orchestration,
         test_ollama_connectivity,
         test_vault_read,
-        test_jarvis_orchestration,
-        test_forge_endpoint,
     )
     return await run_smoke_tests([
         test_backend_health,
@@ -2542,6 +2587,7 @@ async def quick_smoke_test():
 # ════════════════════════════════════════════════════════
 
 from health_score import compute_health_score, get_forge_reliability
+
 
 @app.get("/v1/ecosystem/health")
 async def ecosystem_health():
@@ -2588,44 +2634,6 @@ def cheat_code_status():
 # ════════════════════════════════════════════════════════
 # DOCKER REST ENDPOINTS — direct access from frontend
 # ════════════════════════════════════════════════════════
-
-@app.get("/v1/docker/status")
-def docker_status_endpoint():
-    """Liste tous les containers Docker avec état, ports, santé."""
-    from tools.docker_tools import docker_status
-    return docker_status()
-
-
-@app.get("/v1/docker/stats")
-def docker_stats_endpoint(name: str = None):
-    """CPU / RAM de tous les containers (ou d'un seul si name fourni)."""
-    from tools.docker_tools import docker_stats
-    return docker_stats(name)
-
-
-@app.get("/v1/docker/logs/{name}")
-def docker_logs_endpoint(name: str, lines: int = 40):
-    """Dernières N lignes de logs d'un container."""
-    from tools.docker_tools import docker_logs
-    return docker_logs(name, lines)
-
-
-@app.post("/v1/docker/action")
-def docker_action_endpoint(body: dict):
-    """start | stop | restart un container. Body: {name, action}."""
-    from tools.docker_tools import docker_container_action
-    return docker_container_action(
-        name=body.get("name", ""),
-        action=body.get("action", ""),
-    )
-
-
-@app.post("/v1/docker/compose")
-def docker_compose_endpoint(body: dict):
-    """docker compose up | down | ps | restart. Body: {action}."""
-    from tools.docker_tools import docker_compose_action
-    return docker_compose_action(action=body.get("action", "ps"))
-
 
 # ════════════════════════════════════════════════════════
 # PHASE 4 stubs — silence frontend boot 404s
