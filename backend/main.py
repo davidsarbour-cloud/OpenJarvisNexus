@@ -191,6 +191,31 @@ async def _lifespan(app: FastAPI):
     app.state.scheduler = _scheduler
     print("[Daily] Scheduler démarré — STL research 21:00, brain re-index 03:55 (daily_tasks)")
 
+    # ── Ollama heartbeat — garde qwen3:14b chaud en VRAM ────────────────
+    # Ping toutes les 4 min entre 7h et 23h. En dehors → Ollama libère la VRAM.
+    async def _ollama_heartbeat():
+        import asyncio as _aio
+        from datetime import datetime as _dt
+        from config import OLLAMA_HOST as _OHB_HOST, OLLAMA_MODEL as _OHB_MODEL, OLLAMA_NUM_CTX as _OHB_CTX
+        _hb_url = f"{_OHB_HOST}/api/generate"
+        while True:
+            await _aio.sleep(240)  # 4 minutes
+            _hour = _dt.now().hour
+            if 7 <= _hour < 23:
+                try:
+                    await _http.post(_hb_url, json={
+                        "model":  _OHB_MODEL,
+                        "prompt": "",
+                        "stream": False,
+                        "options": {"num_predict": 1, "num_ctx": _OHB_CTX},
+                    }, timeout=10.0)
+                except Exception:
+                    pass  # Ollama indisponible — silencieux
+
+    _asyncio.create_task(_ollama_heartbeat())
+    from config import OLLAMA_MODEL as _hb_model_name
+    print(f"[Ollama] Heartbeat démarré — {_hb_model_name} restera chaud 07h-23h.")
+
     print("[Nexus9] Startup complet — client HTTP partagé prêt.")
     yield
 
