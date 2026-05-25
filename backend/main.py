@@ -2006,9 +2006,9 @@ def chat_completion(req: ChatRequest, request: Request):
     _chat_lang = load_config().get("jarvis", {}).get("language", "Français")
     _lang_lc   = _chat_lang.lower()
     if "english" in _lang_lc or "anglais" in _lang_lc:
-        system += "\n\n[MANDATORY] Reply in ENGLISH only. 1-2 sentences max unless detail is explicitly requested. Plain text, no markdown, no lists, no headers."
+        system += "\n\n[MANDATORY] Reply in ENGLISH only. 1-2 sentences max unless detail is explicitly requested. Plain text, no markdown, no lists, no headers. ZERO emoji — never."
     else:
-        system += f"\n\n[OBLIGATOIRE] Tu réponds UNIQUEMENT en {_chat_lang}. 1 à 2 phrases maximum sauf si détail explicitement demandé. Texte brut — pas de markdown, pas de listes, pas de titres."
+        system += f"\n\n[OBLIGATOIRE] Tu réponds UNIQUEMENT en {_chat_lang}. 1 à 2 phrases maximum sauf si détail explicitement demandé. Texte brut — pas de markdown, pas de listes, pas de titres. ZERO emoji — aucun, jamais."
 
     # ── Brain/Vault contextuel (option 2 — triggers: long / complexe / debug) ──
     memory_meta = {"retrieved": False, "fragments": 0, "ms": 0, "confidence": 0}
@@ -2059,7 +2059,7 @@ def chat_completion(req: ChatRequest, request: Request):
                 if "english" in _lang_lc or "anglais" in _lang_lc:
                     _tail = "[English only. 1-2 sentences MAX. No markdown, no lists, no headers.]"
                 else:
-                    _tail = f"[{_chat_lang} uniquement. MAX 2 phrases courtes. Texte brut, zéro markdown, zéro liste, zéro titre.]"
+                    _tail = f"[{_chat_lang} uniquement. MAX 2 phrases courtes. Texte brut, zéro markdown, zéro liste, zéro titre, ZERO emoji.]"
                 ollama_msgs.append({"role": "user", "content": msg["content"] + f"\n\n{_tail}"})
             else:
                 ollama_msgs.append(msg)
