@@ -41,6 +41,10 @@ from tools.skill_tools import (
     dispatch as _skill_dispatch,
     skill_catalog_text as _skill_catalog_text,
 )
+from tools.brain_tools import (
+    CLAUDE_TOOL_DEFS as _BRAIN_TOOL_DEFS,
+    dispatch as _brain_dispatch,
+)
 
 # ── Environnement ────────────────────────────────────────
 load_dotenv(override=True)
@@ -453,6 +457,34 @@ async def pipeline_start_all():
         return {"status": "launched", "message": "START_ALL.bat lancé dans une nouvelle fenêtre"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ── Brain note endpoints (read / write / search) ─────────────────────────────
+
+from tools.brain_tools import brain_read as _brain_read_fn, brain_write as _brain_write_fn, brain_search as _brain_search_fn
+from pydantic import BaseModel as _BM
+
+class _BrainWriteReq(_BM):
+    path:    str
+    content: str
+    append:  bool = False
+
+@app.get("/v1/brain/read")
+async def brain_read_endpoint(path: str):
+    result = _brain_read_fn(path)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    return result
+
+@app.post("/v1/brain/write")
+async def brain_write_endpoint(req: _BrainWriteReq):
+    result = _brain_write_fn(req.path, req.content, req.append)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+@app.get("/v1/brain/search")
+async def brain_search_endpoint(q: str, max_results: int = 10):
+    return _brain_search_fn(q, max_results)
 
 # ── Brain re-index endpoint (appelé par le vault_graph sidecar après chaque sync) ──
 
@@ -2312,7 +2344,7 @@ def chat_completion(req: ChatRequest, request: Request):
             print(f"[chat] 🔵 CLAUDE {_tag} — routing auto")
             try:
                 _docker_tools = _DOCKER_TOOL_DEFS if _needs_docker else []
-                _all_tools    = _docker_tools + _SKILL_TOOL_DEFS
+                _all_tools    = _docker_tools + _SKILL_TOOL_DEFS + _BRAIN_TOOL_DEFS
                 _tool_msgs    = list(anthropic_messages)  # working copy for tool loop
                 _total_in, _total_out = 0, 0
 
@@ -2340,6 +2372,8 @@ def chat_completion(req: ChatRequest, request: Request):
                                 print(f"[tool] calling {_tname} {_blk.input}")
                                 if _tname.startswith("skill_"):
                                     _res_str = _skill_dispatch(_tname, _blk.input)
+                                elif _tname.startswith("brain_"):
+                                    _res_str = _brain_dispatch(_tname, _blk.input)
                                 else:
                                     _res_str = _docker_dispatch(_tname, _blk.input)
                                 _tool_results.append({
