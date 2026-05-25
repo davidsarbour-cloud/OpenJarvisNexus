@@ -44,6 +44,7 @@ export function JarvisChatPage() {
 
   const ttsAudioRef  = useRef<HTMLAudioElement | null>(null);
   const ttsUrlRef    = useRef<string | null>(null);
+  const ttsStopRef   = useRef(false);   // signal d'arrêt inter-phrases
   const prevStreaming = useRef(false);
 
   const empty = messages.length === 0 && !streamState.isStreaming;
@@ -74,55 +75,99 @@ export function JarvisChatPage() {
     return () => window.removeEventListener('click', handler);
   }, [modelPickerOpen]);
 
-  // ── TTS helpers ───────────────────────────────────────────────────────
-  const speakText = useCallback(async (text: string, msgId?: string) => {
-    if (!text.trim()) return;
-    ttsAudioRef.current?.pause();
-    if (ttsUrlRef.current) { URL.revokeObjectURL(ttsUrlRef.current); ttsUrlRef.current = null; }
-    ttsAudioRef.current = null;
+  // ── TTS — pipeline phrase par phrase ─────────────────────────────────
+  // Stratégie : découper en phrases → fetch phrase N+1 en parallèle pendant
+  // que phrase N joue → zéro gap entre phrases, démarrage quasi-immédiat.
 
-    const clean = text
+  const _cleanTts = (text: string) =>
+    text
       .replace(/```[\s\S]*?```/g, '')
       .replace(/`[^`]+`/g, '')
       .replace(/#{1,6}\s/g, '')
       .replace(/\*\*([^*]+)\*\*/g, '$1')
       .replace(/\*([^*]+)\*/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      .trim()
-      .slice(0, 2000);
+      .trim();
+
+  const _splitSentences = (text: string): string[] => {
+    const parts = text
+      .split(/(?<=[.!?;:])\s+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 2);
+    return parts.length > 0 ? parts.slice(0, 10) : [text.slice(0, 500)];
+  };
+
+  const _fetchAudioUrl = async (sentence: string): Promise<string | null> => {
+    try {
+      const res = await fetch(
+        `${getBase()}/v1/tts?text=${encodeURIComponent(sentence.slice(0, 600))}`,
+      );
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return URL.createObjectURL(blob);
+    } catch { return null; }
+  };
+
+  const _playUrl = (url: string): Promise<void> =>
+    new Promise((resolve) => {
+      const audio = new Audio(url);
+      ttsAudioRef.current  = audio;
+      ttsUrlRef.current    = url;
+      const cleanup = () => {
+        URL.revokeObjectURL(url);
+        ttsUrlRef.current   = null;
+        ttsAudioRef.current = null;
+        resolve();
+      };
+      audio.onended  = cleanup;
+      audio.onerror  = cleanup;
+      audio.play().catch(cleanup);
+    });
+
+  const speakText = useCallback(async (text: string, msgId?: string) => {
+    if (!text.trim()) return;
+
+    // Stoppe le TTS précédent
+    ttsStopRef.current = true;
+    ttsAudioRef.current?.pause();
+    if (ttsUrlRef.current) { URL.revokeObjectURL(ttsUrlRef.current); ttsUrlRef.current = null; }
+    ttsAudioRef.current = null;
+    // Reset du signal d'arrêt après un tick pour que la boucle précédente se termine
+    await new Promise(r => setTimeout(r, 0));
+    ttsStopRef.current = false;
+
+    const clean = _cleanTts(text);
     if (!clean) return;
 
+    const sentences = _splitSentences(clean);
     setTtsPlaying(true);
     setPlayingMsgId(msgId ?? null);
-    try {
-      const res = await fetch(`${getBase()}/v1/tts?text=${encodeURIComponent(clean)}`);
-      if (!res.ok) throw new Error(`TTS ${res.status}`);
-      const blob  = await res.blob();
-      const url   = URL.createObjectURL(blob);
-      ttsUrlRef.current = url;
-      const audio = new Audio(url);
-      ttsAudioRef.current = audio;
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        ttsUrlRef.current    = null;
-        ttsAudioRef.current  = null;
-        setTtsPlaying(false);
-        setPlayingMsgId(null);
-      };
-      audio.onerror = () => {
-        if (ttsUrlRef.current) { URL.revokeObjectURL(ttsUrlRef.current); ttsUrlRef.current = null; }
-        ttsAudioRef.current = null;
-        setTtsPlaying(false);
-        setPlayingMsgId(null);
-      };
-      await audio.play();
-    } catch {
+
+    // Pipeline : prefetch phrase i+1 pendant que phrase i joue
+    let nextFetch: Promise<string | null> = _fetchAudioUrl(sentences[0]);
+
+    for (let i = 0; i < sentences.length; i++) {
+      if (ttsStopRef.current) break;
+
+      const url = await nextFetch;
+      if (!url || ttsStopRef.current) break;
+
+      // Lance le prefetch de la phrase suivante en parallèle
+      if (i + 1 < sentences.length) {
+        nextFetch = _fetchAudioUrl(sentences[i + 1]);
+      }
+
+      await _playUrl(url);
+    }
+
+    if (!ttsStopRef.current) {
       setTtsPlaying(false);
       setPlayingMsgId(null);
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stopTts = useCallback(() => {
+    ttsStopRef.current = true;
     ttsAudioRef.current?.pause();
     if (ttsUrlRef.current) { URL.revokeObjectURL(ttsUrlRef.current); ttsUrlRef.current = null; }
     ttsAudioRef.current = null;
