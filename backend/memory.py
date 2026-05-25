@@ -24,9 +24,31 @@ _vault_cache: str = ""
 _vault_cache_ts: float = 0.0
 
 
-def load_vault_memory(max_chars: int = 12000, max_per_note: int = 1000) -> str:
-    """Lit 00_Core/*.md + note du jour depuis le vault Obsidian.
-    Résultat mis en cache 5 minutes pour ne pas lire le disque à chaque message."""
+def _strip_note(text: str, max_chars: int) -> str:
+    """Supprime frontmatter YAML, wikilinks, lignes de tags — garde le contenu utile."""
+    import re
+    # Retire le bloc frontmatter ---...---
+    text = re.sub(r"^---[\s\S]*?---\s*", "", text, count=1).strip()
+    # Retire les wikilinks [[...]] → garde le label si présent
+    text = re.sub(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]", r"\1", text)
+    # Retire les lignes qui ne contiennent que des hashtags (#core #goals ...)
+    text = re.sub(r"^#\w+(\s+#\w+)*\s*$", "", text, flags=re.MULTILINE)
+    # Retire les lignes "## Liens" et ce qui suit (pas utile pour JARVIS)
+    text = re.sub(r"\n## Liens[\s\S]*", "", text)
+    # Nettoie les lignes vides multiples
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    if len(text) > max_chars:
+        text = text[:max_chars] + "\n…"
+    return text
+
+
+# Notes essentielles injectées à chaque prompt (ordre = priorité)
+_CORE_ESSENTIAL = ["core-identité", "core-objectifs-2026", "core-vocabulary"]
+
+
+def load_vault_memory() -> str:
+    """Injecte les 3 notes essentielles du vault + note du jour si non vide.
+    Cache 5 min — ~500 tokens max pour rester confortable avec num_ctx=8192."""
     global _vault_cache, _vault_cache_ts
     if _vault_cache and (time.time() - _vault_cache_ts) < _VAULT_TTL:
         return _vault_cache
@@ -35,48 +57,34 @@ def load_vault_memory(max_chars: int = 12000, max_per_note: int = 1000) -> str:
         return ""
 
     sections: list[str] = []
-    total = 0
 
-    # ── 1. 00_Core/*.md ─────────────────────────────────
+    # ── 1. Notes essentielles (whitelist) ───────────────
     core_dir = VAULT_PATH / "00_Core"
-    if core_dir.exists():
-        for note in sorted(core_dir.glob("*.md")):
-            try:
-                content = note.read_text(encoding="utf-8").strip()
-                if not content:
-                    continue
-                # Cap par note pour qu'une grosse note ne monopolise pas tout
-                if len(content) > max_per_note:
-                    content = content[:max_per_note] + "\n…"
-                entry = f"[{note.stem}]\n{content}"
-                if total + len(entry) > max_chars:
-                    # tronque si on approche la limite
-                    remaining = max_chars - total
-                    if remaining > 200:
-                        entry = entry[:remaining] + "\n…"
-                    else:
-                        break
-                sections.append(entry)
-                total += len(entry)
-            except Exception:
+    for stem in _CORE_ESSENTIAL:
+        note = core_dir / f"{stem}.md"
+        if not note.exists():
+            continue
+        try:
+            raw = note.read_text(encoding="utf-8").strip()
+            if not raw:
                 continue
+            content = _strip_note(raw, max_chars=600)
+            sections.append(f"[{stem}]\n{content}")
+        except Exception:
+            continue
 
-    # ── 2. Note du jour ──────────────────────────────────
+    # ── 2. Note du jour (si non vide) ───────────────────
     today_file = VAULT_PATH / f"{date.today().isoformat()}.md"
     if not today_file.exists():
-        # fallback : note la plus récente dans le vault root
         candidates = sorted(VAULT_PATH.glob("20??-??-??.md"), reverse=True)
         today_file = candidates[0] if candidates else None
 
-    if today_file and today_file.exists() and total < max_chars:
+    if today_file and today_file.exists():
         try:
-            content = today_file.read_text(encoding="utf-8").strip()
-            if content:
-                entry = f"[note du jour: {today_file.stem}]\n{content}"
-                remaining = max_chars - total
-                if len(entry) > remaining:
-                    entry = entry[:remaining] + "\n…"
-                sections.append(entry)
+            raw = today_file.read_text(encoding="utf-8").strip()
+            if raw:
+                content = _strip_note(raw, max_chars=500)
+                sections.append(f"[note du jour: {today_file.stem}]\n{content}")
         except Exception:
             pass
 
@@ -84,9 +92,9 @@ def load_vault_memory(max_chars: int = 12000, max_per_note: int = 1000) -> str:
         return ""
 
     result = (
-        "\n\n━━━ VAULT OBSIDIAN ━━━\n"
+        "\n\n━━━ CONTEXTE DAVID ━━━\n"
         + "\n\n".join(sections)
-        + "\n━━━ FIN VAULT ━━━"
+        + "\n━━━ FIN CONTEXTE ━━━"
     )
     _vault_cache    = result
     _vault_cache_ts = time.time()
