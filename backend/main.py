@@ -1911,6 +1911,46 @@ def chat_completion(req: ChatRequest, request: Request):
     # Detect whether this message is about Docker / containers
     _needs_docker = bool(_DOCKER_KW.search(last_user_msg))
 
+    # ── Shortcut Docker STATUS — bypass LLM entièrement ─────
+    # Si la question concerne l'affichage/liste des containers (pas une action start/stop/restart),
+    # on formate la réponse directement depuis l'API Docker sans passer par Claude ou Ollama.
+    _DOCKER_SHOW_KW = re.compile(
+        r"\b(montre|liste|affiche|show|donne|quels?|combien|ps|status|statut|état|voir|check|ping)\b"
+        r"|\bup\b|\bdown\b|\brunning\b",
+        re.I,
+    )
+    _DOCKER_ACTION_KW = re.compile(
+        r"\b(restart|redémarre|stop|arrête|start|démarre|lance|kill|rm|remove)\b", re.I
+    )
+    if _needs_docker and _DOCKER_SHOW_KW.search(last_user_msg) and not _DOCKER_ACTION_KW.search(last_user_msg):
+        try:
+            from tools.docker_tools import docker_status as _ds
+            _dstat = _ds()
+            if _dstat["ok"]:
+                _up   = _dstat["up"]
+                _tot  = _dstat["total"]
+                _rows = []
+                for _c in _dstat["containers"]:
+                    _state = "UP  " if _c["running"] else "DOWN"
+                    _name  = _c["name"].replace("nexus_", "")
+                    _ports = f"  [{_c['ports']}]" if _c["ports"] else ""
+                    _rows.append(f"  {_state}  {_name:<20}{_c['status']}{_ports}")
+                _docker_resp = f"{_up}/{_tot} containers en ligne.\n\n" + "\n".join(_rows)
+            else:
+                _docker_resp = f"Docker inaccessible : {_dstat.get('error', '?')}"
+        except Exception as _de:
+            _docker_resp = f"Erreur Docker : {_de}"
+        add_message(session_id, "assistant", _docker_resp)
+        return {
+            "id":      f"chatcmpl-docker-{int(time.time())}",
+            "object":  "chat.completion",
+            "model":   "docker-direct",
+            "created": int(time.time()),
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": _docker_resp}, "finish_reason": "stop"}],
+            "usage":   {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        }
+    # ─────────────────────────────────────────────────────────
+
     # ── Shortcut JARVIS: RUN CHEAT CODE ─────────────────────
     if "jarvis" in last_user_msg.lower() and "cheat" in last_user_msg.lower():
         import asyncio as _asyncio
