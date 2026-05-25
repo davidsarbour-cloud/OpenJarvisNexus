@@ -2043,10 +2043,19 @@ def chat_completion(req: ChatRequest, request: Request):
         budget_tracker.record_ollama_call()
         model_used  = OLLAMA_MODEL
         # Docker context injection for Ollama (no native tool_use in Ollama)
-        _ollama_sys = system
+        # Fetched once, injected in BOTH system prompt AND user message for maximum compliance
+        _ollama_sys    = system
+        _docker_block  = ""
         if _needs_docker:
             try:
-                _ollama_sys += "\n\n[Docker Status]\n" + _docker_quick_status()
+                _docker_block = _docker_quick_status()
+                _ollama_sys += (
+                    "\n\n[DONNEES DOCKER EN TEMPS REEL]\n"
+                    + _docker_block
+                    + "\n\nUtilise ces donnees reelles pour repondre. "
+                    "Ne dis jamais 'exécutez docker ps'. Ne dis jamais 'je ne peux pas acceder'. "
+                    "Les donnees sont ici, utilise-les."
+                )
             except Exception as _de:
                 print(f"[docker] quick_status_text error: {_de}")
 
@@ -2057,10 +2066,18 @@ def chat_completion(req: ChatRequest, request: Request):
         for i, msg in enumerate(ollama_msgs_raw):
             if i == len(ollama_msgs_raw) - 1 and msg["role"] == "user":
                 if "english" in _lang_lc or "anglais" in _lang_lc:
-                    _tail = "[English only. 1-2 sentences MAX. No markdown, no lists, no headers.]"
+                    _tail = "[English only. 1-2 sentences MAX. No markdown, no lists, no headers, no emoji.]"
                 else:
                     _tail = f"[{_chat_lang} uniquement. MAX 2 phrases courtes. Texte brut, zéro markdown, zéro liste, zéro titre, ZERO emoji.]"
-                ollama_msgs.append({"role": "user", "content": msg["content"] + f"\n\n{_tail}"})
+                # Si Docker requis : injecte les données directement dans le message user
+                if _needs_docker and _docker_block:
+                    _docker_inject = (
+                        f"\n\n[Données Docker réelles]\n{_docker_block}\n"
+                        "Réponds en utilisant ces données. Ne suggère jamais d'exécuter une commande."
+                    )
+                    ollama_msgs.append({"role": "user", "content": msg["content"] + _docker_inject + f"\n\n{_tail}"})
+                else:
+                    ollama_msgs.append({"role": "user", "content": msg["content"] + f"\n\n{_tail}"})
             else:
                 ollama_msgs.append(msg)
 
