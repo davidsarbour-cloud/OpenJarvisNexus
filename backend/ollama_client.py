@@ -99,12 +99,16 @@ def ask_ollama_chat(messages: list[dict], model: str = OLLAMA_MODEL) -> str:
 
 # Mots-clés qui déclenchent Sonnet (questions complexes / architecturales)
 SONNET_KEYWORDS = [
+    # Technique / complexe
     "architecture", "conçois", "planifie", "analyse", "explique pourquoi",
     "stratégie", "compare", "débogue", "refactor", "optimise",
     "multi-agent", "design pattern", "revue de code",
     "crée une skill", "installe skill",
     "implémente", "développe", "créé un", "créer un", "génère",
     "écris un script", "écris une fonction", "code complet",
+    # Humour / ton — Haiku gère mal les nuances, Sonnet les joue vraiment
+    "blague", "joke", "drôle", "humour", "humour noir", "cynique",
+    "fais moi rire", "t'as une", "raconte",
 ]
 
 # Mots-clés pour forcer Ollama (local, privé, gratuit)
