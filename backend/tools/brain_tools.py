@@ -1,15 +1,17 @@
 """
-brain_tools.py — Lecture / écriture / recherche dans le vault Obsidian.
+brain_tools.py — Lecture / écriture / recherche / ouverture dans le vault Obsidian.
 
-Expose 3 outils Claude :
+Expose 4 outils Claude :
   brain_read   — lit une note par chemin relatif
   brain_write  — crée ou modifie une note (append ou overwrite)
   brain_search — cherche dans le contenu et les noms de fichiers
+  brain_open   — génère un lien obsidian:// pour ouvrir la note dans Obsidian natif
 
-Et 3 endpoints FastAPI montés dans main.py :
+Et endpoints FastAPI montés dans main.py :
   GET  /v1/brain/read?path=...
   POST /v1/brain/write
   GET  /v1/brain/search?q=...
+  GET  /v1/brain/open?q=...
 """
 from __future__ import annotations
 
@@ -18,7 +20,8 @@ import os
 from datetime import date
 from pathlib import Path
 
-VAULT_PATH = Path(os.getenv("OBSIDIAN_VAULT_PATH", "/app/BRAIN/BRAIN"))
+VAULT_PATH  = Path(os.getenv("OBSIDIAN_VAULT_PATH", "/app/BRAIN/BRAIN"))
+VAULT_NAME  = VAULT_PATH.name  # "BRAIN" — nom affiché dans Obsidian
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -140,6 +143,38 @@ def brain_search(query: str, max_results: int = 10) -> dict:
     }
 
 
+def brain_open(query: str) -> dict:
+    """Cherche une note dans le vault et retourne un lien obsidian:// cliquable.
+    L'utilisateur clique le lien → Obsidian s'ouvre directement sur cette note.
+    query : terme de recherche (nom ou contenu de la note)
+    """
+    import urllib.parse
+
+    # Cherche la meilleure note correspondante
+    results = brain_search(query, max_results=5)
+    if not results["ok"] or results["count"] == 0:
+        return {"ok": False, "error": f"Aucune note trouvée pour : {query}"}
+
+    # Priorité : correspondance dans le nom de fichier
+    hits = results["results"]
+    q_lower = query.lower()
+    name_hits = [h for h in hits if q_lower in Path(h["path"]).stem.lower()]
+    best = name_hits[0] if name_hits else hits[0]
+
+    rel_path = best["path"]          # ex: "03_Projects/Daytrading/journal-trades.md"
+    # Obsidian accepte le chemin sans extension dans l'URI
+    file_param = rel_path.removesuffix(".md")
+    uri = f"obsidian://open?vault={urllib.parse.quote(VAULT_NAME)}&file={urllib.parse.quote(file_param)}"
+
+    return {
+        "ok":       True,
+        "note":     rel_path,
+        "uri":      uri,
+        "markdown": f"[📓 Ouvrir dans Obsidian]({uri})",
+        "others":   [h["path"] for h in hits[1:4]],
+    }
+
+
 # ── Dispatch (appelé depuis main.py dans la boucle tool_use Claude) ─────────
 
 def dispatch(tool_name: str, tool_input: dict) -> str:
@@ -156,6 +191,8 @@ def dispatch(tool_name: str, tool_input: dict) -> str:
             tool_input.get("query", ""),
             tool_input.get("max_results", 10),
         ), ensure_ascii=False)
+    if tool_name == "brain_open":
+        return json.dumps(brain_open(tool_input.get("query", "")), ensure_ascii=False)
     return json.dumps({"ok": False, "error": f"Outil inconnu : {tool_name}"})
 
 
@@ -211,6 +248,20 @@ CLAUDE_TOOL_DEFS = [
                 "max_results": {
                     "type":        "integer",
                     "description": "Nombre maximum de résultats (défaut 10).",
+                },
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name":        "brain_open",
+        "description": "Cherche une note dans le vault Obsidian et génère un lien obsidian:// pour l'ouvrir directement dans Obsidian. Utilise cet outil quand David dit 'ouvre', 'montre-moi dans Obsidian', 'trouve et ouvre' une note.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type":        "string",
+                    "description": "Terme de recherche — nom ou sujet de la note à ouvrir. Ex: 'daytrading', 'journal trades', 'core-objectifs'",
                 },
             },
             "required": ["query"],
