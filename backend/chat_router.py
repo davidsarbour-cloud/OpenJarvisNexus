@@ -175,6 +175,13 @@ _SKILL_LIST_SHOW_KW = re.compile(
     r"\b(liste|list|montre|affiche|show|quels?|quelles?|donne|voir|dis.?moi|what|have|got|as-tu|avez)\b",
     re.I,
 )
+# Action verbs that mean "run/apply a specific skill" — those must NOT trigger
+# the bypass-catalog shortcut. Claude should call `skill_get` + follow the
+# protocol via tool_use instead.
+_SKILL_ACTION_KW = re.compile(
+    r"\b(utilise|use|applique|apply|lance|launch|run|exec|execute|exécute|invoque|invoke|do|fais|fait)\b",
+    re.I,
+)
 
 
 def _needs_memory(msg: str) -> bool:
@@ -276,8 +283,15 @@ def chat_completion(req: ChatRequest, request: Request):
     # ─────────────────────────────────────────────────────────
 
     # ── Shortcut SKILLS — liste directe sans LLM ─────────────
-    _skill_msg_short = len(last_user_msg.strip().split()) <= 4
-    if _SKILL_LIST_KW.search(last_user_msg) and (
+    # Trigger only when the intent is unambiguously "give me the catalog":
+    #   1. mentions the skill concept
+    #   2. uses a show-verb (liste/show/quels…) OR is a 1-2 word query
+    #   3. AND does NOT contain an action verb (utilise/applique/lance/…)
+    # The action-verb guard lets Claude handle "applique le skill humanizer"
+    # via skill_get tool-use instead of being short-circuited to a catalog dump.
+    _skill_msg_short  = len(last_user_msg.strip().split()) <= 2
+    _is_skill_action  = bool(_SKILL_ACTION_KW.search(last_user_msg))
+    if _SKILL_LIST_KW.search(last_user_msg) and not _is_skill_action and (
         _SKILL_LIST_SHOW_KW.search(last_user_msg) or _skill_msg_short
     ):
         try:

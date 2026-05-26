@@ -353,6 +353,7 @@ _MOC_TEMPLATES = {
             ],
             "🔧 Outils & Recherche": [
                 "[[../../05_Resources/Research/ia-tools]]",
+                "[[../../05_Resources/Research/hermes]]",
             ],
             "🏗️ Architecture": [
                 "[[../../07_Schemas/system/data-flow]]",
