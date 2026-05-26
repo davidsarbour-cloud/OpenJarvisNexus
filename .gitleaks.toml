@@ -1,0 +1,47 @@
+# gitleaks scan-time allowlist — keeps vendored/generated paths out of the
+# signal while still catching anything we wrote.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Vendored dirs, the Obsidian brain, archived legacy, runtime artifacts, and the upstream OpenJarvis library."
+paths = [
+  '''\.venv/''',
+  '''node_modules/''',
+  '''/dist/''',
+  '''/build/''',
+  '''BRAIN/''',
+  '''backend/vault/claude-mem/''',
+  '''backend/vault/superpowers/''',
+  '''archive/''',
+  '''session_logs/''',
+  '''reports/''',
+  '''backend/forge_reports/''',
+  '''backend/trend_snapshots/''',
+  '''frontend/src-tauri/target/''',
+  '''__pycache__/''',
+  '''\.lock$''',
+  '''\.lockb$''',
+  '''package-lock\.json$''',
+  '''uv\.lock$''',
+  '''Cargo\.lock$''',
+  '''\.min\.(js|css)$''',
+  '''(^|/)src/openjarvis/''',
+  '''(^|/)tests/''',
+  '''(^|/)docs/''',
+  # Local-only secrets file. Already in .gitignore (verified no history)
+  # but the scanner still walks the working tree — exclude.
+  '''(^|/)\.env$''',
+  '''backend/\.env$''',
+]
+
+# Supabase anon keys are JWT-shaped but explicitly safe to ship to the
+# frontend bundle (RLS protects writes). Pin the exact strings that we
+# intentionally embed so future copies of them stay flagged.
+[[rules]]
+id = "jwt"
+[[rules.allowlists]]
+description = "Supabase anon key (frontend, RLS-gated, intentionally public)"
+regexes = [
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10YnRncHd6cmJvc3R3ZWFhbnByIiwicm9sZSI6ImFub24i.*''',
+]

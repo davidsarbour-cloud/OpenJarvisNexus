@@ -57,8 +57,19 @@ jobs:
       # small. The big runtime deps (chromadb, trimesh, fastapi…) aren't
       # exercised by tests/test_pure_helpers.py.
       - name: Install minimal test deps
-        run: pip install pytest pytest-asyncio httpx
+        run: pip install pytest pytest-asyncio pytest-cov httpx
 
-      - name: Run pytest
+      - name: Run pytest with coverage
         working-directory: backend
-        run: python -m pytest -q --tb=short
+        # --cov-fail-under is intentionally loose (15%) — we measure two
+        # modules (ollama_client + trend_engine) so the bar tracks the seed
+        # tests, not the whole backend.
+        run: python -m pytest -q --tb=short --cov --cov-report=term --cov-fail-under=15
+
+      - name: Upload coverage XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
+          if-no-files-found: ignore
