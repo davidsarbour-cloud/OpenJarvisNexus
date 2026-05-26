@@ -35,12 +35,12 @@ const SECTIONS: Section[] = [
   {
     title: 'WORLD',
     entries: [
-      { label: 'JARVIS',    icon: Cpu,        colorKey: 'jarvis',    status: 'on' },
-      { label: 'Forge',     icon: Hammer,     colorKey: 'forge',     status: 'on' },
-      { label: 'Commerce',  icon: ShoppingBag, colorKey: 'commerce', status: 'on' },
-      { label: 'Cyberdeck', icon: Eye,        colorKey: 'cyberdeck', status: 'on' },
-      { label: 'Vault',     icon: Lock,       colorKey: 'vault',     status: 'on' },
-      { label: 'Docker',    icon: Container,  colorKey: 'docker',    status: 'on' },
+      { label: 'JARVIS',    icon: Cpu,         colorKey: 'jarvis',    route: '/world/jarvis',    status: 'on', escapable: true },
+      { label: 'Forge',     icon: Hammer,      colorKey: 'forge',     route: '/world/forge',     status: 'on', escapable: true },
+      { label: 'Commerce',  icon: ShoppingBag, colorKey: 'commerce',  route: '/world/commerce',  status: 'on', escapable: true },
+      { label: 'Cyberdeck', icon: Eye,         colorKey: 'cyberdeck', route: '/world/cyberdeck', status: 'on', escapable: true },
+      { label: 'Vault',     icon: Lock,        colorKey: 'vault',     route: '/world/vault',     status: 'on', escapable: true },
+      { label: 'Docker',    icon: Container,   colorKey: 'docker',    route: '/world/docker',    status: 'on', escapable: true },
     ],
   },
   {

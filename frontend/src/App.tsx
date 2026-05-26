@@ -7,6 +7,7 @@ import { OrbitalPage } from './pages/OrbitalPage';
 import { JarvisChatPage } from './pages/JarvisChatPage';
 import { BrainPage } from './pages/BrainPage';
 import { BrainHubPage } from './pages/BrainHubPage';
+import { WorldPage } from './pages/WorldPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { GetStartedPage } from './pages/GetStartedPage';
@@ -217,6 +218,13 @@ export default function App() {
               </Suspense>
             }
           />
+          {/* WORLD pages — empty canvases parameterised by ModuleKey. */}
+          <Route path="world/jarvis"    element={<WorldPage worldKey="jarvis" />} />
+          <Route path="world/forge"     element={<WorldPage worldKey="forge" />} />
+          <Route path="world/commerce"  element={<WorldPage worldKey="commerce" />} />
+          <Route path="world/cyberdeck" element={<WorldPage worldKey="cyberdeck" />} />
+          <Route path="world/vault"     element={<WorldPage worldKey="vault" />} />
+          <Route path="world/docker"    element={<WorldPage worldKey="docker" />} />
         </Route>
         <Route element={<Layout />}>
           <Route path="dashboard" element={<DashboardPage />} />
