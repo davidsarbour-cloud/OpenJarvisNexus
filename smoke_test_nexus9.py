@@ -20,8 +20,18 @@ import json
 import os
 import socket
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
+
+# Force UTF-8 on stdout/stderr — Windows consoles default to cp1252 and would
+# raise UnicodeEncodeError on the ✓/✗/! symbols below.
+for _stream in (sys.stdout, sys.stderr):
+    reconfigure = getattr(_stream, "reconfigure", None)
+    if reconfigure is not None:
+        try:
+            reconfigure(encoding="utf-8")
+        except Exception:
+            pass
 
 OK   = "\033[32m✓\033[0m"
 KO   = "\033[31m✗\033[0m"
@@ -171,7 +181,7 @@ def main():
         data = json.loads(body)
         models = [m["name"] for m in data.get("models", [])]
         if "nomic-embed-text:latest" in models or any("nomic-embed-text" in m for m in models):
-            return True, f"nomic-embed-text installé"
+            return True, "nomic-embed-text installé"
         return None, f"nomic-embed-text MANQUANT (modèles: {len(models)})"
     results.append(test("nomic-embed-text installed", _ollama_models))
 

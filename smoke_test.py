@@ -1,9 +1,25 @@
 # smoke_test.py — Test complet NexusX9
-import requests, json, time, sys
+import sys
 from datetime import datetime
+
+import requests
+
+# Force UTF-8 on stdout/stderr — Windows consoles default to cp1252 and would
+# raise UnicodeEncodeError on the ✅/❌ symbols below.
+for _stream in (sys.stdout, sys.stderr):
+    reconfigure = getattr(_stream, "reconfigure", None)
+    if reconfigure is not None:
+        try:
+            reconfigure(encoding="utf-8")
+        except Exception:
+            pass
 
 BASE = "http://localhost:8000"
 OLLAMA = "http://localhost:11434"
+
+# Chat needs more headroom: a cold qwen3:14b can take 25-30s to first-token on
+# the first call after backend boot (GPU load). Stay well above that.
+CHAT_TIMEOUT = 60
 
 print("\n" + "="*50)
 print(f"  NEXUSX9 SMOKE TESTS — {datetime.now().strftime('%H:%M:%S')}")
@@ -12,13 +28,13 @@ print("="*50 + "\n")
 passed = 0
 failed = 0
 
-def test(name, method, url, body=None, expected=200):
+def test(name, method, url, body=None, expected=200, timeout=None):
     global passed, failed
     try:
         if method == "GET":
-            r = requests.get(url, timeout=10)
+            r = requests.get(url, timeout=timeout or 10)
         else:
-            r = requests.post(url, json=body, timeout=30)
+            r = requests.post(url, json=body, timeout=timeout or 30)
 
         ok = r.status_code == expected or r.status_code < 300
         icon = "✅" if ok else "❌"
@@ -38,7 +54,8 @@ test("Backend Health",       "GET",  f"{BASE}/health")
 test("Agents List",          "GET",  f"{BASE}/v1/agents")
 test("Memory System",        "GET",  f"{BASE}/v1/memory")
 test("Chat Jarvis",          "POST", f"{BASE}/v1/chat/completions",
-     {"message": "ping test", "stream": False})
+     {"message": "ping test", "stream": False},
+     timeout=CHAT_TIMEOUT)
 
 print("\n── OLLAMA GPU ──────────────────────────────")
 ok, r = test("Ollama API",   "GET",  f"{OLLAMA}/api/tags")
