@@ -6,11 +6,6 @@ import {
   type VaultGraphNode,
 } from './useVaultGraph';
 
-/** Subset minimal de l'API imperative de ForceGraph2D dont on a besoin. */
-interface ForceGraphHandle {
-  zoomToFit(ms?: number, padding?: number): void;
-}
-
 /**
  * Nexus9 — VaultGraphOverlay
  *

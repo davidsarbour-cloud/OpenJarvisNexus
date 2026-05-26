@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, lazy, Suspense } from 'react';
+import { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router';
 import { Layout } from './components/Layout';
 import { HudLayout } from './components/Layout/HudLayout';
@@ -44,7 +44,6 @@ export default function App() {
   const optInModalOpen = useAppStore((s) => s.optInModalOpen);
   const setOptInModalOpen = useAppStore((s) => s.setOptInModalOpen);
   const markOptInModalSeen = useAppStore((s) => s.markOptInModalSeen);
-  const savings = useAppStore((s) => s.savings);
 
   // Apply theme class to <html>
   useEffect(() => {

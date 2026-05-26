@@ -1,10 +1,5 @@
 import { useState, useEffect } from 'react';
 import {
-  Palette,
-  Globe,
-  Cpu,
-  Database,
-  Info,
   Check,
   Sun,
   Moon,
@@ -12,9 +7,6 @@ import {
   Download,
   Upload,
   Trash2,
-  Mic,
-  Key,
-  Search,
   Brain,
 } from 'lucide-react';
 import { useAppStore, type ThemeMode } from '../lib/store';

@@ -307,11 +307,6 @@ const iconMap: Record<string, LucideIcon> = {
   upload: Upload,
 };
 
-const IconFor = ({ id, size = 18 }: { id: string; size?: number }) => {
-  const Ico = iconMap[id] ?? Link2;
-  return <Ico size={size} />;
-};
-
 // ---------------------------------------------------------------------------
 // Data Sources section
 // ---------------------------------------------------------------------------

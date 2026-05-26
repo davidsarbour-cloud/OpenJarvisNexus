@@ -3,7 +3,6 @@ import {
   Zap,
   Activity,
   Thermometer,
-  DollarSign,
   TrendingDown,
   Cloud,
   HardDrive,

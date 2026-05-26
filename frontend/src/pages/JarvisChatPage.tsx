@@ -164,7 +164,7 @@ export function JarvisChatPage() {
       setTtsPlaying(false);
       setPlayingMsgId(null);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   const stopTts = useCallback(() => {
     ttsGenRef.current++;  // invalide toute boucle en cours
