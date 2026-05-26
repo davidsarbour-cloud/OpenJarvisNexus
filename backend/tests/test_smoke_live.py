@@ -113,11 +113,10 @@ def test_event_publish_round_trip(client):
 
 
 @pytest.mark.parametrize("host,port", [
-    ("localhost", 5432),  # postgres
-    ("localhost", 6379),  # redis
-    ("localhost", 80),    # traefik
+    ("localhost", 8001),   # chromadb (host-exposed port → :8000 inside container)
+    ("localhost", 11434),  # ollama
 ])
-def test_phase7_tcp_ports_open(host, port):
+def test_core_tcp_ports_open(host, port):
     """TCP probes are cheaper than HTTP for infra services."""
     try:
         with socket.create_connection((host, port), timeout=2):

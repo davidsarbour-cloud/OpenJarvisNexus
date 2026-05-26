@@ -157,12 +157,10 @@ def main():
     results.append(test("POST /v1/events/publish", _events_publish))
 
     # ── Phase 7 services TCP ───────────────────────────────
-    section("PHASE 7 SERVICES")
+    section("CORE SERVICES")
     services = [
-        ("postgres   :5432", "localhost", 5432),
-        ("redis      :6379", "localhost", 6379),
-        ("traefik    :80",   "localhost", 80),
-        ("traefik UI :8090", "localhost", 8090),
+        ("chromadb :8001",  "localhost", 8001),
+        ("ollama   :11434", "localhost", 11434),
     ]
     for label, host, port in services:
         def make(host=host, port=port):

@@ -1,8 +1,8 @@
 # ----------------------------------------------------------------------
 # Compose profiles (run only what you need):
-#   core (always up) : backend, frontend, traefik, postgres, redis, chromadb
+#   core (always up) : backend, frontend, chromadb
 #   (Ollama = natif sur l'hote, joignable via host.docker.internal:11434)
-#   agents           : telegram, bruce, superpowers, obsidian-skills
+#   agents           : telegram, bruce
 # Examples:
 #   docker compose up                                 # core only
 #   docker compose --profile agents up                # core + agent stack
@@ -35,8 +35,6 @@ services:
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434
       - CHROMA_HOST=http://chromadb:8000
-      - POSTGRES_URL=postgresql://nexus:nexus@postgres:5432/nexus
-      - REDIS_URL=redis://redis:6379/0
       - CORS_ORIGINS=http://localhost:5173,http://localhost:80,http://frontend:80
       - SKILLS_DIR=/app/skills
       - OBSIDIAN_VAULT_PATH=/app/BRAIN/BRAIN
@@ -44,18 +42,12 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       - chromadb
-      - postgres
-      - redis
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`api.nexus9.local`)"
-      - "traefik.http.services.backend.loadbalancer.server.port=8000"
 
   frontend:
     build:
@@ -67,10 +59,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`nexus9.local`)"
-      - "traefik.http.services.frontend.loadbalancer.server.port=80"
 
   telegram:
     build:
@@ -128,62 +116,6 @@ services:
       - ANONYMIZED_TELEMETRY=FALSE
     restart: unless-stopped
 
-  # ════════════════════════════════════════════════════
-  # Phase 7 — NEW services
-  # ════════════════════════════════════════════════════
-
-  postgres:
-    image: postgres:16-alpine
-    container_name: nexus_postgres
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=nexus
-      - POSTGRES_PASSWORD=nexus
-      - POSTGRES_DB=nexus
-    volumes:
-      - nexus_postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nexus -d nexus"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    container_name: nexus_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - nexus_redis_data:/data
-    command: ["redis-server", "--appendonly", "yes"]
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
-  traefik:
-    image: traefik:v3.1
-    container_name: nexus_traefik
-    ports:
-      - "80:80"
-      - "443:443"
-      - "8090:8080"  # Dashboard
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-    restart: unless-stopped
-
 volumes:
   bruce_state:
   nexus_chroma_data:
-  nexus_postgres_data:
-  nexus_redis_data:
