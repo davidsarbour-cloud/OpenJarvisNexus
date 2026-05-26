@@ -75,7 +75,6 @@ echo    VaultGraph-^> ws://localhost:8084
 echo  ==========================================
 echo.
 echo  Services optionnels (docker, si besoin) :
-echo    docker compose --profile monitoring up -d   ^(grafana/prometheus^)
 echo    docker compose --profile quality up -d      ^(sonarqube^)
 echo    docker compose --profile agents up -d       ^(telegram/bruce^)
 echo.
