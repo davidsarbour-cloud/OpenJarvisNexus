@@ -77,7 +77,7 @@ const NODE_TYPES: NodeTypes = { agent: AgentNode };
 export default function AgentNetworkPage() {
   const { data, error } = useLiveMetric(fetchAgents, { intervalMs: 8000 });
   const setFocusedService = useNexusStore((s) => s.setFocusedService);
-  const rfRef = useRef<ReactFlowInstance | null>(null);
+  const rfRef = useRef<ReactFlowInstance<AgentFlowNode, Edge> | null>(null);
 
   const agents: AgentInfo[] = useMemo(() => {
     const live = data?.agents ?? [];

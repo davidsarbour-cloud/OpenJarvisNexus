@@ -118,13 +118,15 @@ export function ScheduledTasksCard() {
   }, [data]);
 
   const jobCount = (data?.jobs ?? []).length;
-  const nextOverall = useMemo(() => {
+  const nextOverall = useMemo<{ name: string; at: Date } | null>(() => {
     let best: { name: string; at: Date } | null = null;
-    (data?.jobs ?? []).forEach((j) => {
+    for (const j of data?.jobs ?? []) {
       const at = parseNextRun(j.next_run);
-      if (!at) return;
-      if (!best || at < best.at) best = { name: stripPrefix(j.name), at };
-    });
+      if (!at) continue;
+      if (best === null || at < best.at) {
+        best = { name: stripPrefix(j.name), at };
+      }
+    }
     return best;
   }, [data]);
 
