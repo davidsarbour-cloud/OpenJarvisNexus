@@ -55,4 +55,14 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
+  {
+    // shadcn/ui components export both the component AND its variants
+    // (cva-generated) by convention. Suppress the react-refresh warning
+    // for that folder — moving the variants to a separate file would
+    // break the standard shadcn import path.
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 );

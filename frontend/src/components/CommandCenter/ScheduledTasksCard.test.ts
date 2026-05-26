@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { urgencyFor } from './ScheduledTasksCard';
+import { urgencyFor } from './scheduledTaskUtils';
 
 describe('urgencyFor', () => {
   it('returns idle when delta is null (no upcoming job)', () => {

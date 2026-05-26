@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { topGroup } from './BrainHubPage';
+import { topGroup } from './brainHubUtils';
 
 describe('topGroup', () => {
   it('returns _orphan for undefined / empty group', () => {

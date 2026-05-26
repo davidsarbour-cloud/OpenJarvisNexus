@@ -11,9 +11,9 @@ import { CalendarClock, BookOpen } from 'lucide-react';
 import { HudCard } from './HudCard';
 import { useLiveMetric } from '../../hooks/useLiveMetric';
 import { fetchScheduledTasks, type ScheduledJob } from '../../lib/apiLive';
+import { urgencyFor, type Urgency } from './scheduledTaskUtils';
 
 type Bucket = 'daily' | 'weekly' | 'monthly';
-type Urgency = 'idle' | 'warn' | 'alert' | 'overdue';
 
 function parseNextRun(raw: string): Date | null {
   if (!raw || raw === 'None' || raw === 'null') return null;
@@ -33,14 +33,6 @@ function fmtDuration(ms: number): string {
   if (h > 0) return `${h}h ${m % 60}m`;
   if (m > 0) return `${m}m ${s % 60}s`;
   return `${s}s`;
-}
-
-export function urgencyFor(deltaMs: number | null): Urgency {
-  if (deltaMs === null) return 'idle';
-  if (deltaMs < 0) return 'overdue';
-  if (deltaMs < 10 * 60_000) return 'alert';
-  if (deltaMs < 60 * 60_000) return 'warn';
-  return 'idle';
 }
 
 const URGENCY_COLOR: Record<Urgency, string> = {

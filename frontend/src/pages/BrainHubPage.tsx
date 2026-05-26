@@ -2,49 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import ForceGraph2D from 'react-force-graph-2d';
 import { useVaultGraph, type VaultGraphNode, type VaultGraphData } from '../components/VaultGraph';
+import { groupColor, topGroup } from './brainHubUtils';
 
 // ── Palette constellation ─────────────────────────────────────────────────────
 
 const BG           = 'rgba(2, 4, 12, 0.0)'; // transparent — starfield canvas underneath
 const VAULT_ACCENT = '#a855f7';
 const VAULT_GLOW   = 'rgba(168,85,247,0.6)';
-
-/** Couleur par dossier Obsidian (Johnny Decimal prefix) */
-const GROUP_COLORS: Record<string, string> = {
-  '00_Core':            '#22d3ee', // cyan
-  '01_Inbox':           '#fbbf24', // amber
-  '02_Daily':           '#4ade80', // green
-  '03_Projects':        '#fb923c', // orange
-  '04_Areas':           '#60a5fa', // blue
-  '05_Resources':       '#a78bfa', // violet
-  '06_Agents':          '#f87171', // red
-  '07_Schemas':         '#f472b6', // pink
-  '08_Command-Center':  '#e879f9', // fuchsia
-  '09_Archives':        '#94a3b8', // slate
-  '_orphan':            'rgba(255,255,255,0.25)',
-};
-
-function groupColor(group: string | undefined): string {
-  if (!group) return '#ffffff';
-  // match prefix like "03_Projects"
-  for (const [key, col] of Object.entries(GROUP_COLORS)) {
-    if (group.startsWith(key) || group === key) return col;
-  }
-  return '#ffffff';
-}
-
-/**
- * Normalize a node's full group string (e.g. "03_Projects/STL") to its
- * top-level Johnny-Decimal bucket ("03_Projects") so all subfolder notes
- * cluster into the same constellation.
- */
-export function topGroup(group: string | undefined): string {
-  if (!group) return '_orphan';
-  for (const key of Object.keys(GROUP_COLORS)) {
-    if (group.startsWith(key) || group === key) return key;
-  }
-  return '_orphan';
-}
 
 /**
  * Each top-level group gets a fixed angular slot on a big ring.

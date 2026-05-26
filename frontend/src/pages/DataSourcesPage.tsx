@@ -17,11 +17,9 @@ import {
 import type { ChannelBinding, ManagedAgent, MemoryStats, MemorySearchResult } from '../lib/api';
 import { getBase, isTauri } from '../lib/api';
 import {
-  Database, MessageSquare, Loader2, Brain, Search, FolderOpen, FileText,
-  Mail, Hash, MessageCircle, CalendarDays, Contact, StickyNote, BookText,
-  Package, Upload, Link2, PhoneCall,
+  Database, MessageSquare, Loader2, Brain, Search,
+  FolderOpen, FileText, Upload,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 import { SOURCE_CATALOG } from '../types/connectors';
 import type { ConnectRequest } from '../types/connectors';
 import { listConnectors, connectSource, getSyncStatus, triggerSync } from '../lib/connectors-api';
@@ -282,30 +280,6 @@ function UploadForm({ onDone }: { onDone?: () => void }) {
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Icon map
-// ---------------------------------------------------------------------------
-
-const iconMap: Record<string, LucideIcon> = {
-  gmail: Mail,
-  gmail_imap: Mail,
-  gmail_api: Mail,
-  outlook: Mail,
-  slack: Hash,
-  imessage: MessageCircle,
-  whatsapp: PhoneCall,
-  gdrive: FolderOpen,
-  dropbox: Package,
-  notion: BookText,
-  obsidian: FileText,
-  apple_notes: StickyNote,
-  granola: FileText,
-  gcalendar: CalendarDays,
-  gcontacts: Contact,
-  apple_contacts: Contact,
-  upload: Upload,
-};
 
 // ---------------------------------------------------------------------------
 // Data Sources section
