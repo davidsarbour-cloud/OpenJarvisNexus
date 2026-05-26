@@ -8,7 +8,7 @@
  * Status is fetched live from /v1/agents (polled every 8s via
  * useLiveMetric) and reflected in the pulsing dot on each node.
  */
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -26,6 +26,7 @@ import {
   type AgentNodeData,
   type AgentFlowNode,
 } from '../components/AgentNetwork/AgentNode';
+import { AgentDetailPanel } from '../components/AgentNetwork/AgentDetailPanel';
 import { useLiveMetric } from '../hooks/useLiveMetric';
 import { fetchAgents, type AgentInfo } from '../lib/apiLive';
 import { MODULE_COLORS, type ModuleKey } from '../lib/colors';
@@ -78,6 +79,8 @@ export default function AgentNetworkPage() {
   const { data, error } = useLiveMetric(fetchAgents, { intervalMs: 8000 });
   const setFocusedService = useNexusStore((s) => s.setFocusedService);
   const rfRef = useRef<ReactFlowInstance<AgentFlowNode, Edge> | null>(null);
+  // Selected agent for the side-panel detail view. null = panel closed.
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
   const agents: AgentInfo[] = useMemo(() => {
     const live = data?.agents ?? [];
@@ -85,6 +88,13 @@ export default function AgentNetworkPage() {
     // Keep only top-level agents — drop STL sub-agents + ETSY internals.
     return source.filter((a) => MAIN_AGENT_IDS.has(a.id));
   }, [data]);
+
+  const selectedAgent = useMemo(
+    () => (selectedAgentId ? agents.find((a) => a.id === selectedAgentId) ?? null : null),
+    [selectedAgentId, agents],
+  );
+  const selectedColorKey: ModuleKey =
+    (selectedAgent && AGENT_COLOR[selectedAgent.id]) || 'jarvis';
 
   const nodes: AgentFlowNode[] = useMemo(() => {
     const jarvis = agents.find((a) => a.id === 'jarvis');
@@ -197,7 +207,11 @@ export default function AgentNetworkPage() {
         maxZoom={1.6}
         defaultEdgeOptions={{ animated: true }}
         proOptions={{ hideAttribution: true }}
-        onNodeClick={(_, n) => setFocusedService(n.id)}
+        onNodeClick={(_, n) => {
+          setSelectedAgentId(n.id);
+          setFocusedService(n.id);
+        }}
+        onPaneClick={() => setSelectedAgentId(null)}
         onInit={(rf) => { rfRef.current = rf; }}
         style={{ width: '100%', height: '100%' }}
       >
@@ -223,6 +237,12 @@ export default function AgentNetworkPage() {
           }}
         />
       </ReactFlow>
+
+      <AgentDetailPanel
+        agent={selectedAgent}
+        colorKey={selectedColorKey}
+        onClose={() => setSelectedAgentId(null)}
+      />
     </div>
   );
 }
