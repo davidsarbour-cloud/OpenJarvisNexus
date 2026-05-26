@@ -126,6 +126,97 @@ async def health_deep():
         "timestamp":  now,
     }
 
+
+def _service_status(payload: dict) -> str:
+    """Map a monitoring payload to a uniform 'up' / 'down' / 'warn' status."""
+    if not isinstance(payload, dict):
+        return "warn"
+    avail = payload.get("available")
+    if avail is True:
+        return "up"
+    if avail is False:
+        return "down"
+    # Endpoints that don't expose `available` (e.g. health_deep stages return a
+    # raw string). Treat anything resembling "ok" as up, otherwise warn.
+    return "warn"
+
+
+@router.get("/v1/health/all")
+async def health_all():
+    """One-shot aggregator covering core (claude/ollama/forge/meshy) AND the
+    Phase 4 monitoring services (docker/chromadb/prometheus/sonar/grafana).
+
+    Smoke tests and dashboards hit this once instead of fanning N requests.
+
+    Response shape:
+      {
+        "overall": "healthy" | "degraded" | "down",
+        "ts":      ISO timestamp,
+        "services": {
+          name: {"status": "up"|"down"|"warn", "detail": <opaque payload>},
+          …
+        }
+      }
+    """
+    import asyncio
+
+    # Imported lazily to avoid pulling monitoring_router at module load time
+    # (keeps the import graph shallow and lets monitoring_router stay self-
+    # contained).
+    from monitoring_router import (
+        chromadb_stats,
+        docker_containers,
+        grafana_health,
+        prometheus_targets,
+        sonarqube_issues,
+    )
+
+    now = datetime.now().isoformat(timespec="seconds")
+
+    results = await asyncio.gather(
+        _hc_claude(), _hc_ollama(), _hc_forge(), _hc_meshy(),
+        docker_containers(), chromadb_stats(),
+        prometheus_targets(), sonarqube_issues(), grafana_health(),
+        return_exceptions=True,
+    )
+
+    def _from_string(s: object) -> dict:
+        ok = isinstance(s, str) and s == "ok"
+        return {"status": "up" if ok else "down", "detail": s}
+
+    def _from_dict(d: object) -> dict:
+        if isinstance(d, Exception):
+            return {"status": "down", "detail": f"{type(d).__name__}: {d}"}
+        if isinstance(d, dict):
+            return {"status": _service_status(d), "detail": d}
+        return {"status": "warn", "detail": str(d)}
+
+    services = {
+        "claude_api": _from_string(results[0]),
+        "ollama":     _from_string(results[1]),
+        "forge_room": _from_string(results[2]),
+        "meshy_api":  _from_string(results[3]),
+        "docker":     _from_dict(results[4]),
+        "chromadb":   _from_dict(results[5]),
+        "prometheus": _from_dict(results[6]),
+        "sonarqube":  _from_dict(results[7]),
+        "grafana":    _from_dict(results[8]),
+    }
+
+    statuses = [s["status"] for s in services.values()]
+    if all(s == "up" for s in statuses):
+        overall = "healthy"
+    elif any(s == "up" for s in statuses):
+        overall = "degraded"
+    else:
+        overall = "down"
+
+    return {
+        "overall":  overall,
+        "ts":       now,
+        "services": services,
+    }
+
 @router.get("/v1/savings")
 def savings():
     return {"balance": 0}
