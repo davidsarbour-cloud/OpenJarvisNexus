@@ -19,10 +19,32 @@ import json
 import os
 from pathlib import Path
 
-SKILLS_DIR = Path(os.getenv("SKILLS_DIR", "/app/skills"))
 
-# Répertoire supplémentaire : skills Hermes/OpenClaw installés via CLI
-_HERMES_DIR = Path(os.getenv("HERMES_SKILLS_DIR", "/app/skills/hermes"))
+# Resolve SKILLS_DIR in this order:
+#   1. SKILLS_DIR env var (set explicitly in .env)
+#   2. /app/skills    — inside docker compose containers
+#   3. <repo>/backend/skills — local Windows / macOS / Linux native dev
+#
+# Without (3) the Windows-native backend was falling back on /app/skills
+# (a docker-only path), which resolves to "\app\skills" and never exists,
+# so JARVIS reported "Aucune skill installée" even with 9 SKILL.md files
+# on disk.
+def _resolve_skills_dir() -> Path:
+    env = os.getenv("SKILLS_DIR")
+    if env:
+        return Path(env)
+    docker_default = Path("/app/skills")
+    if docker_default.exists():
+        return docker_default
+    # Walk up from this file: backend/tools/skill_tools.py → backend/skills/
+    return Path(__file__).resolve().parent.parent / "skills"
+
+
+SKILLS_DIR = _resolve_skills_dir()
+
+# Répertoire supplémentaire : skills Hermes/OpenClaw installés via CLI.
+# Defined for backwards compat; the active lookup uses SKILLS_DIR / "hermes".
+_HERMES_DIR = Path(os.getenv("HERMES_SKILLS_DIR", str(SKILLS_DIR / "hermes")))
 
 
 # ── TOML parser minimal (Python 3.11 = tomllib std, sinon fallback) ──────────
