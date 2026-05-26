@@ -55,3 +55,36 @@ skills/vault-graph.md      — Vault Graph Sync (port 8083, planet VAULT)
 4. Never break existing functionality
 5. .env never committed to git
 6. Architecture stays modular
+
+---
+
+## ARCHITECTURE GUARDRAILS (backend)
+
+Backend = `main.py` (bootstrap only: app, lifespan, CORS, SPA, `include_router`)
++ `app_state.py` (shared singletons) + one `*_router.py` per feature
+(docker, speech, reports, memory, brain, daily, health, crew, orchestrate,
+agents, chat). Shared services: `ollama_client`, `memory`, `budget_tracker`, `tools/*`.
+
+### MUST FOLLOW
+- No circular imports — routers import `app_state`, never `main`; `app_state` imports nothing back.
+- Modular routers — one `APIRouter` per domain; wire in `main.py` via `include_router`.
+- Single source of truth — shared state (Anthropic client, `_budget`, `_agents_status`, http client) lives ONLY in `app_state`.
+- State isolation — feature state stays in its own router; cross-cutting state goes to `app_state`.
+- Reusable services — talk to Ollama/memory/budget/tools through their service module, not ad-hoc.
+
+### NEVER DO
+- AI / chat logic in `main.py` (it belongs in `chat_router`).
+- Duplicated shared state (no second `claude` client or `_budget`).
+- Scattered direct Ollama calls — go through `ollama_client` (embeddings excepted).
+- God-object `app_state` — if it grows past ~300 lines, split it.
+- Router-to-router imports — share via `app_state`, never `from x_router import …`.
+
+### PERFORMANCE
+- Cache LLM clients — build the Anthropic client ONCE at startup (`app_state`).
+- Keep routing lightweight — keyword routing, no LLM call to decide routing.
+- No model loading inside a request — lazy-load + cache (Whisper/Kokoro), pre-warm in lifespan.
+- Isolate expensive tasks — `to_thread`/executor for sync work, `BackgroundTasks` for jobs.
+
+### Verify before committing backend changes
+`python -m py_compile`, `ruff check --select F821` (no undefined names),
+import-smoke (`import main` → 134 routes), pre-commit lint hook stays green.
