@@ -38,7 +38,7 @@ function groupColor(group: string | undefined): string {
  * top-level Johnny-Decimal bucket ("03_Projects") so all subfolder notes
  * cluster into the same constellation.
  */
-function topGroup(group: string | undefined): string {
+export function topGroup(group: string | undefined): string {
   if (!group) return '_orphan';
   for (const key of Object.keys(GROUP_COLORS)) {
     if (group.startsWith(key) || group === key) return key;

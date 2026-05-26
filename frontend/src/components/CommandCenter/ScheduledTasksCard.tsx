@@ -35,7 +35,7 @@ function fmtDuration(ms: number): string {
   return `${s}s`;
 }
 
-function urgencyFor(deltaMs: number | null): Urgency {
+export function urgencyFor(deltaMs: number | null): Urgency {
   if (deltaMs === null) return 'idle';
   if (deltaMs < 0) return 'overdue';
   if (deltaMs < 10 * 60_000) return 'alert';
