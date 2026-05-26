@@ -11,11 +11,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
-
-from memory import save_facts
 from tools.brain_tools import brain_read as _brain_read_fn
 from tools.brain_tools import brain_search as _brain_search_fn
 from tools.brain_tools import brain_write as _brain_write_fn
+
+from memory import save_facts
 
 router = APIRouter(tags=["brain"])
 

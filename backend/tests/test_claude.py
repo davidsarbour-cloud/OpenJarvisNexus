@@ -1,18 +1,17 @@
 """
 Manual probe — find the first Claude model your API key can reach.
 
-Invoked as `python backend/tests/test_claude.py`. The
-`if __name__ == "__main__"` guard keeps pytest from making real API
-calls during collection (the file name still starts with test_ for
-historical reasons; pytest discovers it but finds no test_* functions).
+Invoked as `python backend/tests/test_claude.py`. Imports that need
+third-party deps (anthropic, dotenv) live inside main() so pytest's
+collection-time import doesn't pull them in.
 """
 import os
 
-from anthropic import Anthropic, APIError
-from dotenv import load_dotenv
-
 
 def main() -> None:
+    from anthropic import Anthropic, APIError
+    from dotenv import load_dotenv
+
     load_dotenv(override=True)
     key = os.getenv("ANTHROPIC_API_KEY", "")
 

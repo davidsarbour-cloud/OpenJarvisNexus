@@ -35,6 +35,14 @@ from ollama_client import (
     strip_think_tags,
 )
 from pydantic import BaseModel
+from tools.brain_tools import CLAUDE_TOOL_DEFS as _BRAIN_TOOL_DEFS
+from tools.brain_tools import dispatch as _brain_dispatch
+from tools.docker_tools import CLAUDE_TOOL_DEFS as _DOCKER_TOOL_DEFS
+from tools.docker_tools import dispatch as _docker_dispatch
+from tools.docker_tools import quick_status_text as _docker_quick_status
+from tools.skill_tools import CLAUDE_TOOL_DEFS as _SKILL_TOOL_DEFS
+from tools.skill_tools import dispatch as _skill_dispatch
+from tools.skill_tools import skill_catalog_text as _skill_catalog_text
 
 from memory import (
     add_message,
@@ -46,14 +54,6 @@ from memory import (
     load_config,
     load_facts,
 )
-from tools.brain_tools import CLAUDE_TOOL_DEFS as _BRAIN_TOOL_DEFS
-from tools.brain_tools import dispatch as _brain_dispatch
-from tools.docker_tools import CLAUDE_TOOL_DEFS as _DOCKER_TOOL_DEFS
-from tools.docker_tools import dispatch as _docker_dispatch
-from tools.docker_tools import quick_status_text as _docker_quick_status
-from tools.skill_tools import CLAUDE_TOOL_DEFS as _SKILL_TOOL_DEFS
-from tools.skill_tools import dispatch as _skill_dispatch
-from tools.skill_tools import skill_catalog_text as _skill_catalog_text
 
 router = APIRouter(tags=["chat"])
 

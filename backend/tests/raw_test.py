@@ -2,17 +2,17 @@
 Bypasses the Anthropic SDK entirely.
 Talks directly to the API with raw HTTP.
 
-Manual probe — invoked as `python backend/tests/raw_test.py`. The
-`if __name__ == "__main__"` guard keeps pytest from running the live
-API calls during collection.
+Manual probe — invoked as `python backend/tests/raw_test.py`. Imports
+that need third-party deps (requests, dotenv) live inside main() so
+pytest's collection-time import doesn't pull them in.
 """
 import os
 
-import requests
-from dotenv import load_dotenv
-
 
 def main() -> None:
+    import requests
+    from dotenv import load_dotenv
+
     load_dotenv(override=True)
     key = os.getenv("ANTHROPIC_API_KEY", "")
 
