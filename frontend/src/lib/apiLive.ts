@@ -150,17 +150,6 @@ export interface ChromaStatsResponse {
 export const fetchChromaStats = () =>
   getJSON<ChromaStatsResponse>('/v1/chromadb/stats');
 
-// ─── SonarQube ─────────────────────────────────────────
-export interface SonarIssuesResponse {
-  available: boolean;
-  total: number;
-  facets: Record<string, number>;
-  error?: string;
-}
-
-export const fetchSonarIssues = () =>
-  getJSON<SonarIssuesResponse>('/v1/sonarqube/issues', 6000);
-
 // ─── Scheduled Tasks (/v1/daily/status) ────────────────
 export interface ScheduledJob {
   id: string;

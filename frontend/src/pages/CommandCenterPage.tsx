@@ -5,7 +5,6 @@ import { ForgePipelinesCard }  from '../components/CommandCenter/ForgePipelinesC
 import { BudgetCard }          from '../components/CommandCenter/BudgetCard';
 import { DockerLiveCard }      from '../components/CommandCenter/DockerLiveCard';
 import { ChromaDbLiveCard }    from '../components/CommandCenter/ChromaDbLiveCard';
-import { SonarqubeLiveCard }   from '../components/CommandCenter/SonarqubeLiveCard';
 import { ScheduledTasksCard }  from '../components/CommandCenter/ScheduledTasksCard';
 import { SatelliteCards } from '../components/CommandCenter/FunctionalSatellites';
 import { CardSlot }           from '../systems/CardSlot';
@@ -33,7 +32,6 @@ export function CommandCenterPage() {
         <CardSlot serviceId="backend"><BudgetCard /></CardSlot>
         <CardSlot serviceId="docker"><DockerLiveCard /></CardSlot>
         <CardSlot serviceId="chromadb"><ChromaDbLiveCard /></CardSlot>
-        <CardSlot serviceId="sonarqube"><SonarqubeLiveCard /></CardSlot>
         <SatelliteCards />
       </div>
     </div>

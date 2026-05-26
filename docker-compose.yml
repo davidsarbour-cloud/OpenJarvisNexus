@@ -2,12 +2,10 @@
 # Compose profiles (run only what you need):
 #   core (always up) : backend, frontend, traefik, postgres, redis, chromadb
 #   (Ollama = natif sur l'hote, joignable via host.docker.internal:11434)
-#   quality          : sonarqube, sonarqube-db
 #   agents           : telegram, bruce, superpowers, obsidian-skills
 # Examples:
 #   docker compose up                                 # core only
-#   docker compose --profile quality up               # core + sonarqube
-#   COMPOSE_PROFILES=quality,agents docker compose up # everything we use
+#   docker compose --profile agents up                # core + agent stack
 # ----------------------------------------------------------------------
 services:
   backend:
@@ -146,37 +144,6 @@ services:
       - ANONYMIZED_TELEMETRY=FALSE
     restart: unless-stopped
 
-  sonarqube-db:
-    image: postgres:15
-    container_name: nexus_sonardb
-    profiles: ["quality"]
-    environment:
-      - POSTGRES_USER=sonar
-      - POSTGRES_PASSWORD=sonar
-      - POSTGRES_DB=sonarqube
-    volumes:
-      - nexus_sonardb_data:/var/lib/postgresql/data
-    restart: unless-stopped
-
-  sonarqube:
-    image: sonarqube:community
-    container_name: nexus_sonarqube
-    profiles: ["quality"]
-    depends_on:
-      - sonarqube-db
-    ports:
-      - "9000:9000"
-    environment:
-      - SONAR_JDBC_URL=jdbc:postgresql://sonarqube-db:5432/sonarqube
-      - SONAR_JDBC_USERNAME=sonar
-      - SONAR_JDBC_PASSWORD=sonar
-      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
-    volumes:
-      - nexus_sonar_data:/opt/sonarqube/data
-      - nexus_sonar_logs:/opt/sonarqube/logs
-      - nexus_sonar_extensions:/opt/sonarqube/extensions
-    restart: unless-stopped
-
   # ════════════════════════════════════════════════════
   # Phase 7 — NEW services
   # ════════════════════════════════════════════════════
@@ -234,9 +201,5 @@ services:
 volumes:
   bruce_state:
   nexus_chroma_data:
-  nexus_sonardb_data:
-  nexus_sonar_data:
-  nexus_sonar_logs:
-  nexus_sonar_extensions:
   nexus_postgres_data:
   nexus_redis_data:

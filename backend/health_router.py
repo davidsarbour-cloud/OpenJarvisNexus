@@ -144,7 +144,7 @@ def _service_status(payload: dict) -> str:
 @router.get("/v1/health/all")
 async def health_all():
     """One-shot aggregator covering core (claude/ollama/forge/meshy) AND the
-    Phase 4 monitoring services (docker/chromadb/sonar).
+    Phase 4 monitoring services (docker/chromadb).
 
     Smoke tests and dashboards hit this once instead of fanning N requests.
 
@@ -166,7 +166,6 @@ async def health_all():
     from monitoring_router import (
         chromadb_stats,
         docker_containers,
-        sonarqube_issues,
     )
 
     now = datetime.now().isoformat(timespec="seconds")
@@ -174,7 +173,6 @@ async def health_all():
     results = await asyncio.gather(
         _hc_claude(), _hc_ollama(), _hc_forge(), _hc_meshy(),
         docker_containers(), chromadb_stats(),
-        sonarqube_issues(),
         return_exceptions=True,
     )
 
@@ -196,7 +194,6 @@ async def health_all():
         "meshy_api":  _from_string(results[3]),
         "docker":     _from_dict(results[4]),
         "chromadb":   _from_dict(results[5]),
-        "sonarqube":  _from_dict(results[6]),
     }
 
     statuses = [s["status"] for s in services.values()]

@@ -30,7 +30,6 @@ import { BudgetCard }         from '../components/CommandCenter/BudgetCard';
 import { ForgePipelinesCard } from '../components/CommandCenter/ForgePipelinesCard';
 import { DockerLiveCard }     from '../components/CommandCenter/DockerLiveCard';
 import { ChromaDbLiveCard }   from '../components/CommandCenter/ChromaDbLiveCard';
-import { SonarqubeLiveCard }  from '../components/CommandCenter/SonarqubeLiveCard';
 import { ResourceMonitorCard } from '../components/CommandCenter/ResourceMonitorCard';
 
 // ── World metadata ────────────────────────────────────────────────────────────
@@ -80,7 +79,6 @@ const WORLD_LIVE_CARDS: Record<ModuleKey, LiveCardEntry[]> = {
     // No commerce live card yet — leave empty; placeholder slots show below.
   ],
   cyberdeck: [
-    { serviceId: 'sonarqube', Card: SonarqubeLiveCard },
     { serviceId: 'backend',   Card: ResourceMonitorCard },
   ],
   vault: [

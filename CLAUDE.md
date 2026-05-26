@@ -91,17 +91,11 @@ import-smoke (`import main` → 134 routes), pre-commit lint hook stays green.
 
 ---
 
-## MONITORING — Docker Compose Profiles
+## OBSERVABILITY
 
-**SonarQube** (`profile: quality`) — up by default in your stack.
-SonarQube forces the admin password change on first login; the smoke test
-will report `401` until you do either:
-1. Reset the admin password back to `admin/admin`, **or**
-2. Generate a SonarQube token (UI → My Account → Security → Token) and
-   export it: `setx SONARQUBE_TOKEN sqp_xxxxxxxxxxxx`. The backend prefers
-   the token (sent as basic-auth username, empty password — Sonar's
-   standard convention) and falls back to `SONARQUBE_USER`/`SONARQUBE_PASS`.
-
-Native HUD observability (Command Center cards + `/v1/health/all` aggregator
-+ `/v1/system/metrics`) covers what would otherwise need Grafana — no
-external dashboarding tool wired in the stack.
+Native HUD only: Command Center cards + `/v1/health/all` aggregator +
+`/v1/system/metrics`. No external dashboarding stack (Prometheus/Grafana
+were removed in 91ccf635, SonarQube in the follow-up). Code-quality work
+runs through the existing `ruff` + `eslint` + `tsc` + `jscpd` + `gitleaks`
+pre-commit + CI gates, and ad-hoc code reviews are done in-session via
+the `/code-review` skill.

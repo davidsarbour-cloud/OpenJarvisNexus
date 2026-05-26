@@ -1,9 +1,9 @@
 """
 Nexus9 — Monitoring Router (Phase 4)
 
-HTTP proxies vers les services Docker monitoring (ChromaDB, SonarQube)
-+ docker container listing via `docker ps` (CLI fallback chain). Aucun
-accès direct au docker.sock — tout passe par les APIs HTTP natives.
+HTTP proxy for ChromaDB + docker container listing via `docker ps` (CLI
+fallback chain). Aucun accès direct au docker.sock — tout passe par les
+APIs HTTP natives.
 
 Tous les endpoints sont tolérants aux pannes : si un service est down,
 on renvoie un payload structuré avec `available: False` au lieu de planter.
@@ -26,23 +26,8 @@ router = APIRouter(prefix="/v1", tags=["monitoring"])
 # En Docker (docker-compose) : les hostnames internes fonctionnent directement.
 _IS_WINDOWS_HOST = _sys.platform == "win32" and os.getenv("RUNNING_IN_DOCKER") != "1"
 
-CHROMADB_URL   = os.getenv("CHROMADB_URL",
+CHROMADB_URL = os.getenv("CHROMADB_URL",
     "http://localhost:8001"    if _IS_WINDOWS_HOST else "http://chromadb:8000")
-SONARQUBE_URL  = os.getenv("SONARQUBE_URL",
-    "http://localhost:9000"    if _IS_WINDOWS_HOST else "http://sonarqube:9000")
-SONARQUBE_USER = os.getenv("SONARQUBE_USER", "admin")
-SONARQUBE_PASS = os.getenv("SONARQUBE_PASS", "admin")
-# Personal access token — preferred over basic auth (survives password rotation,
-# narrower scope). Generate via SonarQube UI → My Account → Security → Token.
-# When set, sent as basic auth with empty password (Sonar convention).
-SONARQUBE_TOKEN = os.getenv("SONARQUBE_TOKEN", "")
-
-
-def _sonar_auth() -> tuple[str, str]:
-    """Choose token (preferred) or username/password auth for SonarQube."""
-    if SONARQUBE_TOKEN:
-        return (SONARQUBE_TOKEN, "")
-    return (SONARQUBE_USER, SONARQUBE_PASS)
 
 _TIMEOUT     = 2.0   # per-attempt HTTP budget
 _CLI_TIMEOUT = 2.5   # `docker ps` subprocess budget
@@ -247,53 +232,4 @@ async def chromadb_stats():
         }
     except Exception as e:
         return {"available": False, "error": f"{type(e).__name__}: {e}", "collections": 0}
-
-
-# ──────────────────────────────────────────────────────────
-# SONARQUBE
-# ──────────────────────────────────────────────────────────
-@router.get("/sonarqube/issues")
-async def sonarqube_issues():
-    """Synthèse des issues SonarQube. Auth: SONARQUBE_TOKEN si défini, sinon admin/admin."""
-    try:
-        async with httpx.AsyncClient(
-            timeout=_TIMEOUT,
-            auth=_sonar_auth(),
-        ) as c:
-            r = await c.get(f"{SONARQUBE_URL}/api/issues/search", params={"ps": 1})
-            r.raise_for_status()
-            payload = r.json()
-            facets = {}
-            # On compte par sévérité avec un second appel léger
-            try:
-                r2 = await c.get(
-                    f"{SONARQUBE_URL}/api/issues/search",
-                    params={"ps": 1, "facets": "severities"},
-                )
-                if r2.status_code == 200:
-                    for f in r2.json().get("facets", []):
-                        if f.get("property") == "severities":
-                            facets = {v["val"]: v["count"] for v in f.get("values", [])}
-            except Exception:
-                pass
-
-            return {
-                "available": True,
-                "total":     payload.get("total", 0),
-                "facets":    facets,
-            }
-    except Exception as e:
-        return {"available": False, "error": f"{type(e).__name__}: {e}", "total": 0, "facets": {}}
-
-
-@router.get("/sonarqube/health")
-async def sonarqube_health():
-    """État de santé SonarQube (peut prendre 2-3 min à boot)."""
-    try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as c:
-            r = await c.get(f"{SONARQUBE_URL}/api/system/status")
-            r.raise_for_status()
-            return {"available": True, **r.json()}
-    except Exception as e:
-        return {"available": False, "error": f"{type(e).__name__}: {e}"}
 
