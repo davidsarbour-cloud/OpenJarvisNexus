@@ -12,6 +12,7 @@ on renvoie un payload structuré avec `available: False` au lieu de planter.
 import asyncio
 import json
 import os
+import subprocess
 import sys as _sys
 
 import httpx
@@ -50,35 +51,42 @@ DOCKER_SOCK     = os.getenv("DOCKER_SOCK", "/var/run/docker.sock")
 DOCKER_TCP_URL  = os.getenv("DOCKER_TCP_URL", "http://localhost:2375")
 
 
+def _docker_ps_sync() -> tuple[int, str, str]:
+    """Run `docker ps` synchronously and return (returncode, stdout, stderr).
+
+    Kept sync because asyncio.create_subprocess_exec raises NotImplementedError
+    on Windows when uvicorn runs under a SelectorEventLoop. Wrapped in
+    asyncio.to_thread by the caller so the FastAPI loop stays unblocked.
+    """
+    try:
+        r = subprocess.run(  # noqa: S603 — fixed argv, no shell
+            ["docker", "ps", "--all", "--no-trunc", "--format", "{{json .}}"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=_CLI_TIMEOUT,
+        )
+        return r.returncode, r.stdout or "", r.stderr or ""
+    except FileNotFoundError:
+        return -1, "", "FileNotFoundError: docker CLI introuvable"
+    except subprocess.TimeoutExpired:
+        return -2, "", f"TimeoutExpired: docker ps > {_CLI_TIMEOUT}s"
+    except Exception as e:
+        return -3, "", f"{type(e).__name__}: {e}"
+
+
 async def _list_containers_via_cli():
     """
     Use `docker ps --all --no-trunc --format '{{json .}}'` via subprocess.
 
-    Native path on Windows (talks to Docker Desktop via the `\\.\\pipe\\docker_engine`
-    named pipe automatically) and also works on Linux/macOS as long as the
-    docker CLI is on PATH. Returns (containers, error).
+    Native path on Windows (talks to Docker Desktop through the named pipe
+    transparently) and also works on Linux/macOS as long as the docker CLI is
+    on PATH. Returns (containers, error).
     """
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "docker", "ps", "--all", "--no-trunc", "--format", "{{json .}}",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        try:
-            stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=_CLI_TIMEOUT)
-        except asyncio.TimeoutError:
-            proc.kill()
-            return [], "TimeoutError: docker ps > 2.5s"
-        if proc.returncode != 0:
-            err = (stderr_b or b"").decode("utf-8", "replace").strip()
-            return [], f"docker ps rc={proc.returncode}: {err[:160]}"
-    except FileNotFoundError:
-        return [], "FileNotFoundError: docker CLI introuvable"
-    except Exception as e:
-        return [], f"{type(e).__name__}: {e}"
+    rc, stdout, stderr = await asyncio.to_thread(_docker_ps_sync)
+    if rc != 0:
+        return [], (stderr.strip()[:200] if stderr else f"docker ps rc={rc}")
 
     containers = []
-    for line in (stdout_b or b"").decode("utf-8", "replace").splitlines():
+    for line in stdout.splitlines():
         line = line.strip()
         if not line:
             continue
