@@ -4,10 +4,8 @@ import { OllamaStatusCard }    from '../components/CommandCenter/OllamaStatusCar
 import { ForgePipelinesCard }  from '../components/CommandCenter/ForgePipelinesCard';
 import { BudgetCard }          from '../components/CommandCenter/BudgetCard';
 import { DockerLiveCard }      from '../components/CommandCenter/DockerLiveCard';
-import { PrometheusLiveCard }  from '../components/CommandCenter/PrometheusLiveCard';
 import { ChromaDbLiveCard }    from '../components/CommandCenter/ChromaDbLiveCard';
 import { SonarqubeLiveCard }   from '../components/CommandCenter/SonarqubeLiveCard';
-import { GrafanaLiveCard }     from '../components/CommandCenter/GrafanaLiveCard';
 import { ScheduledTasksCard }  from '../components/CommandCenter/ScheduledTasksCard';
 import { SatelliteCards } from '../components/CommandCenter/FunctionalSatellites';
 import { CardSlot }           from '../systems/CardSlot';
@@ -34,10 +32,8 @@ export function CommandCenterPage() {
         <CardSlot serviceId="forge"><ForgePipelinesCard /></CardSlot>
         <CardSlot serviceId="backend"><BudgetCard /></CardSlot>
         <CardSlot serviceId="docker"><DockerLiveCard /></CardSlot>
-        <CardSlot serviceId="prometheus"><PrometheusLiveCard /></CardSlot>
         <CardSlot serviceId="chromadb"><ChromaDbLiveCard /></CardSlot>
         <CardSlot serviceId="sonarqube"><SonarqubeLiveCard /></CardSlot>
-        <CardSlot serviceId="grafana"><GrafanaLiveCard /></CardSlot>
         <SatelliteCards />
       </div>
     </div>

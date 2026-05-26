@@ -120,8 +120,7 @@ def main():
 
     # ── Phase 4 monitoring ─────────────────────────────────
     section("MONITORING (Phase 4)")
-    for ep in ["/v1/docker/containers", "/v1/prometheus/targets",
-               "/v1/chromadb/stats", "/v1/sonarqube/issues"]:
+    for ep in ["/v1/docker/containers", "/v1/chromadb/stats", "/v1/sonarqube/issues"]:
         def make(ep=ep):
             def f():
                 s, body = get(f"{base}{ep}")

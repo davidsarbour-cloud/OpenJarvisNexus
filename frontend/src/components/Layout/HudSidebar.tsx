@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from 'react-router';
 import {
   Cpu, Hammer, Lock, Eye, ShoppingBag,
-  LineChart, BarChart3, Bug, Database, Container,
+  Bug, Database, Container,
   BookOpen, Sparkles, Workflow,
   Network, Share2, Waypoints, X,
 } from 'lucide-react';
@@ -49,8 +49,6 @@ const SECTIONS: Section[] = [
       { label: 'Obsidian Skills', icon: BookOpen,  colorKey: 'vault',     external: 'http://localhost:8081', status: 'on' },
       { label: 'Superpowers',     icon: Sparkles,  colorKey: 'forge',     external: 'http://localhost:8082', status: 'on' },
       { label: 'ChromaDB',        icon: Database,  colorKey: 'vault',                                        status: 'on' },
-      { label: 'Grafana',         icon: BarChart3, colorKey: 'security',  external: 'http://localhost:3001', status: 'on' },
-      { label: 'Prometheus',      icon: LineChart, colorKey: 'forge',     external: 'http://localhost:9090', status: 'on' },
       { label: 'SonarQube',       icon: Bug,       colorKey: 'cyberdeck', external: 'http://localhost:9000', status: 'on' },
       { label: 'OpenHands',       icon: Workflow,  colorKey: 'commerce',  external: 'http://localhost:3000', status: 'on' },
     ],

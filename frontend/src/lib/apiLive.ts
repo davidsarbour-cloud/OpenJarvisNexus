@@ -139,29 +139,6 @@ export interface DockerContainersResponse {
 export const fetchDockerContainers = () =>
   getJSON<DockerContainersResponse>('/v1/docker/containers', 6000);
 
-// ─── Prometheus ────────────────────────────────────────
-export interface PrometheusTarget {
-  job: string | null;
-  health: string;
-}
-
-export interface PrometheusTargetsResponse {
-  available: boolean;
-  error?: string;
-  total: number;
-  up: number;
-  down: number;
-  targets: PrometheusTarget[];
-}
-
-export const fetchPrometheusTargets = () =>
-  getJSON<PrometheusTargetsResponse>('/v1/prometheus/targets');
-
-export const fetchPrometheusQuery = (query: string) =>
-  getJSON<{ available: boolean; data?: unknown; error?: string }>(
-    `/v1/prometheus/query?q=${encodeURIComponent(query)}`,
-  );
-
 // ─── ChromaDB ──────────────────────────────────────────
 export interface ChromaStatsResponse {
   available: boolean;
@@ -183,20 +160,6 @@ export interface SonarIssuesResponse {
 
 export const fetchSonarIssues = () =>
   getJSON<SonarIssuesResponse>('/v1/sonarqube/issues', 6000);
-
-// --- Grafana ---
-// Fix #11: endpoint /v1/grafana/health added in monitoring_router.py
-// GrafanaLiveCard replaces the static GrafanaCard mock.
-export interface GrafanaHealthResponse {
-  available: boolean;
-  version?: string;
-  database?: string;
-  dashboards: number;
-  error?: string;
-}
-
-export const fetchGrafanaHealth = () =>
-  getJSON<GrafanaHealthResponse>('/v1/grafana/health', 5000);
 
 // ─── Scheduled Tasks (/v1/daily/status) ────────────────
 export interface ScheduledJob {

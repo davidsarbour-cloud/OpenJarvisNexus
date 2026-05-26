@@ -29,10 +29,8 @@ import { OllamaStatusCard }   from '../components/CommandCenter/OllamaStatusCard
 import { BudgetCard }         from '../components/CommandCenter/BudgetCard';
 import { ForgePipelinesCard } from '../components/CommandCenter/ForgePipelinesCard';
 import { DockerLiveCard }     from '../components/CommandCenter/DockerLiveCard';
-import { PrometheusLiveCard } from '../components/CommandCenter/PrometheusLiveCard';
 import { ChromaDbLiveCard }   from '../components/CommandCenter/ChromaDbLiveCard';
 import { SonarqubeLiveCard }  from '../components/CommandCenter/SonarqubeLiveCard';
-import { GrafanaLiveCard }    from '../components/CommandCenter/GrafanaLiveCard';
 import { ResourceMonitorCard } from '../components/CommandCenter/ResourceMonitorCard';
 
 // ── World metadata ────────────────────────────────────────────────────────────
@@ -58,8 +56,7 @@ const WORLD_META: Record<ModuleKey, WorldMeta | null> = {
 /**
  * Live cards already implemented in CommandCenter that fit naturally under
  * each world. Pure subset of SYSTEM OVERVIEW, regrouped — the same card
- * may be relevant in multiple worlds (e.g. PrometheusLiveCard helps both
- * Cyberdeck and Docker).
+ * may be relevant in multiple worlds.
  *
  * `serviceId` mirrors what CommandCenterPage uses so the CardSlot focus
  * animation (orbital → card scroll) keeps working from anywhere.
@@ -83,17 +80,14 @@ const WORLD_LIVE_CARDS: Record<ModuleKey, LiveCardEntry[]> = {
     // No commerce live card yet — leave empty; placeholder slots show below.
   ],
   cyberdeck: [
-    { serviceId: 'sonarqube',  Card: SonarqubeLiveCard },
-    { serviceId: 'prometheus', Card: PrometheusLiveCard },
-    { serviceId: 'backend',    Card: ResourceMonitorCard },
+    { serviceId: 'sonarqube', Card: SonarqubeLiveCard },
+    { serviceId: 'backend',   Card: ResourceMonitorCard },
   ],
   vault: [
     { serviceId: 'chromadb',  Card: ChromaDbLiveCard },
   ],
   docker: [
     { serviceId: 'docker',    Card: DockerLiveCard },
-    { serviceId: 'grafana',   Card: GrafanaLiveCard },
-    { serviceId: 'prometheus', Card: PrometheusLiveCard },
   ],
   cortex:   [],
   security: [],

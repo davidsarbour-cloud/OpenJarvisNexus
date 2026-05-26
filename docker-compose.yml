@@ -2,13 +2,12 @@
 # Compose profiles (run only what you need):
 #   core (always up) : backend, frontend, traefik, postgres, redis, chromadb
 #   (Ollama = natif sur l'hote, joignable via host.docker.internal:11434)
-#   monitoring       : grafana, prometheus, cadvisor
 #   quality          : sonarqube, sonarqube-db
 #   agents           : telegram, bruce, superpowers, obsidian-skills
 # Examples:
 #   docker compose up                                 # core only
-#   docker compose --profile monitoring up            # core + monitoring
-#   COMPOSE_PROFILES=monitoring,quality,agents docker compose up   # everything
+#   docker compose --profile quality up               # core + sonarqube
+#   COMPOSE_PROFILES=quality,agents docker compose up # everything we use
 # ----------------------------------------------------------------------
 services:
   backend:
@@ -135,37 +134,6 @@ services:
       - "8081:80"
     restart: unless-stopped
 
-  grafana:
-    image: grafana/grafana-oss:latest
-    container_name: nexus_grafana
-    profiles: ["monitoring"]
-    ports:
-      - "3001:3000"
-    volumes:
-      - nexus_grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-    restart: unless-stopped
-
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: nexus_prometheus
-    profiles: ["monitoring"]
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - nexus_prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-    restart: unless-stopped
-
   chromadb:
     image: chromadb/chroma:latest
     container_name: nexus_chromadb
@@ -176,19 +144,6 @@ services:
     environment:
       - IS_PERSISTENT=TRUE
       - ANONYMIZED_TELEMETRY=FALSE
-    restart: unless-stopped
-
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
-    container_name: nexus_cadvisor
-    profiles: ["monitoring"]
-    ports:
-      - "8888:8080"
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
     restart: unless-stopped
 
   sonarqube-db:
@@ -278,8 +233,6 @@ services:
 
 volumes:
   bruce_state:
-  nexus_grafana_data:
-  nexus_prometheus_data:
   nexus_chroma_data:
   nexus_sonardb_data:
   nexus_sonar_data:
