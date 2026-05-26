@@ -41,3 +41,24 @@ jobs:
             --exclude .venv \
             --exclude vault/claude-mem \
             --exclude vault/superpowers
+
+  pytest:
+    name: Pytest (pure helpers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      # Only the deps the pure-helper tests actually touch — keeps the CI job
+      # small. The big runtime deps (chromadb, trimesh, fastapi…) aren't
+      # exercised by tests/test_pure_helpers.py.
+      - name: Install minimal test deps
+        run: pip install pytest pytest-asyncio httpx
+
+      - name: Run pytest
+        working-directory: backend
+        run: python -m pytest -q --tb=short

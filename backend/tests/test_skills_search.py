@@ -1,12 +1,20 @@
+"""
+Manual probe — query the vault skills_* collections to see what comes back.
+
+Invoked as `python backend/tests/test_skills_search.py`. Guarded so
+pytest doesn't fire the asyncio.run on collection.
+"""
 import asyncio
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
-from vault.memory_manager import search_memory
 
+async def main() -> None:
+    # Import inside main() so pytest collection doesn't pull chromadb when
+    # the venv it's running under doesn't have it.
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from vault.memory_manager import search_memory
 
-async def main():
     queries = [
         "comment debugger un probleme",
         "ecrire un plan pour mon projet",
@@ -21,4 +29,6 @@ async def main():
             name = r["metadata"].get("skill_name", "?")
             print(f"  -> {name} (score: {r['score']})")
 
-asyncio.run(main())
+
+if __name__ == "__main__":
+    asyncio.run(main())
