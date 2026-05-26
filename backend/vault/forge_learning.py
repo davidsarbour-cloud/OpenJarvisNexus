@@ -2,6 +2,7 @@
 Forge Learning — sauvegarde les résultats STL pour améliorer les futures générations.
 """
 from __future__ import annotations
+
 from vault.memory_manager import add_memory
 
 
@@ -10,7 +11,6 @@ async def save_forge_result(mission: dict, report: dict) -> None:
     prompt = mission.get("prompt", "")
     score  = report.get("printability_score", 0)
     grade  = report.get("printability_grade", "?")
-    engine = mission.get("files", {}).get("raw_stl", "unknown")
     orient = report.get("orientation_used", "?")
     wall   = report.get("wall_thickness_min_mm", 0)
     mat    = report.get("estimated_material_g", 0)

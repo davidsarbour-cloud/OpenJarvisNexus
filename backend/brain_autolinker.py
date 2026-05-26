@@ -16,8 +16,8 @@ Scheduled:  weekly Sunday 02:30 (daily_tasks.py)
 """
 from __future__ import annotations
 
-import re
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple

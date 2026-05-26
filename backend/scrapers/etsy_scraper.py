@@ -18,7 +18,6 @@ import httpx
 
 from scrapers.browser import get_browser_context, human_delay, slow_scroll
 
-
 _ETSY_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

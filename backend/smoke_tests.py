@@ -3,14 +3,17 @@ Nexus9 Smoke Tests — validation rapide de tous les systèmes critiques.
 Non-destructif: les tests ne modifient pas l'état du système.
 """
 from __future__ import annotations
+
 import asyncio
-import time
 import os
-import httpx
+import time
 from datetime import datetime
+
+import httpx
 
 BACKEND_PORT  = int(os.getenv("BACKEND_PORT", 8000))
 from config import OLLAMA_HOST
+
 OPENHANDS_URL = os.getenv("OPENHANDS_URL", "http://localhost:3000")
 
 _BASE_URL = f"http://localhost:{BACKEND_PORT}"

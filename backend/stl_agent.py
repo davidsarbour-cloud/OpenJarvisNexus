@@ -4,17 +4,18 @@ Endpoints: POST /v1/stl/mission  GET /v1/stl/mission/{id}  GET /v1/stl/download/
 """
 
 import asyncio
-import httpx
-import subprocess
-import os
-import uuid
 import json
-from pathlib import Path
+import os
+import subprocess
+import uuid
 from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import trimesh
@@ -379,8 +380,8 @@ async def _trigger_n8n(mission: dict) -> dict | None:
 def _auto_orient(mesh, mission) -> "trimesh.Trimesh":
     """Test 6 cardinal rotations; pick the one with best print orientation
     (max flat base contact + low center of mass + low overhang area)."""
-    import trimesh
     import numpy as np
+    import trimesh
 
     rotations = {
         "identity": np.eye(4),
@@ -457,8 +458,8 @@ def _decimate(mesh, mission, target_faces: int = 60000):
 def _validate_and_repair(mission: dict, src_path: Path, target_size_mm: float = 150.0):
     """File Manager agent: convert + validate manifold/holes/walls/overhangs + auto-repair."""
     try:
+        import numpy as np  # noqa: F401 — availability check (trimesh depends on it)
         import trimesh
-        import numpy as np
     except ImportError:
         _log(mission, "trimesh not installed — run: pip install trimesh numpy", "error")
         return None
@@ -482,7 +483,8 @@ def _validate_and_repair(mission: dict, src_path: Path, target_size_mm: float = 
 
         # ── 2. Topology cleanup ──
         if not mesh.is_winding_consistent:
-            mesh.fix_normals(); repairs.append("normals fixed")
+            mesh.fix_normals()
+            repairs.append("normals fixed")
         before = len(mesh.faces)
         mesh.update_faces(mesh.unique_faces())
         mesh.update_faces(mesh.nondegenerate_faces())
@@ -598,7 +600,8 @@ def _validate_and_repair(mission: dict, src_path: Path, target_size_mm: float = 
         _log(mission, f"Final STL exported: {stl_out.name} ({stl_out.stat().st_size//1024}KB)", "success")
 
         # ── Copie vers dossier Jarvis — nommage séquentiel test1…test1000 ──
-        import shutil, re as _re
+        import re as _re
+        import shutil
         jarvis_stl_dir = Path(os.getenv("JARVIS_STL_DIR", r"C:\Users\bobby\OneDrive\Bureau\Jarvis\STL"))
         try:
             jarvis_stl_dir.mkdir(parents=True, exist_ok=True)

@@ -27,10 +27,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
 
-from playwright.async_api import (
-    async_playwright, Browser, BrowserContext, Page, Playwright
-)
-
+from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
 
 # ── Executable paths ──────────────────────────────────────────────────────────
 

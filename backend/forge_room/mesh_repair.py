@@ -3,9 +3,11 @@ Système de réparation automatique de mesh.
 Séquence : normales → vertices → pymeshfix → holes → floating → voxel (dernier recours).
 """
 from __future__ import annotations
+
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
-import json
+
 import trimesh
 
 _RULES = json.loads((Path(__file__).parent / "manufacturing_rules.json").read_text())

@@ -4,10 +4,11 @@ Teste 8 orientations candidates et choisit celle qui minimise les surplombs
 tout en maximisant le contact avec la build plate.
 """
 from __future__ import annotations
+
 from dataclasses import dataclass, field
+
 import numpy as np
 import trimesh
-
 
 # 8 orientations candidates : 6 faces + 2 diagonales
 _CANDIDATE_ROTATIONS = [

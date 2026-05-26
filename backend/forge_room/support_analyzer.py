@@ -1,6 +1,8 @@
 """Analyse des surplombs et besoins en supports pour impression FDM."""
 from __future__ import annotations
+
 from dataclasses import dataclass, field
+
 import numpy as np
 import trimesh
 
@@ -48,7 +50,6 @@ def analyze_supports(
     # Normal Z < 0 AND angle with horizontal > (90 - max_overhang_deg)
     z_comp = face_normals[:, 2]
     downward_mask = z_comp < 0          # faces regardant vers le bas
-    overhang_threshold = 90.0 - max_overhang_deg   # angle avec vertical
 
     # Surplombs simples (> seuil)
     overhang_mask = downward_mask & (angles_deg < (90.0 - max_overhang_deg + 90.0))

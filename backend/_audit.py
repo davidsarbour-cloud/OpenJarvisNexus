@@ -6,7 +6,6 @@ Nexus9 Trend Scraper — Full Audit
   4. Health check (module-level function calls)
   5. Benchmark (time key operations)
 """
-import asyncio
 import sys
 import time as _time
 
@@ -29,7 +28,7 @@ def fail(msg):
 print("\n=== 1. IMPORTS ===")
 
 try:
-    from scrapers.browser import get_browser_context, human_delay, close_browser, _LAUNCH_ARGS
+    from scrapers.browser import _LAUNCH_ARGS
     # C1: verify merged --disable-features
     disable_feat = [a for a in _LAUNCH_ARGS if a.startswith("--disable-features=")]
     assert len(disable_feat) == 1, f"Expected 1 --disable-features flag, got {len(disable_feat)}: {disable_feat}"
@@ -54,8 +53,9 @@ except Exception as e:
 
 try:
     # W3: normalize_tiktok_velocity NOT imported in fusion
-    import trend_engine.fusion as fus
     import inspect
+
+    import trend_engine.fusion as fus
     src = inspect.getsource(fus)
     assert "normalize_tiktok_velocity" not in src, "W3: still imported in fusion"
     # W7/W8: reddit_intent_hits / reddit_texts_count NOT in fusion
@@ -67,8 +67,9 @@ except Exception as e:
 
 try:
     # W4: signals_summary NOT imported in store
-    import trend_memory.store as st
     import inspect
+
+    import trend_memory.store as st
     src = inspect.getsource(st)
     assert "signals_summary" not in src, "W4: still imported in store"
     ok("store.py W4 fixed")
@@ -77,8 +78,9 @@ except Exception as e:
 
 try:
     # W5: dead imports gone from trend_hunter
-    import trend_hunter as th
     import inspect
+
+    import trend_hunter as th
     src = inspect.getsource(th)
     assert "normalize_reddit_velocity" not in src, "W5a: still in trend_hunter"
     assert "INTENT_PHRASES" not in src, "W5b: still in trend_hunter"
@@ -88,8 +90,9 @@ except Exception as e:
 
 try:
     # W6: asyncio NOT imported in tiktok_scraper
-    import scrapers.tiktok_scraper as tt
     import inspect
+
+    import scrapers.tiktok_scraper as tt
     src = inspect.getsource(tt)
     assert "import asyncio" not in src, "W6: asyncio still imported"
     ok("tiktok_scraper.py W6 fixed")
@@ -98,7 +101,9 @@ except Exception as e:
 
 try:
     # W10: no assert in scoring
-    import inspect, trend_engine.scoring as sc
+    import inspect
+
+    import trend_engine.scoring as sc
     src = inspect.getsource(sc)
     assert "assert abs(sum(WEIGHTS" not in src, "W10: assert still in scoring"
     # get_action now takes only stage
@@ -112,8 +117,9 @@ except Exception as e:
 
 try:
     # I1: _extract_text_count_from_playwright removed from etsy
-    import scrapers.etsy_scraper as et
     import inspect
+
+    import scrapers.etsy_scraper as et
     src = inspect.getsource(et)
     assert "_extract_text_count_from_playwright" not in src, "I1: dead func still in etsy"
     ok("etsy_scraper.py I1 fixed: dead function removed")
@@ -127,7 +133,7 @@ except Exception as e:
 print("\n=== 2. SMOKE TESTS ===")
 
 try:
-    from trend_engine.sentiment import scan_intent, score_intent, INTENT_PHRASES, VIRAL_HOOKS
+    from trend_engine.sentiment import INTENT_PHRASES, VIRAL_HOOKS, scan_intent, score_intent
     h, _ = scan_intent(["where can i buy this?", "just a post"])
     assert h >= 1
     s = score_intent(5, 25)
@@ -138,8 +144,11 @@ except Exception as e:
 
 try:
     from trend_engine.velocity import (
-        normalize_reddit_velocity, normalize_google_breakout,
-        normalize_etsy_listing_count, fuse_velocity, detect_momentum
+        detect_momentum,
+        fuse_velocity,
+        normalize_etsy_listing_count,
+        normalize_google_breakout,
+        normalize_reddit_velocity,
     )
     assert normalize_reddit_velocity(1000) == 1.0
     assert normalize_google_breakout(2.0) == 1.0
@@ -151,7 +160,11 @@ except Exception as e:
     fail(f"velocity: {e}")
 
 try:
-    from trend_engine.scoring import compute_trend_score, get_alert_level, get_stage, get_action, WEIGHTS
+    from trend_engine.scoring import (
+        WEIGHTS,
+        compute_trend_score,
+        get_action,
+    )
     ts = compute_trend_score("test", 0.8, 0.7, 3, "LOW")
     assert ts.score >= 60
     assert ts.alert_level in ("HIGH", "MEDIUM")
@@ -162,7 +175,7 @@ except Exception as e:
     fail(f"scoring: {e}")
 
 try:
-    from trend_engine.fusion import fuse_signals, signals_summary
+    from trend_engine.fusion import fuse_signals
     ts = fuse_signals(
         "test kw",
         reddit={"post_count": 10, "velocity_raw": 500, "intent_score": 0.5, "unique_subs": 3, "error": None},
@@ -181,8 +194,9 @@ except Exception as e:
 try:
     import tempfile
     from pathlib import Path
-    from trend_memory.store import record_trend, mark_winner, get_niche, summary_stats
+
     from trend_engine.scoring import compute_trend_score
+    from trend_memory.store import get_niche, record_trend, summary_stats
     tmp = Path(tempfile.mktemp(suffix=".json"))
     ts = compute_trend_score("test niche", 0.7, 0.6, 2, "LOW")
     record_trend(ts, path=tmp)
@@ -204,7 +218,7 @@ print("\n=== 3. HEALTH CHECK ===")
 
 try:
     # Scoring integrity
-    from trend_engine.scoring import WEIGHTS, ALERT_THRESHOLDS
+    from trend_engine.scoring import ALERT_THRESHOLDS, WEIGHTS
     assert abs(sum(WEIGHTS.values()) - 1.0) < 1e-9
     assert ALERT_THRESHOLDS["HIGH"] == 70
     assert ALERT_THRESHOLDS["NOISE"] == 0
@@ -228,7 +242,7 @@ try:
     test_f = snap_dir / "_health_test.tmp"
     test_f.write_text("ok")
     test_f.unlink()
-    ok(f"trend_snapshots/ dir writable")
+    ok("trend_snapshots/ dir writable")
 except Exception as e:
     fail(f"snapshot dir: {e}")
 
@@ -242,7 +256,7 @@ except Exception as e:
 
 try:
     # trend_hunter config read
-    from trend_hunter import _hunter_cfg, _cfg
+    from trend_hunter import _hunter_cfg
     cfg = _hunter_cfg()
     ok(f"trend_hunter config: tickers={cfg.get('tickers', [])}, kws={len(cfg.get('dropshipping_keywords', []))}")
 except Exception as e:
@@ -265,6 +279,7 @@ ok(f"scan_intent x{ITERATIONS}: {ms:.1f}ms total = {ms/ITERATIONS:.3f}ms/call")
 
 # score computation
 from trend_engine.scoring import compute_trend_score
+
 t0 = _time.perf_counter()
 for _ in range(ITERATIONS):
     compute_trend_score("test product", 0.7, 0.5, 3, "MEDIUM")
@@ -273,6 +288,7 @@ ok(f"compute_trend_score x{ITERATIONS}: {ms:.1f}ms total = {ms/ITERATIONS:.3f}ms
 
 # fusion
 from trend_engine.fusion import fuse_signals
+
 reddit_sig = {"post_count": 10, "velocity_raw": 400, "intent_score": 0.4, "unique_subs": 2, "error": None}
 etsy_sig   = {"listing_count": 200, "competition_level": "MEDIUM", "jackpot": False, "error": None}
 t0 = _time.perf_counter()
@@ -282,7 +298,8 @@ ms = (_time.perf_counter() - t0) * 1000
 ok(f"fuse_signals x{ITERATIONS}: {ms:.1f}ms total = {ms/ITERATIONS:.3f}ms/call")
 
 # velocity normalizations
-from trend_engine.velocity import normalize_reddit_velocity, fuse_velocity
+from trend_engine.velocity import fuse_velocity, normalize_reddit_velocity
+
 t0 = _time.perf_counter()
 for _ in range(ITERATIONS):
     normalize_reddit_velocity(350)

@@ -2,6 +2,7 @@
 Analytics — statistiques et tableaux de bord pour le Vault Hub.
 """
 from __future__ import annotations
+
 import json
 from datetime import datetime
 

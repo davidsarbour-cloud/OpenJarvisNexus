@@ -2,26 +2,29 @@
 Orchestre par JARVIS, planifie par ULTRON, execute par The Forge Room.
 """
 from __future__ import annotations
+
 import asyncio
 import json
 import os
+import traceback
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import httpx
-import traceback
 import trimesh
 
-from forge_room.mesh_validator      import validate_mesh
-from forge_room.mesh_repair         import auto_repair, scale_to_target
-from forge_room.orientation_optimizer import optimize_orientation, apply_orientation
-from forge_room.support_analyzer    import analyze_supports
-from forge_room.manufacturing_report import generate_report, save_report
-from forge_room.blender_bridge      import generate_stl_via_blender, is_available as blender_ok
-from forge_room.openscad_generator  import generate_stl_via_openscad
-from forge_room.meshy_bridge        import generate_stl_via_meshy, is_available as meshy_ok
+from forge_room.blender_bridge import generate_stl_via_blender
+from forge_room.blender_bridge import is_available as blender_ok
 from forge_room.deepseek_coder_bridge import is_available as deepseek_ok
+from forge_room.manufacturing_report import generate_report, save_report
+from forge_room.mesh_repair import auto_repair, scale_to_target
+from forge_room.mesh_validator import validate_mesh
+from forge_room.meshy_bridge import generate_stl_via_meshy
+from forge_room.meshy_bridge import is_available as meshy_ok
+from forge_room.openscad_generator import generate_stl_via_openscad
+from forge_room.orientation_optimizer import apply_orientation, optimize_orientation
+from forge_room.support_analyzer import analyze_supports
 
 BACKEND_PORT    = int(os.getenv("BACKEND_PORT", 8000))
 CLAUDE_MODEL_GROS = os.getenv("CLAUDE_MODEL_GROS", "claude-sonnet-4-6")
@@ -253,6 +256,7 @@ def _classify_engine(prompt: str, plan: dict):
 
 async def _generate_raw_mesh(m: dict, plan: dict):
     import traceback as _tb
+
     from forge_room.openscad_generator import is_available as openscad_ok
 
     desc  = plan.get("deepseek_instructions", m["prompt"])

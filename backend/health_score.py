@@ -11,6 +11,7 @@ from pathlib import Path
 
 BACKEND_PORT  = int(os.getenv("BACKEND_PORT", 8000))
 from config import OLLAMA_HOST
+
 OPENHANDS_URL = os.getenv("OPENHANDS_URL", "http://localhost:3000")
 
 # Base URL du backend (auto-référence)

@@ -10,7 +10,6 @@ from __future__ import annotations
 import math
 from typing import Sequence
 
-
 # ── Platform caps (raw value that maps to 1.0) ────────────────────────────────
 
 _REDDIT_CAP   = 1_000.0    # upvotes/hour

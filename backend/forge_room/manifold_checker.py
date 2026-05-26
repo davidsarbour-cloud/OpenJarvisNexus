@@ -1,6 +1,8 @@
 """Vérification manifold/watertight — condition nécessaire pour l'impression FDM."""
 from __future__ import annotations
+
 from dataclasses import dataclass, field
+
 import numpy as np
 import trimesh
 

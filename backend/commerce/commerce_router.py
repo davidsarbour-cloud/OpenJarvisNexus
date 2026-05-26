@@ -11,20 +11,21 @@ GET  /v1/commerce/analytics         — statistiques globales
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
-from pydantic import BaseModel
 from dataclasses import asdict
 
+from fastapi import APIRouter, BackgroundTasks, HTTPException
+from pydantic import BaseModel
+
+from commerce.approval_queue import (
+    approve_product,
+    get_pending_approvals,
+    reject_product,
+)
 from commerce.pipeline import (
-    new_pipeline,
     get_pipeline,
     list_pipelines,
+    new_pipeline,
     run_commerce_pipeline,
-)
-from commerce.approval_queue import (
-    get_pending_approvals,
-    approve_product,
-    reject_product,
 )
 
 router = APIRouter(prefix="/v1/commerce", tags=["Commerce"])

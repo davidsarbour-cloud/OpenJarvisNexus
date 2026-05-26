@@ -1,13 +1,16 @@
 """Human Approval Queue — OBLIGATOIRE avant toute publication."""
 from __future__ import annotations
+
 from datetime import datetime
-from commerce.pipeline import get_pipeline, _save_pipelines, _log
+
+from commerce.pipeline import _log, _save_pipelines, get_pipeline
 
 
 def get_pending_approvals() -> list[dict]:
     """Retourne tous les produits en attente d'approbation."""
-    from commerce.pipeline import _pipelines
     from dataclasses import asdict
+
+    from commerce.pipeline import _pipelines
     return [
         asdict(p)
         for p in _pipelines.values()

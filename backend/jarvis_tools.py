@@ -3,11 +3,12 @@ Outils réels de Jarvis — utilisés par les agents CrewAI.
 Chaque tool est synchrone (requis par CrewAI).
 """
 
-import os
 import json
+import os
 import time
-import httpx
 from pathlib import Path
+
+import httpx
 from crewai.tools import tool
 
 PROJECT_ROOT = Path(__file__).parent.parent  # C:\OpenJarvisNexus

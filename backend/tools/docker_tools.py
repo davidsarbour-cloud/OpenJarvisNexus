@@ -8,12 +8,14 @@ Strategie adaptative selon l'environnement :
 Tout texte retourne est sans emoji.
 """
 from __future__ import annotations
+
 import json
 import os
-import sys
 import subprocess
-import httpx
+import sys
 from typing import Any
+
+import httpx
 
 DOCKER_SOCK    = os.getenv("DOCKER_SOCK",    "/var/run/docker.sock")
 DOCKER_TCP_URL = os.getenv("DOCKER_TCP_URL", "http://localhost:2375")

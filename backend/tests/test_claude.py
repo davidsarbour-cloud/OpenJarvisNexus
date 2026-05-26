@@ -1,7 +1,8 @@
 """Clean test — no syntax errors."""
 import os
-from dotenv import load_dotenv
+
 from anthropic import Anthropic, APIError
+from dotenv import load_dotenv
 
 load_dotenv(override=True)
 key = os.getenv("ANTHROPIC_API_KEY", "")

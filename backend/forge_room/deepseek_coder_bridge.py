@@ -3,11 +3,13 @@ Bridge vers DeepSeek Coder via Ollama.
 Génère : scripts Blender bpy, code OpenSCAD, logique géométrique, scripts de réparation.
 """
 from __future__ import annotations
+
 import os
 import re
-import httpx
 
+import httpx
 from config import OLLAMA_HOST
+
 CODER_MODEL   = os.getenv("OLLAMA_CODER_MODEL", "deepseek-coder:6.7b")
 TIMEOUT_S     = 180
 

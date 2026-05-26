@@ -2,14 +2,20 @@
 Aucun STL ne sort sans passer par cette sequence.
 """
 from __future__ import annotations
+
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
-import json
+
 import trimesh
 
-from forge_room.mesh_validator      import validate_mesh, ValidationReport
-from forge_room.mesh_repair         import auto_repair, scale_to_target, place_on_build_plate, RepairResult
-from forge_room.orientation_optimizer import optimize_orientation, apply_orientation, OrientationResult
+from forge_room.mesh_repair import RepairResult, auto_repair, place_on_build_plate, scale_to_target
+from forge_room.mesh_validator import ValidationReport, validate_mesh
+from forge_room.orientation_optimizer import (
+    OrientationResult,
+    apply_orientation,
+    optimize_orientation,
+)
 
 _RULES = json.loads((Path(__file__).parent / "manufacturing_rules.json").read_text(encoding="utf-8"))
 

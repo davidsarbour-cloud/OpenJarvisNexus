@@ -3,6 +3,7 @@ Générateur OpenSCAD — DeepSeek Coder génère le script, OpenSCAD l'exporte 
 Hook préparé pour génération procédurale avancée.
 """
 from __future__ import annotations
+
 import os
 import subprocess
 import tempfile

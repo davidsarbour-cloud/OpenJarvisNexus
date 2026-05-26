@@ -2,9 +2,10 @@
 Memory Manager — ajouter, rechercher, résumer les mémoires.
 """
 from __future__ import annotations
+
 from datetime import datetime
 
-from vault.vault_core import get_collection, embed, make_id
+from vault.vault_core import embed, get_collection, make_id
 
 
 async def add_memory(

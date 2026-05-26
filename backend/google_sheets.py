@@ -13,6 +13,7 @@ Variables .env :
   GOOGLE_CREDENTIALS_PATH    = chemin vers le JSON (défaut: backend/google_credentials.json)
 """
 from __future__ import annotations
+
 import os
 from datetime import datetime
 from pathlib import Path

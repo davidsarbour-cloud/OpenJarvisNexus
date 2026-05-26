@@ -3,12 +3,13 @@ Fabrique de Crew — construit et exécute les équipes d'agents.
 """
 
 import time
-from crewai import Crew, Task, Process
+
 from crew_agents import (
     build_architect_agent,
-    build_researcher_agent,
     build_coder_agent,
+    build_researcher_agent,
 )
+from crewai import Crew, Process, Task
 
 
 def run_crew(mission: str, mission_type: str = "auto") -> dict:

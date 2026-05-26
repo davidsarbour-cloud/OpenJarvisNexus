@@ -9,17 +9,21 @@ Endpoints:
   POST /v1/forge/validate         - valider un STL uploade
 """
 from __future__ import annotations
+
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
+import trimesh
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from forge_room.fabrication_pipeline import (
-    new_mission, get_mission, run_forge_pipeline, _forge_missions,
     FORGE_OUTPUT,
+    _forge_missions,
+    get_mission,
+    new_mission,
+    run_forge_pipeline,
 )
-import trimesh
 
 router = APIRouter(prefix="/v1/forge", tags=["forge"])
 
@@ -104,7 +108,8 @@ async def download_forge_stl(mission_id: str):
 @router.post("/bambu/{mission_id}")
 async def forge_bambu_handoff(mission_id: str):
     """Lance Bambu Studio avec le STL final de la mission Forge."""
-    import os, subprocess
+    import os
+    import subprocess
     from pathlib import Path as _P
 
     m = get_mission(mission_id.upper())

@@ -7,12 +7,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from trend_engine.scoring import TrendScore, compute_trend_score
 from trend_engine.velocity import (
-    fuse_velocity, normalize_reddit_velocity,
-    normalize_google_breakout, normalize_etsy_listing_count, detect_momentum,
+    detect_momentum,
+    fuse_velocity,
+    normalize_etsy_listing_count,
+    normalize_google_breakout,
+    normalize_reddit_velocity,
 )
-from trend_engine.scoring import compute_trend_score, TrendScore
-
 
 # ── Fusion entry point ────────────────────────────────────────────────────────
 

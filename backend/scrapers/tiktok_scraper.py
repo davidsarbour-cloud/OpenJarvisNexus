@@ -21,10 +21,9 @@ import time
 from typing import Any
 
 import httpx
+from trend_engine.sentiment import scan_intent, scan_viral, score_intent
 
-from trend_engine.sentiment import scan_viral, scan_intent, score_intent
 from scrapers.browser import get_browser_context, human_delay, slow_scroll
-
 
 # ── View count parsing ────────────────────────────────────────────────────────
 

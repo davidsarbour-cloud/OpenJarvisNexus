@@ -7,14 +7,15 @@ WRITE : brain Obsidian (08_Command-Center/reports) — rapports IA
 JARVIS peut scanner, lire, chercher et ecrire dans ces repertoires.
 """
 from __future__ import annotations
+
 import os
 from datetime import datetime
 from pathlib import Path
+
+from config import BRAIN_REPORTS_DIR
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
-
-from config import BRAIN_REPORTS_DIR
 
 # READ : workspace OneDrive de David (lecture pour le contexte chat) — conservé.
 JARVIS_READ_DIR  = Path(os.getenv("JARVIS_READ_DIR",  r"C:/Users/bobby/OneDrive/Bureau/Jarvis"))

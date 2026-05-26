@@ -3,9 +3,10 @@ Vault Router — endpoints FastAPI pour le Vault Intelligence Hub.
 """
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
-from vault.memory_manager import add_memory, search_memory, vault_query, get_stats
-from vault.forge_learning import get_similar_forge
+
 from vault.analytics import get_vault_analytics
+from vault.forge_learning import get_similar_forge
+from vault.memory_manager import add_memory, get_stats, search_memory, vault_query
 
 router = APIRouter(prefix="/v1/vault", tags=["vault"])
 

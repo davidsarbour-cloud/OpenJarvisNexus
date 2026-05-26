@@ -3,6 +3,7 @@ Bridge Blender headless — DeepSeek Coder génère le script bpy, Blender l'ex�
 Fallback: script bpy minimaliste embarqué.
 """
 from __future__ import annotations
+
 import os
 import subprocess
 from pathlib import Path

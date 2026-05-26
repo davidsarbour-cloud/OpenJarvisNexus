@@ -2,6 +2,7 @@
 Moteur primaire pour les formes organiques : animaux, figurines, creatures.
 """
 from __future__ import annotations
+
 import asyncio
 import os
 from pathlib import Path

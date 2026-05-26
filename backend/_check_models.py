@@ -2,10 +2,11 @@
 Model health check — tests all 4 Ollama models.
 Run: python _check_models.py
 """
-import httpx
-import time
 import re
 import sys
+import time
+
+import httpx
 
 OLLAMA = "http://127.0.0.1:11434"
 

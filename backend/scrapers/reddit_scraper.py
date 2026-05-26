@@ -11,10 +11,8 @@ import time
 from typing import Any
 
 import httpx
-
 from trend_engine.sentiment import scan_intent, score_intent
-from trend_engine.velocity  import normalize_reddit_velocity as _norm_vel
-
+from trend_engine.velocity import normalize_reddit_velocity as _norm_vel
 
 _REDDIT_HEADERS = {
     "User-Agent":      "nexus9-trend-hunter/2.0 (contact: d3dprintix@outlook.com)",

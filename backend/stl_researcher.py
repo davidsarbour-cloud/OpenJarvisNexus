@@ -6,13 +6,14 @@ to inspire D3Dprintix new product ideas. Saves to backend/research_logs/.
 Designed to plug into APScheduler in main.py.
 """
 
-import os
-import json
-import httpx
 import asyncio
+import json
+import os
 import re
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import httpx
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter()

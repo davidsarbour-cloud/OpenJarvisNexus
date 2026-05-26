@@ -248,7 +248,6 @@ SECTION_ICONS = {
 
 async def build_morning_briefing() -> dict[str, Any]:
     """Construit le brief matinal consolidé (async)."""
-    cfg    = _cfg()
     bf_cfg = _bf_cfg()
 
     if not bf_cfg.get("enabled", True):

@@ -1,6 +1,8 @@
 """Vérification épaisseur de paroi — minimum 1.2mm pour FDM Bambu Lab."""
 from __future__ import annotations
+
 from dataclasses import dataclass, field
+
 import numpy as np
 import trimesh
 

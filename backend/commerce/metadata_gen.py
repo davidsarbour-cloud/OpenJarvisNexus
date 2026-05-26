@@ -1,6 +1,10 @@
 """Génère les métadonnées SEO pour les produits via ULTRON (Sonnet) + GWEN (Qwen)."""
 from __future__ import annotations
-import json, os, re
+
+import json
+import os
+import re
+
 import httpx
 
 BACKEND_PORT      = int(os.getenv("BACKEND_PORT", 8000))

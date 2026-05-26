@@ -22,7 +22,7 @@ import os
 import re
 from pathlib import Path
 
-from vault.vault_core import get_collection, embed
+from vault.vault_core import embed, get_collection
 
 BRAIN_PATH = Path(
     os.getenv("BRAIN_PATH", r"C:\OpenJarvisNexus\backend\BRAIN\BRAIN")

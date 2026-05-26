@@ -24,22 +24,20 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
 from fastapi import APIRouter
+from scrapers.etsy_scraper import etsy_signal
 
 # ── New modular imports (no duplication) ─────────────────────────────────────
-from scrapers.reddit_scraper  import reddit_signal
-from scrapers.etsy_scraper    import etsy_signal
-from scrapers.tiktok_scraper  import tiktok_signal
-from trend_engine.fusion      import fuse_signals, signals_summary
-from trend_engine.scoring     import ALERT_THRESHOLDS
-from trend_memory.store       import record_trend
-
+from scrapers.reddit_scraper import reddit_signal
+from scrapers.tiktok_scraper import tiktok_signal
+from trend_engine.fusion import fuse_signals, signals_summary
+from trend_engine.scoring import ALERT_THRESHOLDS
+from trend_memory.store import record_trend
 
 router = APIRouter(prefix="/v1/trends", tags=["trends"])
 

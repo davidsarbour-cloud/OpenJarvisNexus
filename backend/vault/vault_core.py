@@ -3,9 +3,12 @@ Vault Core — ChromaDB vector store + Ollama embeddings.
 Collections: conversations, forge_reports, orchestration, agent_memory, workflows
 """
 from __future__ import annotations
-import os, hashlib
+
+import hashlib
+import os
 from datetime import datetime
 from pathlib import Path
+
 import chromadb
 from chromadb.config import Settings
 
@@ -14,6 +17,7 @@ VAULT_DIR    = _BACKEND_DIR / "vault_data"
 VAULT_DIR.mkdir(exist_ok=True)
 
 from config import OLLAMA_HOST
+
 EMBED_MODEL  = os.getenv("VAULT_EMBED_MODEL", "nomic-embed-text")
 
 # Singleton ChromaDB client

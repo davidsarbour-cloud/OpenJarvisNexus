@@ -3,10 +3,11 @@ Tâche overnight — 100% Ollama local, zéro token Claude.
 Lance avant de dormir, résultat prêt demain matin.
 """
 
-import requests
 import time
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import requests
 
 OLLAMA = "http://localhost:11434"
 OUTPUT = Path("overnight_results")

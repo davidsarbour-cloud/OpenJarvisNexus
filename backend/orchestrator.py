@@ -3,8 +3,9 @@ JARVIS Orchestration Engine — classify intent, query Vault, route to agents.
 Transforme JARVIS d'un chatbot en système d'orchestration.
 """
 from __future__ import annotations
-import re
+
 import os
+import re
 from datetime import datetime
 
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", 8000))

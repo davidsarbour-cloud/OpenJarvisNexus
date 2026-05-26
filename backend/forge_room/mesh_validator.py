@@ -1,14 +1,16 @@
 """Validateur unifie - orchestre tous les checks de fabricabilite."""
 from __future__ import annotations
+
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
-import json
+
 import trimesh
 
-from forge_room.manifold_checker         import check_manifold,       ManifoldResult
-from forge_room.floating_geometry_detector import detect_floating,    FloatingResult
-from forge_room.wall_thickness_checker   import check_wall_thickness, WallThicknessResult
-from forge_room.support_analyzer         import analyze_supports,     SupportAnalysisResult
+from forge_room.floating_geometry_detector import FloatingResult, detect_floating
+from forge_room.manifold_checker import ManifoldResult, check_manifold
+from forge_room.support_analyzer import SupportAnalysisResult, analyze_supports
+from forge_room.wall_thickness_checker import WallThicknessResult, check_wall_thickness
 
 _RULES_PATH = Path(__file__).parent / "manufacturing_rules.json"
 _RULES: dict = json.loads(_RULES_PATH.read_text(encoding="utf-8"))

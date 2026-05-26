@@ -3,10 +3,13 @@ Commerce Pipeline — orchestration complète:
 idea → concept → STL → validation → metadata → approval → publish
 """
 from __future__ import annotations
-import uuid, json, os
+
+import json
+import os
+import uuid
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from dataclasses import dataclass, field, asdict
 
 _BACKEND_DIR = Path(__file__).parent.parent
 COMMERCE_DIR = _BACKEND_DIR / "commerce_data"
@@ -114,7 +117,9 @@ def list_pipelines() -> list[dict]:
 async def run_commerce_pipeline(pipeline_id: str) -> None:
     """Pipeline complet : concept → STL → metadata → approval queue."""
     from forge_room.fabrication_pipeline import (
-        new_mission, get_mission, run_forge_pipeline,
+        get_mission,
+        new_mission,
+        run_forge_pipeline,
     )
 
     p = _pipelines.get(pipeline_id)

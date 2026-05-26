@@ -14,7 +14,6 @@ from typing import Any
 
 from trend_engine.scoring import TrendScore
 
-
 _LOCK = threading.Lock()
 
 _DEFAULT_PATH = Path(__file__).parent.parent / "trend_snapshots" / "trend_memory.json"

@@ -22,7 +22,7 @@ router = APIRouter(prefix="/v1/etsy", tags=["etsy-oauth"])
 @router.get("/auth", summary="URL d'autorisation Etsy OAuth")
 def etsy_auth_redirect():
     """Retourne l'URL OAuth Etsy (PKCE). Le verifier est stocké en mémoire."""
-    from commerce.etsy_client import get_oauth_url, ETSY_API_KEY
+    from commerce.etsy_client import ETSY_API_KEY, get_oauth_url
     if not ETSY_API_KEY:
         return JSONResponse(status_code=400, content={"ok": False, "error": "ETSYPUBLIC_KEY manquant dans .env"})
     url, state = get_oauth_url()
@@ -64,6 +64,7 @@ async def etsy_callback(
 # ── /exchange-token ──────────────────────────────────────────────────────────
 
 from pydantic import BaseModel
+
 
 class TokenExchangeRequest(BaseModel):
     code:          str
@@ -130,7 +131,7 @@ async def etsy_exchange_token(body: TokenExchangeRequest):
 @router.get("/status", summary="Statut authentification Etsy")
 def etsy_status():
     """Vérifie si le client Etsy est authentifié."""
-    from commerce.etsy_client import is_authenticated, ETSY_SHOP_NAME, ETSY_SHOP_ID
+    from commerce.etsy_client import ETSY_SHOP_ID, ETSY_SHOP_NAME, is_authenticated
 
     authenticated = is_authenticated()
     return {

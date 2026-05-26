@@ -1,13 +1,15 @@
 """Génération du rapport de fabrication manufacturing_report.json."""
 from __future__ import annotations
-from dataclasses import dataclass, asdict
+
+import json
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-import json
+
 import trimesh
 
-from forge_room.mesh_validator       import ValidationReport
-from forge_room.mesh_repair          import RepairResult
+from forge_room.mesh_repair import RepairResult
+from forge_room.mesh_validator import ValidationReport
 from forge_room.orientation_optimizer import OrientationResult
 
 _RULES = json.loads((Path(__file__).parent / "manufacturing_rules.json").read_text())
