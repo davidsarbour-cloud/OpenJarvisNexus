@@ -14,7 +14,7 @@ import {
   storeMemory,
   indexMemoryPath,
 } from '../lib/api';
-import type { ChannelBinding, ManagedAgent, MemoryStats, MemorySearchResult } from '../lib/api';
+import type { ChannelBinding, ManagedAgent, MemoryStats, MemorySearchResult, SendblueHealth } from '../lib/api';
 import { getBase, isTauri } from '../lib/api';
 import {
   Database, MessageSquare, Loader2, Brain, Search,
@@ -131,8 +131,8 @@ function UploadForm({ onDone }: { onDone?: () => void }) {
       setTitle('');
       setContent('');
       onDone?.();
-    } catch (err: any) {
-      setError(err.message || 'Upload failed');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setBusy(false);
     }
@@ -161,8 +161,8 @@ function UploadForm({ onDone }: { onDone?: () => void }) {
       setFiles([]);
       setTitle('');
       onDone?.();
-    } catch (err: any) {
-      setError(err.message || 'Upload failed');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setBusy(false);
     }
@@ -308,8 +308,8 @@ function SyncStatusDisplay({
     try {
       await triggerSync(connectorId);
       onSyncTriggered();
-    } catch (err: any) {
-      setSyncError(err.message || 'Sync failed');
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : 'Sync failed');
     } finally {
       setSyncing(false);
     }
@@ -475,7 +475,7 @@ function DataSourcesSection() {
             connector_id: c.connector_id,
             display_name: c.display_name,
             connected: c.connected,
-            chunks: (c as any).chunks || 0,
+            chunks: c.chunks ?? 0,
           })),
         ),
       )
@@ -535,7 +535,7 @@ function DataSourcesSection() {
             connector_id: c.connector_id,
             display_name: c.display_name,
             connected: c.connected,
-            chunks: (c as any).chunks || 0,
+            chunks: c.chunks ?? 0,
           })));
           break;
         }
@@ -553,8 +553,8 @@ function DataSourcesSection() {
       setExpandedId(null);
       loadConnectors();
       loadSyncStatuses();
-    } catch (err: any) {
-      let errorMsg = err.message || 'Connection failed';
+    } catch (err) {
+      let errorMsg = err instanceof Error ? err.message : 'Connection failed';
       if (id === 'gmail_imap' && (errorMsg.includes('auth') || errorMsg.includes('credentials') || errorMsg.includes('LOGIN'))) {
         errorMsg = 'Invalid credentials — make sure you\'re using an App Password (16 characters), not your regular Gmail password.';
       }
@@ -918,7 +918,7 @@ function SendBlueSection({
   const [webhookStatus, setWebhookStatus] = useState<'idle' | 'registering' | 'done' | 'error'>('idle');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [health, setHealth] = useState<any>(null);
+  const [health, setHealth] = useState<SendblueHealth | null>(null);
 
   useEffect(() => {
     if (binding) {
@@ -1126,8 +1126,8 @@ function SendBlueSection({
       setPhone('');
       setWebhookUrl('');
       setWebhookStatus('idle');
-    } catch (err: any) {
-      setError(err.message || 'Failed to connect');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect');
     } finally {
       setLoading(false);
     }
@@ -1510,7 +1510,10 @@ function MemorySection() {
     input.onchange = () => {
       const files = input.files;
       if (files && files.length > 0) {
-        const rel = (files[0] as any).webkitRelativePath || '';
+        // webkitRelativePath is set by browsers when the input has the
+        // 'webkitdirectory' attribute — typed locally since it's not in
+        // the standard File interface.
+        const rel = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath || '';
         const folder = rel.split('/')[0];
         if (folder) setIndexPath(folder);
       }
@@ -1528,8 +1531,8 @@ function MemorySection() {
       setIndexResult(`Indexed ${res.chunks_indexed} chunk${res.chunks_indexed !== 1 ? 's' : ''}`);
       setIndexPath('');
       loadStats();
-    } catch (err: any) {
-      setIndexError(err.message || 'Indexing failed');
+    } catch (err) {
+      setIndexError(err instanceof Error ? err.message : 'Indexing failed');
     } finally {
       setIndexing(false);
     }
@@ -1545,8 +1548,8 @@ function MemorySection() {
       setStoreResult('Stored successfully');
       setStoreContent('');
       loadStats();
-    } catch (err: any) {
-      setStoreError(err.message || 'Failed to store');
+    } catch (err) {
+      setStoreError(err instanceof Error ? err.message : 'Failed to store');
     } finally {
       setStoring(false);
     }

@@ -15,9 +15,10 @@ import { checkHealth, fetchSpeechHealth, getMemoryStats } from '../lib/api';
 function OllamaModelList() {
   const [models, setModels] = useState<Array<{ name: string; size: number }>>([]);
   useEffect(() => {
+    interface OllamaTagModel { name: string; size: number }
     fetch('http://localhost:11434/api/tags')
-      .then(r => r.json())
-      .then(data => setModels((data.models || []).map((m: any) => ({ name: m.name, size: m.size }))))
+      .then(r => r.json() as Promise<{ models?: OllamaTagModel[] }>)
+      .then(data => setModels((data.models || []).map((m) => ({ name: m.name, size: m.size }))))
       .catch(() => setModels([]));
   }, []);
   if (models.length === 0) return <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>No models loaded</span>;
@@ -243,7 +244,7 @@ export function SettingsPage() {
             <SettingRow label="Font size">
               <select
                 value={settings.fontSize}
-                onChange={(e) => { updateSettings({ fontSize: e.target.value as any }); showSaved(); }}
+                onChange={(e) => { updateSettings({ fontSize: e.target.value as 'small' | 'default' | 'large' }); showSaved(); }}
                 className="text-sm px-3 py-1.5 rounded-lg outline-none cursor-pointer"
                 style={{
                   background: 'var(--color-bg-secondary)',

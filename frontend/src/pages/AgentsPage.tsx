@@ -691,8 +691,9 @@ function LaunchWizard({
       });
       toast.success(`Agent "${wizard.name}" created`);
       onLaunched();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create agent');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to create agent';
+      toast.error(msg);
     } finally {
       setLaunching(false);
     }
@@ -718,17 +719,17 @@ function LaunchWizard({
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = 'var(--color-bg-secondary)'; }}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg">{(tpl as any).icon || '🤖'}</span>
+                  <span className="text-lg">{tpl.icon || '🤖'}</span>
                   <span className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>{tpl.name}</span>
                 </div>
                 <div className="text-xs mt-1" style={{ color: 'var(--color-text-tertiary)', textAlign: 'left' }}>{tpl.description}</div>
-                {(tpl as any).tools && (
+                {tpl.tools && tpl.tools.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {((tpl as any).tools as string[]).slice(0, 4).map((t: string) => (
+                    {tpl.tools.slice(0, 4).map((t: string) => (
                       <span key={t} className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'color-mix(in srgb, var(--color-accent-purple) 12%, transparent)', color: 'var(--color-accent-purple)' }}>{t}</span>
                     ))}
-                    {((tpl as any).tools as string[]).length > 4 && (
-                      <span className="text-xs px-1.5 py-0.5 rounded" style={{ color: 'var(--color-text-tertiary)' }}>+{((tpl as any).tools as string[]).length - 4}</span>
+                    {tpl.tools.length > 4 && (
+                      <span className="text-xs px-1.5 py-0.5 rounded" style={{ color: 'var(--color-text-tertiary)' }}>+{tpl.tools.length - 4}</span>
                     )}
                   </div>
                 )}
@@ -1990,7 +1991,7 @@ function ChannelsTab({ agentId }: { agentId: string }) {
             connector_id: c.connector_id,
             display_name: c.display_name,
             connected: c.connected,
-            chunks: (c as any).chunks || 0,
+            chunks: c.chunks ?? 0,
           })),
         ),
       )
@@ -3439,8 +3440,9 @@ export function AgentsPage() {
       const agents = await fetchManagedAgents();
       setManagedAgents(agents);
       setAgentManagerAvailable(true);
-    } catch (err: any) {
-      if (err.message?.includes('404')) {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('404')) {
         setAgentManagerAvailable(false);
       }
       setManagedAgents([]);
@@ -3482,9 +3484,9 @@ export function AgentsPage() {
   const handleRun = async (id: string) => {
     try {
       await runManagedAgent(id);
-    } catch (err: any) {
+    } catch (err) {
       toast.error('Failed to start agent', {
-        description: err.message || 'Unknown error',
+        description: err instanceof Error ? err.message : 'Unknown error',
       });
       await refresh();
       return;
@@ -3516,9 +3518,9 @@ export function AgentsPage() {
         toast.success('Agent reset to idle (no checkpoint available)');
       }
       setDetailTab('overview');
-    } catch (err: any) {
+    } catch (err) {
       toast.error('Recovery failed', {
-        description: err.message || 'Unknown error',
+        description: err instanceof Error ? err.message : 'Unknown error',
       });
     }
     await refresh();

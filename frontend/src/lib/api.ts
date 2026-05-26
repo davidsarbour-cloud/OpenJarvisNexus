@@ -349,6 +349,7 @@ export interface AgentTemplate {
   // Optional payload fields the backend emits on some templates. Listed
   // here (rather than relying on the [key: string]: unknown catch-all
   // below) so the wizard can read them without `as any` casts.
+  icon?: string;
   instruction?: string;
   schedule_type?: string;
   schedule_value?: string;
@@ -555,7 +556,16 @@ export async function sendblueTest(
   return res.json();
 }
 
-export async function sendblueHealth(): Promise<{ channel_connected: boolean; bridge_wired: boolean; ready: boolean }> {
+export interface SendblueHealth {
+  channel_connected: boolean;
+  bridge_wired: boolean;
+  ready: boolean;
+  // Optional fields the bridge service may emit; consumed by the
+  // DataSources status footer when present.
+  webhook_registered?: boolean;
+  phone_number?: string;
+}
+export async function sendblueHealth(): Promise<SendblueHealth> {
   const res = await fetch(`${getBase()}/v1/channels/sendblue/health`);
   if (!res.ok) return { channel_connected: false, bridge_wired: false, ready: false };
   return res.json();
