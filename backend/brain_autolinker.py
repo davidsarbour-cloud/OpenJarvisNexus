@@ -353,8 +353,6 @@ _MOC_TEMPLATES = {
             ],
             "🔧 Outils & Recherche": [
                 "[[../../05_Resources/Research/ia-tools]]",
-                "[[../../05_Resources/Research/obsidian-skills]]",
-                "[[../../05_Resources/Research/superpowers]]",
             ],
             "🏗️ Architecture": [
                 "[[../../07_Schemas/system/data-flow]]",

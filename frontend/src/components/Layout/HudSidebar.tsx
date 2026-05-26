@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router';
 import {
   Cpu, Hammer, Lock, Eye, ShoppingBag,
   Database, Container,
-  BookOpen, Sparkles, Workflow,
+  Workflow,
   Network, Share2, Waypoints, X,
 } from 'lucide-react';
 import { cssVar, type ModuleKey } from '../../lib/colors';
@@ -46,10 +46,8 @@ const SECTIONS: Section[] = [
   {
     title: 'SYSTEM',
     entries: [
-      { label: 'Obsidian Skills', icon: BookOpen,  colorKey: 'vault',     external: 'http://localhost:8081', status: 'on' },
-      { label: 'Superpowers',     icon: Sparkles,  colorKey: 'forge',     external: 'http://localhost:8082', status: 'on' },
-      { label: 'ChromaDB',        icon: Database,  colorKey: 'vault',                                        status: 'on' },
-      { label: 'OpenHands',       icon: Workflow,  colorKey: 'commerce',  external: 'http://localhost:3000', status: 'on' },
+      { label: 'ChromaDB',  icon: Database,  colorKey: 'vault',     status: 'on' },
+      { label: 'OpenHands', icon: Workflow,  colorKey: 'commerce',  external: 'http://localhost:3000', status: 'on' },
     ],
   },
 ];
