@@ -88,3 +88,21 @@ agents, chat). Shared services: `ollama_client`, `memory`, `budget_tracker`, `to
 ### Verify before committing backend changes
 `python -m py_compile`, `ruff check --select F821` (no undefined names),
 import-smoke (`import main` → 134 routes), pre-commit lint hook stays green.
+
+---
+
+## MONITORING — Docker Compose Profiles
+
+Optional services gated behind `profiles:` in `docker-compose.yml`:
+
+- **Prometheus** (`profile: monitoring`) — start with
+  `docker compose --profile monitoring up -d prometheus` then it listens on `:9090`.
+  Smoke test reports `prometheus down` until this profile is activated.
+- **SonarQube** (`profile: quality`) — already up by default in your stack.
+  SonarQube forces the admin password change on first login; the smoke test
+  will report `401` until you do either:
+  1. Reset the admin password back to `admin/admin`, **or**
+  2. Generate a SonarQube token (UI → My Account → Security → Token) and
+     export it: `setx SONARQUBE_TOKEN sqp_xxxxxxxxxxxx`. The backend prefers
+     the token (sent as basic-auth username, empty password — Sonar's
+     standard convention) and falls back to `SONARQUBE_USER`/`SONARQUBE_PASS`.

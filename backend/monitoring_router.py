@@ -38,6 +38,17 @@ GRAFANA_URL    = os.getenv("GRAFANA_URL",
     "http://localhost:3001"    if _IS_WINDOWS_HOST else "http://grafana:3000")
 SONARQUBE_USER = os.getenv("SONARQUBE_USER", "admin")
 SONARQUBE_PASS = os.getenv("SONARQUBE_PASS", "admin")
+# Personal access token — preferred over basic auth (survives password rotation,
+# narrower scope). Generate via SonarQube UI → My Account → Security → Token.
+# When set, sent as basic auth with empty password (Sonar convention).
+SONARQUBE_TOKEN = os.getenv("SONARQUBE_TOKEN", "")
+
+
+def _sonar_auth() -> tuple[str, str]:
+    """Choose token (preferred) or username/password auth for SonarQube."""
+    if SONARQUBE_TOKEN:
+        return (SONARQUBE_TOKEN, "")
+    return (SONARQUBE_USER, SONARQUBE_PASS)
 
 _TIMEOUT     = 2.0   # per-attempt HTTP budget
 _CLI_TIMEOUT = 2.5   # `docker ps` subprocess budget
@@ -331,11 +342,11 @@ async def chromadb_stats():
 # ──────────────────────────────────────────────────────────
 @router.get("/sonarqube/issues")
 async def sonarqube_issues():
-    """Synthèse des issues SonarQube. SonarQube auth basique admin/admin par défaut."""
+    """Synthèse des issues SonarQube. Auth: SONARQUBE_TOKEN si défini, sinon admin/admin."""
     try:
         async with httpx.AsyncClient(
             timeout=_TIMEOUT,
-            auth=(SONARQUBE_USER, SONARQUBE_PASS),
+            auth=_sonar_auth(),
         ) as c:
             r = await c.get(f"{SONARQUBE_URL}/api/issues/search", params={"ps": 1})
             r.raise_for_status()
