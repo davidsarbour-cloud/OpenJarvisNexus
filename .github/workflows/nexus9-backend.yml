@@ -56,8 +56,10 @@ jobs:
       # Only the deps the pure-helper tests actually touch — keeps the CI job
       # small. The big runtime deps (chromadb, trimesh, fastapi…) aren't
       # exercised by tests/test_pure_helpers.py.
+      # The pure-helper tests transitively import config.py → dotenv, so
+      # python-dotenv is mandatory even though no test asserts on it.
       - name: Install minimal test deps
-        run: pip install pytest pytest-asyncio pytest-cov httpx
+        run: pip install pytest pytest-asyncio pytest-cov httpx python-dotenv
 
       - name: Run pytest with coverage
         working-directory: backend
