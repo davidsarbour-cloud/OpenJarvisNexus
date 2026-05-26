@@ -725,7 +725,7 @@ function LaunchWizard({
     try {
       // Map friendly schedule presets to API schedule_type/schedule_value
       let apiScheduleType = wizard.scheduleType;
-      let apiScheduleValue = wizard.scheduleValue;
+      const apiScheduleValue = wizard.scheduleValue;
       if (wizard.scheduleType === 'daily' || wizard.scheduleType === 'weekly') {
         apiScheduleType = 'cron';
         // scheduleValue already holds the cron expression
