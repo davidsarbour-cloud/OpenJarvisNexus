@@ -60,9 +60,14 @@ export function PipelineNode({ data }: { data: PipelineNodeData }) {
   const isError = runState.status === 'error';
   const dot = STATUS_DOT[runState.status];
 
+  // TODO: switch to a useNow()/useSyncExternalStore tick hook so the elapsed
+  // counter re-renders on a schedule instead of relying on parent re-renders
+  // — would also satisfy react-hooks/purity properly.
+  /* eslint-disable react-hooks/purity */
   const elapsedMs = runState.startedAt
     ? (runState.finishedAt ?? Date.now()) - runState.startedAt
     : 0;
+  /* eslint-enable react-hooks/purity */
   const totalEstMs = data.totalSteps * data.estimatedSecondsPerStep * 1000;
   const remainingMs = Math.max(0, totalEstMs - elapsedMs);
   const progressPct = data.totalSteps > 0

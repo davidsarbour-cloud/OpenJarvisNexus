@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { motion } from 'motion/react';
 import { useAppStore } from '../lib/store';
 import {
@@ -18,7 +18,7 @@ import type { ChannelBinding, ManagedAgent, MemoryStats, MemorySearchResult, Sen
 import { getBase, isTauri } from '../lib/api';
 import {
   Database, MessageSquare, Loader2, Brain, Search,
-  FolderOpen, FileText, Upload,
+  FolderOpen, FileText,
 } from 'lucide-react';
 import { SOURCE_CATALOG } from '../types/connectors';
 import type { ConnectRequest } from '../types/connectors';
@@ -461,7 +461,9 @@ function SyncStatusDisplay({
 function DataSourcesSection() {
   const cachedConnectors = useAppStore((s) => s.cachedConnectors);
   const setCachedConnectors = useAppStore((s) => s.setCachedConnectors);
-  const connectors = cachedConnectors ?? [];
+  // Memo so the empty fallback doesn't allocate a new [] each render and
+  // re-trigger hooks downstream that include `connectors` in their deps.
+  const connectors = useMemo(() => cachedConnectors ?? [], [cachedConnectors]);
   const isFirstLoad = cachedConnectors === null;
   const [syncStatuses, setSyncStatuses] = useState<Record<string, SyncStatus>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);

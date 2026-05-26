@@ -258,7 +258,7 @@ export function SavingsDashboard({ apiUrl }: { apiUrl: string }) {
         token_counting_version: data.token_counting_version ?? 1,
       },
     }).catch(() => {});
-  }, [data, optInEnabled, displayName, anonId]);
+  }, [data, optInEnabled, displayName, anonId, emailStored]);
 
   const handleOptInJoin = () => {
     const trimmed = nameInput.trim();

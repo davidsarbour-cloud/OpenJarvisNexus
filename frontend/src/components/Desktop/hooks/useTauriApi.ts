@@ -64,6 +64,9 @@ export function usePolling<T>(
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Memoise the JSON-serialised args so the useCallback dep array only
+  // changes when the args VALUE changes (not their identity each render).
+  const argsKey = JSON.stringify(args);
   const refresh = useCallback(async () => {
     try {
       setLoading(true);
@@ -75,7 +78,9 @@ export function usePolling<T>(
     } finally {
       setLoading(false);
     }
-  }, [command, JSON.stringify(args)]);
+    // We intentionally key on argsKey (value) not args (identity).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [command, argsKey]);
 
   useEffect(() => {
     refresh();

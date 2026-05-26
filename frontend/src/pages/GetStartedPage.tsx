@@ -471,7 +471,7 @@ function SelfHostedView() {
 // ---------------------------------------------------------------------------
 
 export function GetStartedPage() {
-  const context = useMemo(detectContext, []);
+  const context = useMemo(() => detectContext(), []);
 
   return (
     <div className="flex-1 overflow-y-auto">

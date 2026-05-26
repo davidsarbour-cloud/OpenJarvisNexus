@@ -613,6 +613,9 @@ function LaunchWizard({
     fetchAvailableTools().then((tools) => {
       setAvailableTools(tools);
     }).catch(() => {});
+    // Mount-only: wizard.model is read as a guard, not as a dep — we only
+    // seed the model when it's still empty after the initial mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function selectTemplate(tpl: AgentTemplate | null) {

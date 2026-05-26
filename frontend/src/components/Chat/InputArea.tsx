@@ -302,6 +302,8 @@ export function InputArea() {
     activeId,
     selectedModel,
     streamState.isStreaming,
+    maxTokens,
+    temperature,
     createConversation,
     addMessage,
     updateLastAssistant,

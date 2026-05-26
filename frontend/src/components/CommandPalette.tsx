@@ -169,6 +169,7 @@ export function CommandPalette() {
       await pullModel(modelId);
       setPullSuccess(modelId);
       useAppStore.getState().addLogEntry({
+        // eslint-disable-next-line react-hooks/purity -- runs inside an async handler, not during render
         timestamp: Date.now(), level: 'info', category: 'model',
         message: `Downloaded ${modelId}`,
       });
@@ -178,6 +179,7 @@ export function CommandPalette() {
       const msg = e instanceof Error ? e.message : String(e);
       setPullError(msg || 'Download failed');
       useAppStore.getState().addLogEntry({
+        // eslint-disable-next-line react-hooks/purity -- inside async catch
         timestamp: Date.now(), level: 'error', category: 'model',
         message: `Download failed for ${modelId}: ${msg}`,
       });
@@ -224,6 +226,7 @@ export function CommandPalette() {
     }
 
     useAppStore.getState().addLogEntry({
+      // eslint-disable-next-line react-hooks/purity -- inside an async handler
       timestamp: Date.now(), level: 'info', category: 'model',
       message: `${provider.name} API key ${value ? 'saved' : 'removed'}. Refreshing model list…`,
     });
