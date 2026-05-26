@@ -2,6 +2,19 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 type UpdateState = 'idle' | 'available' | 'downloading' | 'ready' | 'error';
 
+// Minimal shape of @tauri-apps/plugin-updater's Update — typed locally so
+// the file doesn't depend on importing the plugin's types just to hold a
+// ref to one instance.
+interface TauriUpdate {
+  version: string;
+  contentLength?: number;
+  downloadAndInstall: (onEvent: (e: TauriUpdateEvent) => void) => Promise<void>;
+}
+type TauriUpdateEvent =
+  | { event: 'Started'; data?: { contentLength?: number } }
+  | { event: 'Progress'; data?: { chunkLength?: number } }
+  | { event: 'Finished' };
+
 const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 export function UpdateChecker() {
@@ -10,7 +23,7 @@ export function UpdateChecker() {
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
   const [dismissed, setDismissed] = useState(false);
-  const updateRef = useRef<any>(null);
+  const updateRef = useRef<TauriUpdate | null>(null);
 
   const checkForUpdate = useCallback(async () => {
     try {
@@ -29,7 +42,7 @@ export function UpdateChecker() {
 
   useEffect(() => {
     // Check if we're in a Tauri environment
-    if (typeof window === 'undefined' || !(window as any).__TAURI_INTERNALS__) {
+    if (typeof window === 'undefined' || !window.__TAURI_INTERNALS__) {
       return;
     }
 
@@ -49,7 +62,7 @@ export function UpdateChecker() {
       let downloaded = 0;
       const contentLength = update.contentLength ?? 0;
 
-      await update.downloadAndInstall((event: any) => {
+      await update.downloadAndInstall((event) => {
         if (event.event === 'Started' && event.data?.contentLength) {
           // Content length received
         } else if (event.event === 'Progress') {
@@ -63,8 +76,9 @@ export function UpdateChecker() {
       });
 
       setState('ready');
-    } catch (e: any) {
-      setErrorMsg(e?.message || 'Download failed');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Download failed';
+      setErrorMsg(msg);
       setState('error');
       setTimeout(() => setState('idle'), 5000);
     }

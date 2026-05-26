@@ -227,12 +227,13 @@ export function InputArea() {
           } catch {}
         }
       }
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
+    } catch (err) {
+      const e = err as { name?: string; message?: string };
+      if (e.name === 'AbortError') {
         // User cancelled or model switch — keep whatever was accumulated
         if (!accumulatedContent) accumulatedContent = '(Generation stopped)';
       } else {
-        const errMsg = err?.message || String(err);
+        const errMsg = e?.message || String(err);
         accumulatedContent =
           accumulatedContent || `Error: ${errMsg}`;
         useAppStore.getState().addLogEntry({

@@ -115,8 +115,9 @@ export async function pullModel(modelName: string): Promise<void> {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('pull_ollama_model', { modelName });
       return;
-    } catch (e: any) {
-      throw new Error(e?.message || e || 'Download failed');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(msg || 'Download failed');
     }
   }
   const res = await fetch(`${getBase()}/v1/models/pull`, {
@@ -136,8 +137,9 @@ export async function deleteModel(modelName: string): Promise<void> {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('delete_ollama_model', { modelName });
       return;
-    } catch (e: any) {
-      throw new Error(e?.message || e || 'Delete failed');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(msg || 'Delete failed');
     }
   }
   const res = await fetch(`${getBase()}/v1/models/${encodeURIComponent(modelName)}`, {
@@ -166,8 +168,10 @@ export async function preloadModel(modelName: string): Promise<void> {
       signal: AbortSignal.timeout(120_000),
     });
     if (!res.ok) throw new Error(`Preload failed: ${res.status}`);
-  } catch (e: any) {
-    if (e.name === 'TimeoutError') throw new Error('Model load timed out (120s)');
+  } catch (e) {
+    if (e instanceof Error && e.name === 'TimeoutError') {
+      throw new Error('Model load timed out (120s)');
+    }
     throw e;
   }
 }
@@ -342,6 +346,19 @@ export interface AgentTemplate {
   description: string;
   source: 'built-in' | 'user';
   agent_type: string;
+  // Optional payload fields the backend emits on some templates. Listed
+  // here (rather than relying on the [key: string]: unknown catch-all
+  // below) so the wizard can read them without `as any` casts.
+  instruction?: string;
+  schedule_type?: string;
+  schedule_value?: string;
+  tools?: string[];
+  memory_extraction?: string;
+  observation_compression?: string;
+  retrieval_strategy?: string;
+  task_decomposition?: string;
+  max_turns?: number;
+  temperature?: number;
   [key: string]: unknown;
 }
 

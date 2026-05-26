@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
@@ -22,20 +22,24 @@ interface Props {
   message: ChatMessage;
 }
 
-function getTextContent(node: any): string {
+// React-markdown passes nested nodes whose shape is essentially unknown
+// (string | number | ReactElement | array of these). `unknown` keeps us
+// honest at the property-access boundary below.
+function getTextContent(node: unknown): string {
   if (typeof node === 'string' || typeof node === 'number') {
     return String(node);
   }
   if (Array.isArray(node)) {
     return node.map(getTextContent).join('');
   }
-  if (node?.props?.children) {
-    return getTextContent(node.props.children);
+  if (node && typeof node === 'object' && 'props' in node) {
+    const props = (node as { props?: { children?: unknown } }).props;
+    if (props?.children !== undefined) return getTextContent(props.children);
   }
   return '';
 }
 
-function CodeBlockPre({ children, ...props }: any) {
+function CodeBlockPre({ children, ...props }: React.HTMLAttributes<HTMLPreElement>) {
   const [copied, setCopied] = useState(false);
   const codeElement = Array.isArray(children) ? children[0] : children;
   const className = codeElement?.props?.className || '';

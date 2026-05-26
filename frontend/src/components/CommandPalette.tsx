@@ -146,8 +146,9 @@ export function CommandPalette() {
       try {
         await preloadModel(modelId);
         addLogEntry({ timestamp: Date.now(), level: 'info', category: 'model', message: `${modelId} loaded` });
-      } catch (e: any) {
-        addLogEntry({ timestamp: Date.now(), level: 'error', category: 'model', message: `Failed to load ${modelId}: ${e.message}` });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        addLogEntry({ timestamp: Date.now(), level: 'error', category: 'model', message: `Failed to load ${modelId}: ${msg}` });
       } finally {
         setModelLoading(false);
       }
@@ -173,11 +174,12 @@ export function CommandPalette() {
       });
       await refreshModels();
       setSelectedModel(modelId);
-    } catch (e: any) {
-      setPullError(e.message || 'Download failed');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setPullError(msg || 'Download failed');
       useAppStore.getState().addLogEntry({
         timestamp: Date.now(), level: 'error', category: 'model',
-        message: `Download failed for ${modelId}: ${e.message}`,
+        message: `Download failed for ${modelId}: ${msg}`,
       });
     } finally {
       setPulling(null);
@@ -241,7 +243,7 @@ export function CommandPalette() {
       setSelectedIdx((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Enter' && tab === 'installed' && filtered.length > 0) {
       e.preventDefault();
-      handleSelect((filtered[selectedIdx] as any).id);
+      handleSelect((filtered[selectedIdx] as { id: string }).id);
     }
   };
 
