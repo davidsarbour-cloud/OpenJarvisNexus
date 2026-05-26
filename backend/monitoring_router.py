@@ -9,7 +9,11 @@ Tous les endpoints sont tolérants aux pannes : si un service est down,
 on renvoie un payload structuré avec `available: False` au lieu de planter.
 """
 
+import asyncio
+import json
 import os
+import sys as _sys
+
 import httpx
 from fastapi import APIRouter
 
@@ -19,7 +23,6 @@ router = APIRouter(prefix="/v1", tags=["monitoring"])
 # En dev Windows natif (2_BACKEND.bat) : les hostnames Docker ne résolvant pas,
 # on utilise localhost + le port exposé dans docker-compose.yml.
 # En Docker (docker-compose) : les hostnames internes fonctionnent directement.
-import sys as _sys
 _IS_WINDOWS_HOST = _sys.platform == "win32" and os.getenv("RUNNING_IN_DOCKER") != "1"
 
 CADVISOR_URL   = os.getenv("CADVISOR_URL",
@@ -35,22 +38,74 @@ GRAFANA_URL    = os.getenv("GRAFANA_URL",
 SONARQUBE_USER = os.getenv("SONARQUBE_USER", "admin")
 SONARQUBE_PASS = os.getenv("SONARQUBE_PASS", "admin")
 
-_TIMEOUT = 4.0
+_TIMEOUT     = 2.0   # per-attempt HTTP budget
+_CLI_TIMEOUT = 2.5   # `docker ps` subprocess budget
 
 
 # ──────────────────────────────────────────────────────────
-# DOCKER : socket Unix d'abord, TCP Windows en fallback, puis cAdvisor
+# DOCKER : CLI (Windows-friendly via named pipe) → UDS → TCP → cAdvisor
 # ──────────────────────────────────────────────────────────
 DOCKER_SOCK     = os.getenv("DOCKER_SOCK", "/var/run/docker.sock")
 # Docker Desktop expose aussi l'API TCP sur ce port si activé dans les settings
 DOCKER_TCP_URL  = os.getenv("DOCKER_TCP_URL", "http://localhost:2375")
+
+
+async def _list_containers_via_cli():
+    """
+    Use `docker ps --all --no-trunc --format '{{json .}}'` via subprocess.
+
+    Native path on Windows (talks to Docker Desktop via the `\\.\\pipe\\docker_engine`
+    named pipe automatically) and also works on Linux/macOS as long as the
+    docker CLI is on PATH. Returns (containers, error).
+    """
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "docker", "ps", "--all", "--no-trunc", "--format", "{{json .}}",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=_CLI_TIMEOUT)
+        except asyncio.TimeoutError:
+            proc.kill()
+            return [], "TimeoutError: docker ps > 2.5s"
+        if proc.returncode != 0:
+            err = (stderr_b or b"").decode("utf-8", "replace").strip()
+            return [], f"docker ps rc={proc.returncode}: {err[:160]}"
+    except FileNotFoundError:
+        return [], "FileNotFoundError: docker CLI introuvable"
+    except Exception as e:
+        return [], f"{type(e).__name__}: {e}"
+
+    containers = []
+    for line in (stdout_b or b"").decode("utf-8", "replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        # `docker ps --format '{{json .}}'` keys: ID, Names, Image, State, Status…
+        containers.append({
+            "id":      (item.get("ID") or "")[:12],
+            "name":    item.get("Names", "").split(",")[0],
+            "image":   item.get("Image", ""),
+            "running": (item.get("State", "").lower() == "running"),
+        })
+    return containers, None
+
 
 async def _list_containers_via_socket():
     """
     Utilise httpx avec un UDS transport pour parler au Docker REST API
     directement via /var/run/docker.sock. Aucune dependance externe.
     Retourne (containers, error) ; containers=[] si erreur.
+
+    No-op sur Windows (socket.AF_UNIX absent) — on saute directement.
     """
+    if _IS_WINDOWS_HOST:
+        return [], "skipped: no AF_UNIX on Windows"
     try:
         transport = httpx.AsyncHTTPTransport(uds=DOCKER_SOCK)
         async with httpx.AsyncClient(transport=transport, base_url="http://docker", timeout=_TIMEOUT) as c:
@@ -131,12 +186,23 @@ async def _list_containers_via_tcp():
 @router.get("/docker/containers")
 async def docker_containers():
     """
-    Liste les containers Docker. Stratégie à 3 niveaux :
-      1. Socket Unix /var/run/docker.sock  (Linux / Docker container)
-      2. Docker TCP  localhost:2375        (Windows Docker Desktop, si activé)
-      3. cAdvisor    fallback si les 2 précédents échouent
+    Liste les containers Docker. Stratégie à 4 niveaux :
+      1. CLI         `docker ps`               (Windows-friendly via npipe, Linux/mac aussi)
+      2. Socket Unix /var/run/docker.sock      (Linux / Docker container — no-op Windows)
+      3. Docker TCP  localhost:2375            (si "Expose daemon on tcp..." activé)
+      4. cAdvisor    fallback                  (si les 3 précédents échouent)
     """
-    # 1. socket Unix
+    # 1. CLI (works on Windows via Docker Desktop named pipe)
+    containers, err_cli = await _list_containers_via_cli()
+    if containers:
+        return {
+            "available": True,
+            "source":    "docker.cli",
+            "count":     len(containers),
+            "containers": containers,
+        }
+
+    # 2. socket Unix
     containers, err = await _list_containers_via_socket()
     if containers:
         return {
@@ -146,7 +212,7 @@ async def docker_containers():
             "containers": containers,
         }
 
-    # 2. TCP Windows (Docker Desktop — "Expose daemon on tcp://localhost:2375")
+    # 3. TCP Windows (Docker Desktop — "Expose daemon on tcp://localhost:2375")
     containers, err_tcp = await _list_containers_via_tcp()
     if containers:
         return {
@@ -156,7 +222,7 @@ async def docker_containers():
             "containers": containers,
         }
 
-    # 3. cAdvisor
+    # 4. cAdvisor
     containers, err2 = await _list_containers_via_cadvisor()
     if containers:
         return {
@@ -170,7 +236,7 @@ async def docker_containers():
     return {
         "available": False,
         "source":    "none",
-        "error":     f"sock={err} | tcp={err_tcp} | cadvisor={err2}",
+        "error":     f"cli={err_cli} | sock={err} | tcp={err_tcp} | cadvisor={err2}",
         "containers": [],
     }
 
