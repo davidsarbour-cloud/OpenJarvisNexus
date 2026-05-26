@@ -380,7 +380,7 @@ def agents_list():
 @router.post("/v1/agents/{agent_name}/enable")
 def enable_agent(agent_name: str):
     _agents_status[agent_name] = "active"
-    print(f"[agent] ✅ {agent_name} activé")
+    print(f"[agent] {agent_name} activé")
     return {"ok": True, "agent": agent_name, "status": "active"}
 
 @router.post("/v1/agents/{agent_name}/disable")

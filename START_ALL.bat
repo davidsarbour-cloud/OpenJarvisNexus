@@ -4,6 +4,8 @@ color 0A
 
 set "ROOT=C:\OpenJarvisNexus"
 set "PYTHON=%ROOT%\backend\.venv\Scripts\python.exe"
+REM UTF-8 stdout pour les fenetres enfant (evite UnicodeEncodeError emojis en console cp1252)
+set "PYTHONIOENCODING=utf-8"
 
 echo.
 echo  ==========================================

@@ -579,7 +579,7 @@ def chat_completion(req: ChatRequest, request: Request):
             _auto_model = get_claude_model(last_user_msg, CLAUDE_MODEL, CLAUDE_MODEL_GROS)
             model_used  = (req.model if req.model and req.model.strip() else _auto_model)
             _tag = "SONNET" if model_used == CLAUDE_MODEL_GROS else "HAIKU"
-            print(f"[chat] 🔵 CLAUDE {_tag} — routing auto")
+            print(f"[chat] CLAUDE {_tag} — routing auto")
             try:
                 _docker_tools = _DOCKER_TOOL_DEFS if _needs_docker else []
                 _all_tools    = _docker_tools + _SKILL_TOOL_DEFS + _BRAIN_TOOL_DEFS
@@ -641,7 +641,7 @@ def chat_completion(req: ChatRequest, request: Request):
                 # ── Crédit Anthropic épuisé → fallback Ollama + message clair ──
                 _is_credit = "credit balance" in _msg.lower() or "insufficient" in _msg.lower()
                 if _is_credit:
-                    print("[claude] ⚠️ Crédit épuisé — fallback Ollama")
+                    print("[claude] Crédit épuisé — fallback Ollama")
                     model_used = OLLAMA_MODEL
                     if ollama_available:
                         _fb_msgs = [{"role": "system", "content": system}] + anthropic_messages

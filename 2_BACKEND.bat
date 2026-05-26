@@ -22,5 +22,7 @@ echo Lancement uvicorn depuis: %CD%
 echo.
 
 REM IMPORTANT: main:app PAS backend.main:app
+REM UTF-8 stdout — évite UnicodeEncodeError sur les emojis dans les logs (console cp1252)
+set PYTHONIOENCODING=utf-8
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 pause

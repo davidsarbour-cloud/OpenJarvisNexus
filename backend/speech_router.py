@@ -124,7 +124,7 @@ def _get_whisper():
         from faster_whisper import WhisperModel
         # "small" = bien meilleure précision que "base", ~2-4s sur CPU
         _whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
-        print("🎙 Whisper small chargé sur CPU (int8)")
+        print("[whisper] small chargé sur CPU (int8)")
     return _whisper_model
 
 
