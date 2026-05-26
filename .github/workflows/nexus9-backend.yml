@@ -1,0 +1,43 @@
+name: Nexus9 Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/nexus9-backend.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/nexus9-backend.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: nexus9-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ruff:
+    name: Ruff (style + safety)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install ruff
+        run: pip install 'ruff>=0.15'
+
+      # Match the same exclude set the local pre-commit hook uses so CI and
+      # local feedback stay consistent. Submodules (vault/claude-mem, vault/
+      # superpowers) carry their own toolchain and aren't ours to police.
+      - name: Run ruff
+        run: |
+          ruff check backend \
+            --exclude .venv \
+            --exclude vault/claude-mem \
+            --exclude vault/superpowers
