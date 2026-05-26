@@ -5,9 +5,9 @@ Tourne sur ton PC, zéro coût, zéro internet requis.
 
 import json
 import re
-import httpx
 from typing import Generator
 
+import httpx
 from config import OLLAMA_HOST, OLLAMA_MODEL, OLLAMA_NUM_CTX
 
 # ── Think-tag filter (qwen3:14b / deepseek-r1 reasoning blocks) ─────────────
@@ -50,6 +50,7 @@ def ask_ollama(prompt: str, model: str = OLLAMA_MODEL) -> str:
                 "model":  model,
                 "prompt": prompt,
                 "stream": False,
+                "keep_alive": "45m",
                 "options": {
                     "temperature": 0.7,
                     "num_predict": 1024,
@@ -79,6 +80,7 @@ def ask_ollama_chat(messages: list[dict], model: str = OLLAMA_MODEL) -> str:
                 "model":    model,
                 "messages": messages,
                 "stream":   False,
+                "keep_alive": "45m",
                 "options": {
                     "temperature": 0.7,
                     "num_predict": 1024,
@@ -165,6 +167,7 @@ def stream_ollama_chat(
                 "model":    model,
                 "messages": messages,
                 "stream":   True,
+                "keep_alive": "45m",
                 "options": {
                     "temperature": 0.7,
                     "num_predict": 1024,

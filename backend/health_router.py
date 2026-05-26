@@ -159,10 +159,12 @@ def _read_vram() -> dict:
 
 def _collect_system_metrics() -> dict:
     """Collecte CPU/RAM/VRAM/stockage/réseau + health score (source unique)."""
+    import sys
+
     import psutil
     cpu     = psutil.cpu_percent(interval=0.1)
     ram     = psutil.virtual_memory().percent
-    storage = psutil.disk_usage("C:/").percent
+    storage = psutil.disk_usage("C:/" if sys.platform == "win32" else "/").percent
     g       = _read_vram()
 
     net   = psutil.net_io_counters()

@@ -3,12 +3,13 @@ Système de tâches quotidiennes automatisées Nexus9.
 Exécuté à 03:00 chaque nuit par APScheduler.
 """
 from __future__ import annotations
+
 import json
+import logging
 import os
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
-import logging
 
 logger = logging.getLogger("nexus9.daily")
 
@@ -60,8 +61,8 @@ async def task_forge_analytics():
 
         # Mémoire Vault (cherchable) — fusionné depuis vault_forge_analytics
         try:
-            from vault.memory_manager import add_memory
             from vault.analytics import get_vault_analytics
+            from vault.memory_manager import add_memory
             forge = get_vault_analytics().get("forge", {})
             await add_memory("forge_reports",
                 f"Daily Forge Analytics {today}: "
@@ -169,8 +170,8 @@ async def task_vault_maintenance():
     via col.get(include=["metadatas"]) puis col.delete(ids=[...]).
     """
     try:
-        from vault.vault_core import get_collection, COLLECTIONS
         from vault.analytics import get_vault_analytics
+        from vault.vault_core import COLLECTIONS, get_collection
         analytics = get_vault_analytics()
         total = analytics.get("total_memories", 0)
         cols  = analytics.get("collections", {})
@@ -260,7 +261,7 @@ async def task_morning_briefing():
         if out_file.exists():
             existing = out_file.read_text(encoding="utf-8")
             # Vérifie le marqueur H1 exact généré par build_morning_briefing
-            if f"# ☀️ Brief Matinal — " not in existing:
+            if "# ☀️ Brief Matinal — " not in existing:
                 out_file.write_text(
                     existing.rstrip() + "\n\n---\n\n" + md,
                     encoding="utf-8",
@@ -412,34 +413,22 @@ def create_scheduler():
 
     scheduler = AsyncIOScheduler(timezone="America/Toronto")
 
-    # Tâches quotidiennes à 03:00
-    daily_tasks = [
-        ("vault_cleanup",             task_vault_cleanup,             "03:00"),
-        ("forge_analytics",           task_forge_analytics,           "03:05"),
-        ("stl_sync",                  task_stl_directory_sync,        "03:10"),
-        ("health_log",                task_system_health_log,         "03:15"),
-        ("error_log_cleanup",         task_error_logs_cleanup,        "03:20"),
-        ("vault_maintenance",         task_vault_maintenance,         "03:25"),
-        ("orchestration_diagnostics", task_orchestration_diagnostics, "03:35"),
-        ("jarvis_workspace_index",    task_jarvis_workspace_index,    "03:45"),
-        # Re-index apres les syncs nocturnels — filet de securite si sidecar offline.
-        # (Le sidecar vault_graph declenche aussi ce re-index en temps reel apres chaque sync.)
-        ("brain_reindex",             task_brain_reindex,             "03:55"),
-        ("daily_smoke_tests",         task_daily_smoke_tests,         "04:00"),
-        ("commerce_analytics",        task_commerce_analytics,        "04:10"),
-    ]
-
-    for name, func, time_str in daily_tasks:
-        hour, minute = time_str.split(":")
-        scheduler.add_job(
-            func,
-            trigger=CronTrigger(hour=int(hour), minute=int(minute)),
-            id=name,
-            name=f"Daily: {name}",
-            replace_existing=True,
-            misfire_grace_time=3600,  # tolère 1h de retard
-        )
-        logger.info(f"Scheduled: {name} at {time_str}")
+    # ── Daily 03:00-04:10 maintenance jobs DISABLED ─────────────────────────
+    # The 10 maintenance tasks (vault_cleanup, forge_analytics, stl_sync,
+    # health_log, error_log_cleanup, vault_maintenance, orchestration_diagnostics,
+    # jarvis_workspace_index, daily_smoke_tests, commerce_analytics) and the
+    # brain_reindex job used to run automatically at 03:00-04:10.
+    #
+    # They are now triggered ON-DEMAND via the Cheat Code pipeline
+    # (`POST /v1/cheat-code` → `run_daily_tasks()` + `index_brain()`), which
+    # is the user's normal entry point. Nightly schedule was pure redundancy.
+    #
+    # The task functions themselves stay defined in this module — Cheat Code
+    # invokes them via `POST /v1/daily/run-task` (see daily_router.py).
+    #
+    # See BRAIN/07_Schemas/system/cheat-code-pipeline.md for the full Cheat
+    # Code flow that absorbed these tasks.
+    logger.info("Daily 03:00-04:10 maintenance jobs are now triggered via Cheat Code, not the scheduler.")
 
     # ── Tâches dynamiques — heure lue depuis config.json au démarrage ──────────
     import json as _json

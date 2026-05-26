@@ -4,12 +4,17 @@ Appelable depuis : chat Jarvis, vocal Telegram, vocal Web, boutons Hub.
 Chaque pipeline : exécute → TTS → sauvegarde rapport.
 """
 from __future__ import annotations
-import asyncio, json, os, re, subprocess, tempfile
+
+import asyncio
+import json
+import os
+import re
+import subprocess
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
 import httpx
-
 from config import BRAIN_DIR, BRAIN_REPORTS_DIR, BRAIN_RESEARCH_DIR
 
 REPORT_DIR          = BRAIN_REPORTS_DIR          # rapports pipelines -> brain (plus OneDrive)
@@ -201,7 +206,9 @@ async def run_start_all(voice: bool = True) -> dict:
 
 async def _run_research_task(task: dict, date_folder: Path) -> dict:
     """Exécute une tâche de recherche via Ollama local UNIQUEMENT. Jamais Claude."""
-    import os, httpx as _httpx
+    import os
+
+    import httpx as _httpx
 
     OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
     model_key   = task.get("model", "qwen")
@@ -262,7 +269,9 @@ async def run_daily_research(voice: bool = True) -> dict:
     Met à jour _research_state à chaque tâche pour le polling frontend.
     Sauvegarde dans RESEARCH REPORT/YYYY-MM-DD/ avec un fichier par tâche + summary.
     """
-    import os, httpx as _httpx
+    import os
+
+    import httpx as _httpx
     OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 
     _reset_research_state()
@@ -328,7 +337,8 @@ async def run_daily_research(voice: bool = True) -> dict:
     # ── Google Sheets ─────────────────────────────────────────
     _research_state["current_task"] = f"✅ {passed}/{len(results)} · Sauvegarde Google Sheets…"
     try:
-        from google_sheets import save_daily_research as _gsheets, is_configured
+        from google_sheets import is_configured
+        from google_sheets import save_daily_research as _gsheets
         if is_configured():
             # Ajoute le preview du résultat pour chaque tâche
             for r in results:
@@ -414,7 +424,9 @@ async def run_rapport(voice: bool = True) -> dict:
 
 async def run_stl(prompt: str, voice: bool = True) -> dict:
     """Lance une mission STL via /v1/forge/mission — Meshy AI → trimesh → Bambu."""
-    import os, httpx as _httpx
+    import os
+
+    import httpx as _httpx
     if not prompt.strip():
         return {"ok": False, "error": "Prompt STL manquant — décris l'objet à imprimer."}
     backend = os.getenv("BACKEND_HOST", "http://localhost:8000")
@@ -510,7 +522,6 @@ def _kill_native_conflicts() -> list[str]:
     Les processus Docker eux-mêmes (com.docker.backend) sont ignorés.
     Retourne la liste des processus tués.
     """
-    import signal as _sig
 
     # Noms de processus Docker — ne jamais les tuer
     DOCKER_PROCS = {"com.docker.backend", "dockerd", "docker", "docker-proxy", "vpnkit"}
@@ -926,7 +937,7 @@ async def run_cheat_code(voice: bool = True) -> dict:
     )
     print(f"=== VAULT CENTRAL OPTIMISÉ ✅ ===\n{msg}")
 
-    # Rapport Markdown dans le brain Obsidian + ouverture Notepad
+    # Rapport Markdown dans le brain Obsidian
     try:
         ts_label    = started_at.strftime("%Y-%m-%d %H:%M")
         eco_str     = f"{eco_score}/100 Grade {eco_grade}" if eco_score is not None else "—"
@@ -952,10 +963,9 @@ async def run_cheat_code(voice: bool = True) -> dict:
         md += ["", f"## Vault — {vault_total} mémoires", ""]
         md_path = CHEAT_REPORT_DIR / f"cheat-code-{_ts_file}.md"
         md_path.write_text("\n".join(md), encoding="utf-8")
-        subprocess.Popen(["notepad.exe", str(md_path)])  # NOSONAR - fire-and-forget GUI
-        print(f"📄 Rapport ouvert : {md_path}")
+        print(f"📄 Rapport écrit : {md_path}")
     except Exception as _e:
-        print(f"⚠️  Ouverture rapport: {_e}")
+        print(f"⚠️  Écriture rapport: {_e}")
 
     # Brain sync — réindexe le brain (dont ce rapport) dans le Vault
     try:

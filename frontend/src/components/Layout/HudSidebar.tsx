@@ -3,7 +3,7 @@ import {
   Cpu, Hammer, Lock, Eye, ShoppingBag,
   LineChart, BarChart3, Bug, Database, Container,
   BookOpen, Sparkles, Workflow,
-  Network, Share2, X,
+  Network, Share2, Waypoints, X,
 } from 'lucide-react';
 import { cssVar, type ModuleKey } from '../../lib/colors';
 
@@ -27,8 +27,9 @@ const SECTIONS: Section[] = [
   {
     title: 'VIEWS',
     entries: [
-      { label: 'Agent Network',  icon: Network,        colorKey: 'cortex', route: '/agent-network', status: 'on', escapable: true },
-      { label: 'Brain Hub',      icon: Share2,         colorKey: 'vault',  route: '/brain',         status: 'on' },
+      { label: 'Agent Network',  icon: Network,        colorKey: 'cortex',   route: '/agent-network', status: 'on', escapable: true },
+      { label: 'Brain Hub',      icon: Share2,         colorKey: 'vault',    route: '/brain',         status: 'on' },
+      { label: 'Pipeline Hub',   icon: Waypoints,      colorKey: 'security', route: '/pipeline-hub',  status: 'on' },
     ],
   },
   {

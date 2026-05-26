@@ -284,13 +284,13 @@ def agents_list():
             "status":      _agents_status.get("ULTRON", "idle"),
         },
         {
-            "id":          "kaizen",
-            "name":        "KAIZEN",
+            "id":          "forge",
+            "name":        "FORGE",
             "provider":    "meshy+local",
             "model":       "Meshy AI + trimesh + pymeshfix",
             "role":        "Ingénieur 3D — Fabrication",
             "description": "Meshy AI génère OBJ/STL. BRUCE (pymeshfix) répare. watertight garanti avant Bambu.",
-            "status":      _agents_status.get("KAIZEN", "idle"),
+            "status":      _agents_status.get("FORGE", _agents_status.get("KAIZEN", "idle")),
         },
         {
             "id":          "qwen",
@@ -318,6 +318,15 @@ def agents_list():
             "role":        "Agent Autonome OpenHands",
             "description": "OpenHands + qwen3:14b — exécution autonome, lecture/écriture fichiers, git.",
             "status":      "active" if bruce_ok else _agents_status.get("BRUCE", "offline"),
+        },
+        {
+            "id":          "nova",
+            "name":        "NOVA",
+            "provider":    "ollama",
+            "model":       os.getenv("DEEPSEEK_MODEL", "deepseek-r1:7b"),
+            "role":        "Raisonnement profond & Code complexe",
+            "description": "deepseek-r1:7b — reasoning multi-étapes, comparatifs, code complexe local.",
+            "status":      _agents_status.get("NOVA", "idle") if ollama_ok else "offline",
         },
         # ── Agents STL Pipeline ────────────────────────────────
         {

@@ -33,6 +33,55 @@ function groupColor(group: string | undefined): string {
   return '#ffffff';
 }
 
+/**
+ * Normalize a node's full group string (e.g. "03_Projects/STL") to its
+ * top-level Johnny-Decimal bucket ("03_Projects") so all subfolder notes
+ * cluster into the same constellation.
+ */
+function topGroup(group: string | undefined): string {
+  if (!group) return '_orphan';
+  for (const key of Object.keys(GROUP_COLORS)) {
+    if (group.startsWith(key) || group === key) return key;
+  }
+  return '_orphan';
+}
+
+/**
+ * Each top-level group gets a fixed angular slot on a big ring.
+ * Constellation centers are placed at radius 420 in graph coordinates.
+ * Orphans get an outer ring far from the action so they don't pollute the view.
+ */
+// Default constellation spread — overridable via the side slider (1..50).
+const SPREAD_DEFAULT = 12;
+const SPREAD_TO_RADIUS = (s: number) => 200 + (s / 50) * 1500; // 1→230, 25→950, 50→1700
+const GROUP_ORDER = [
+  '00_Core',
+  '01_Inbox',
+  '02_Daily',
+  '03_Projects',
+  '04_Areas',
+  '05_Resources',
+  '06_Agents',
+  '07_Schemas',
+  '08_Command-Center',
+  '09_Archives',
+] as const;
+
+function constellationCenter(
+  group: string | undefined,
+  radius: number,
+): { x: number; y: number } | null {
+  const top = topGroup(group);
+  if (top === '_orphan') return null;
+  const idx = GROUP_ORDER.indexOf(top as typeof GROUP_ORDER[number]);
+  if (idx < 0) return null;
+  const angle = (idx / GROUP_ORDER.length) * Math.PI * 2 - Math.PI / 2;
+  return {
+    x: Math.cos(angle) * radius,
+    y: Math.sin(angle) * radius,
+  };
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface DecoratedNode extends VaultGraphNode {
@@ -142,6 +191,8 @@ export function BrainHubPage() {
   const { graph, state, error } = useVaultGraph({ enabled: true });
   const [hoverId, setHoverId]   = useState<string | null>(null);
   const [size, setSize]         = useState({ width: 0, height: 0 });
+  const [spread, setSpread]     = useState<number>(SPREAD_DEFAULT);
+  const radiusRef               = useRef<number>(SPREAD_TO_RADIUS(SPREAD_DEFAULT));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef        = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -163,10 +214,94 @@ export function BrainHubPage() {
 
   const decorated = useMemo(() => decorateGraph(graph), [graph]);
 
+  // ── Tune the d3-force simulation to spread notes into constellations ──────
+  // Configure after every new graph load so the forces apply to the fresh nodes.
+  useEffect(() => {
+    if (!graph || !fgRef.current) return;
+
+    // 1. Local repulsion: push nodes apart but only at short range
+    //    (distanceMax 220) — prevents one constellation pushing the next.
+    const charge = fgRef.current.d3Force('charge');
+    if (charge) charge.strength(-160).distanceMax(220);
+
+    // 2. Link force = group-aware. Within-group links pull tight (form the
+    //    constellation pattern); cross-group links are nearly massless so
+    //    they don't drag two constellations into each other.
+    type LinkEnd = string | { group?: string };
+    const linkGroup = (end: LinkEnd): string => {
+      if (typeof end === 'object' && end && 'group' in end) return topGroup(end.group);
+      return '_orphan';
+    };
+    const linkForce = fgRef.current.d3Force('link');
+    if (linkForce) {
+      linkForce
+        .distance((l: { source: LinkEnd; target: LinkEnd }) => {
+          const same = linkGroup(l.source) === linkGroup(l.target);
+          return same ? 32 : 480;
+        })
+        .strength((l: { source: LinkEnd; target: LinkEnd }) => {
+          const same = linkGroup(l.source) === linkGroup(l.target);
+          return same ? 0.7 : 0.015;
+        });
+    }
+
+    // 3. Strong cluster force pulls each node toward its top-group anchor.
+    //    With weakened cross-group links, this is what wins: each group
+    //    becomes a distinct constellation around the ring.
+    type SimNode = DecoratedNode & { x?: number; y?: number; vx?: number; vy?: number };
+    let simNodes: SimNode[] = [];
+    const orphanAngle = (id: string) => {
+      let h = 0;
+      for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+      return (h % 360) * (Math.PI / 180);
+    };
+    const clusterForce = (alpha: number) => {
+      const k = 0.55 * alpha;
+      // Read radius live from ref → slider changes reshape positions in real time.
+      const r = radiusRef.current;
+      const orphanR = r * 1.5;
+      for (const n of simNodes) {
+        if (n.x === undefined || n.y === undefined) continue;
+        let cx: number, cy: number;
+        const c = constellationCenter(n.group, r);
+        if (c) {
+          cx = c.x;
+          cy = c.y;
+        } else {
+          const a = orphanAngle(n.id);
+          cx = Math.cos(a) * orphanR;
+          cy = Math.sin(a) * orphanR;
+        }
+        n.vx = (n.vx ?? 0) + (cx - n.x) * k;
+        n.vy = (n.vy ?? 0) + (cy - n.y) * k;
+      }
+    };
+    (clusterForce as unknown as { initialize: (n: SimNode[]) => void }).initialize = (n) => {
+      simNodes = n;
+    };
+    fgRef.current.d3Force('cluster', clusterForce);
+
+    // 4. Kill the default center force — it would re-pull everything to (0,0)
+    //    and undo the constellation spread. Our cluster anchors are enough.
+    fgRef.current.d3Force('center', null);
+
+    // 5. Reheat so new forces actually shape the layout.
+    fgRef.current.d3ReheatSimulation?.();
+  }, [graph]);
+
+  // Live update when the spread slider moves: push new radius into ref + reheat.
+  useEffect(() => {
+    radiusRef.current = SPREAD_TO_RADIUS(spread);
+    if (fgRef.current && graph) {
+      fgRef.current.d3ReheatSimulation?.();
+    }
+  }, [spread, graph]);
+
   // Auto-fit with generous padding so full constellation is visible
   useEffect(() => {
     if (!graph) return;
-    const t = window.setTimeout(() => fgRef.current?.zoomToFit(600, 80), 300);
+    // Wait longer — the new spread takes more ticks to settle.
+    const t = window.setTimeout(() => fgRef.current?.zoomToFit(800, 100), 1500);
     return () => window.clearTimeout(t);
   }, [graph]);
 
@@ -190,7 +325,9 @@ export function BrainHubPage() {
       if (isHub || isHover) {
         const haloR = r + (isHover ? 14 : 10);
         const halo  = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, haloR);
-        halo.addColorStop(0, isHover ? VAULT_GLOW : `${color}88`);
+        // 88 hex alpha works for hex colors; orphan/rgba colors are used as-is.
+        const haloColor = color.startsWith('#') ? `${color}88` : color;
+        halo.addColorStop(0, isHover ? VAULT_GLOW : haloColor);
         halo.addColorStop(1, 'transparent');
         ctx.beginPath();
         ctx.arc(n.x, n.y, haloR, 0, 2 * Math.PI);
@@ -291,10 +428,10 @@ export function BrainHubPage() {
             linkDirectionalParticleWidth={1.5}
             linkDirectionalParticleColor={() => VAULT_ACCENT}
             linkDirectionalParticleSpeed={0.004}
-            cooldownTicks={180}
-            warmupTicks={60}
-            d3AlphaDecay={0.018}
-            d3VelocityDecay={0.28}
+            cooldownTicks={600}
+            warmupTicks={120}
+            d3AlphaDecay={0.008}
+            d3VelocityDecay={0.35}
             onNodeHover={(n) => setHoverId(n ? (n as VaultGraphNode).id : null)}
             nodeCanvasObject={paintNode}
             nodeCanvasObjectMode={() => 'replace'}
@@ -367,6 +504,102 @@ export function BrainHubPage() {
         ● {statusLabel[state]}
         {graph?.stats ? ` · ${graph.stats.files} NOTES · ${graph.stats.links} LINKS` : ''}
         {error ? ` · ${error}` : ''}
+      </div>
+
+      {/* Spread slider (vertical, dark purple) */}
+      <div style={{
+        position: 'absolute', right: 18, top: '50%', transform: 'translateY(-50%)', zIndex: 10,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+        padding: '10px 8px',
+        border: '1px solid rgba(168,85,247,0.4)',
+        background: 'rgba(2,4,12,0.82)',
+        fontFamily: 'inherit',
+      }}>
+        <div style={{
+          fontSize: 8, letterSpacing: '0.25em',
+          color: 'rgba(168,85,247,0.65)',
+        }}>
+          SPREAD
+        </div>
+        <div style={{
+          fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+          color: VAULT_ACCENT, textShadow: `0 0 8px ${VAULT_GLOW}`,
+          minWidth: 22, textAlign: 'center',
+        }}>
+          {spread}
+        </div>
+        <div style={{
+          width: 26, height: 200,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <input
+            type="range"
+            min={1}
+            max={50}
+            step={1}
+            value={spread}
+            onChange={(e) => setSpread(parseInt(e.target.value, 10))}
+            aria-label="Constellation spread"
+            className="brain-spread-slider"
+            style={{
+              width: 200, // horizontal width; rotated into a vertical track
+              transform: 'rotate(-90deg)',
+              accentColor: VAULT_ACCENT,
+              cursor: 'pointer',
+              background: 'transparent',
+            }}
+          />
+        </div>
+        <style>{`
+          input.brain-spread-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            height: 6px;
+            outline: none;
+          }
+          input.brain-spread-slider::-webkit-slider-runnable-track {
+            background: linear-gradient(to right,
+              rgba(168,85,247,0.15) 0%,
+              rgba(168,85,247,0.45) 50%,
+              rgba(168,85,247,0.85) 100%);
+            height: 4px;
+            border-radius: 2px;
+          }
+          input.brain-spread-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            margin-top: -5px;
+            width: 14px; height: 14px;
+            background: #6b21a8;
+            border: 1px solid ${VAULT_ACCENT};
+            box-shadow: 0 0 8px ${VAULT_GLOW};
+            border-radius: 50%;
+            cursor: pointer;
+          }
+          input.brain-spread-slider::-moz-range-track {
+            background: linear-gradient(to right,
+              rgba(168,85,247,0.15) 0%,
+              rgba(168,85,247,0.45) 50%,
+              rgba(168,85,247,0.85) 100%);
+            height: 4px;
+            border-radius: 2px;
+            border: none;
+          }
+          input.brain-spread-slider::-moz-range-thumb {
+            width: 14px; height: 14px;
+            background: #6b21a8;
+            border: 1px solid ${VAULT_ACCENT};
+            box-shadow: 0 0 8px ${VAULT_GLOW};
+            border-radius: 50%;
+            cursor: pointer;
+          }
+        `}</style>
+        <div style={{
+          fontSize: 7, letterSpacing: '0.18em',
+          color: 'rgba(168,85,247,0.45)',
+        }}>
+          1—50
+        </div>
       </div>
 
       {/* Zoom to fit button */}

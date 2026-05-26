@@ -22,6 +22,7 @@ import { OptInModal } from './components/OptInModal';
 
 // Lazy: React Flow bundle (~120 KB) only loaded when /agent-network is hit.
 const AgentNetworkPage = lazy(() => import('./pages/AgentNetworkPage'));
+const PipelineHubPage = lazy(() => import('./pages/PipelineHubPage'));
 
 export default function App() {
   const [setupDone, setSetupDone] = useState(!isTauri());
@@ -197,6 +198,23 @@ export default function App() {
                 }
               >
                 <AgentNetworkPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="pipeline-hub"
+            element={
+              <Suspense
+                fallback={
+                  <div
+                    className="flex-1 flex items-center justify-center text-[11px] tracking-[0.18em]"
+                    style={{ color: 'var(--hud-text-dim)' }}
+                  >
+                    loading pipeline hub…
+                  </div>
+                }
+              >
+                <PipelineHubPage />
               </Suspense>
             }
           />

@@ -8,7 +8,7 @@
  * Status is fetched live from /v1/agents (polled every 8s via
  * useLiveMetric) and reflected in the pulsing dot on each node.
  */
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -17,6 +17,7 @@ import {
   type Edge,
   type NodeTypes,
   MarkerType,
+  type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -44,6 +45,14 @@ const AGENT_COLOR: Record<string, ModuleKey> = {
   nova:    'cyberdeck',
 };
 
+// Top-level agents only — the STL sub-agents (stl_blender, stl_concept,
+// stl_optim, stl_files, stl_research) and ETSY are internal roles inside
+// the FORGE/Commerce pipelines, not standalone agents. They live in the
+// Pipeline Hub view, not in the Agent Network.
+const MAIN_AGENT_IDS = new Set([
+  'jarvis', 'ultron', 'kaizen', 'qwen', 'cortana', 'bruce', 'nova', 'forge',
+]);
+
 // Fallback agent set if the backend is unreachable.
 const FALLBACK_AGENTS: AgentInfo[] = [
   { id: 'jarvis',  name: 'JARVIS',  provider: 'claude',  model: 'claude-haiku-4-5',   role: 'Orchestrator',        description: '', status: 'online' },
@@ -68,11 +77,13 @@ const NODE_TYPES: NodeTypes = { agent: AgentNode };
 export default function AgentNetworkPage() {
   const { data, error } = useLiveMetric(fetchAgents, { intervalMs: 8000 });
   const setFocusedService = useNexusStore((s) => s.setFocusedService);
+  const rfRef = useRef<ReactFlowInstance | null>(null);
 
   const agents: AgentInfo[] = useMemo(() => {
     const live = data?.agents ?? [];
-    if (!live.length) return FALLBACK_AGENTS;
-    return live;
+    const source = live.length ? live : FALLBACK_AGENTS;
+    // Keep only top-level agents — drop STL sub-agents + ETSY internals.
+    return source.filter((a) => MAIN_AGENT_IDS.has(a.id));
   }, [data]);
 
   const nodes: AgentFlowNode[] = useMemo(() => {
@@ -131,6 +142,18 @@ export default function AgentNetworkPage() {
     if (error) console.debug('[AgentNetwork] /v1/agents error:', error);
   }, [error]);
 
+  // Re-fit the viewport whenever the agent count changes — the ringPosition
+  // anchors recompute on every count change (e.g. fallback 7 → live 12), so
+  // existing nodes shift outward and would otherwise leave the viewport.
+  useEffect(() => {
+    if (!rfRef.current || agents.length === 0) return;
+    // Defer one frame so React Flow finishes laying out the new nodes before fitting.
+    const t = window.setTimeout(() => {
+      rfRef.current?.fitView({ padding: 0.2, duration: 500 });
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, [agents.length]);
+
   return (
     <div
       className="flex-1 relative"
@@ -170,11 +193,12 @@ export default function AgentNetworkPage() {
         nodeTypes={NODE_TYPES}
         fitView
         fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.4}
+        minZoom={0.3}
         maxZoom={1.6}
         defaultEdgeOptions={{ animated: true }}
         proOptions={{ hideAttribution: true }}
         onNodeClick={(_, n) => setFocusedService(n.id)}
+        onInit={(rf) => { rfRef.current = rf; }}
         style={{ width: '100%', height: '100%' }}
       >
         <Background gap={24} size={1} color="var(--hud-grid)" />

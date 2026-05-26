@@ -121,10 +121,11 @@ _crew_jobs: dict[str, dict] = {}
 _agents_status: dict[str, str] = {
     "JARVIS":   "online",   # orchestrateur — claude-haiku-4-5
     "ULTRON":   "idle",     # claude-sonnet-4-6 — designer créatif
-    "KAIZEN":   "idle",     # meshy AI + repair pipeline — ingénieur 3D
+    "FORGE":    "idle",     # meshy AI + repair pipeline — ingénieur 3D (ex-KAIZEN)
     "QWEN":     "idle",     # ollama qwen3:14b
     "CORTANA":  "idle",     # deepseek-coder:6.7b
     "BRUCE":    "offline",  # openhands + qwen3:14b — repair + autonome
+    "NOVA":     "idle",     # ollama deepseek-r1:7b — reasoning & complex code
 }
 
 # ── Client HTTP partagé (connection pooling) ─────────────

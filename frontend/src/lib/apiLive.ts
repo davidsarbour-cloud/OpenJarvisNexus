@@ -198,6 +198,21 @@ export interface GrafanaHealthResponse {
 export const fetchGrafanaHealth = () =>
   getJSON<GrafanaHealthResponse>('/v1/grafana/health', 5000);
 
+// ─── Scheduled Tasks (/v1/daily/status) ────────────────
+export interface ScheduledJob {
+  id: string;
+  name: string;
+  next_run: string;
+}
+
+export interface ScheduledJobsResponse {
+  status: string;
+  jobs: ScheduledJob[];
+}
+
+export const fetchScheduledTasks = () =>
+  getJSON<ScheduledJobsResponse>('/v1/daily/status');
+
 // ─── System Metrics (/v1/system/metrics) ───────────────
 export interface SystemMetrics {
   cpu:          number;
