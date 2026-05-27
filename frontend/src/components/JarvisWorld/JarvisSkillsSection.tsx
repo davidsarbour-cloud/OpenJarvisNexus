@@ -13,9 +13,11 @@
  *                    catalog into the system prompt at every chat turn,
  *                    so JARVIS always knows these exist.
  */
+import { useState } from 'react';
 import { type LucideIcon, Container, FileText, Activity, RefreshCw,
          Rss, Code2, Image, Eraser, Lightbulb, BookOpen,
-         ListChecks, TrendingUp, Bug } from 'lucide-react';
+         ListChecks, TrendingUp, Bug, Zap } from 'lucide-react';
+import { SkillActivator } from './SkillActivator';
 
 type SkillKind = 'toml' | 'protocol';
 
@@ -131,6 +133,9 @@ interface Props {
 }
 
 export function JarvisSkillsSection({ accent, glow, subtle }: Props) {
+  // Which skill (if any) has its ACTIVATE modal open
+  const [activeSkill, setActiveSkill] = useState<Skill | null>(null);
+
   return (
     <section className="flex flex-col gap-3">
       {/* Section header */}
@@ -156,17 +161,38 @@ export function JarvisSkillsSection({ accent, glow, subtle }: Props) {
         }}
       >
         JARVIS reçoit le catalogue ci-dessous à chaque tour de chat. Tu peux invoquer
-        une skill par son nom (<em style={{ color: accent }}>"applique humanizer sur X"</em>)
-        ou décrire ton intent (<em style={{ color: accent }}>"ce texte sonne trop IA"</em>) — JARVIS
-        sélectionne via <code style={{ color: accent }}>skill_get</code> et applique le protocole.
+        une skill par son nom (<em style={{ color: accent }}>"applique humanizer sur X"</em>),
+        décrire ton intent (<em style={{ color: accent }}>"ce texte sonne trop IA"</em>),
+        ou cliquer <strong style={{ color: accent }}>ACTIVATE</strong> sur une card
+        ci-dessous pour ouvrir le composer pré-rempli.
       </div>
 
       {/* Skill grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {SKILLS.map((s) => (
-          <SkillCard key={s.name} skill={s} accent={accent} glow={glow} subtle={subtle} />
+          <SkillCard
+            key={s.name}
+            skill={s}
+            accent={accent}
+            glow={glow}
+            subtle={subtle}
+            onActivate={() => setActiveSkill(s)}
+          />
         ))}
       </div>
+
+      {/* Activator modal */}
+      {activeSkill && (
+        <SkillActivator
+          skillName={activeSkill.name}
+          description={activeSkill.description}
+          exampleText={activeSkill.example}
+          accent={accent}
+          glow={glow}
+          subtle={subtle}
+          onClose={() => setActiveSkill(null)}
+        />
+      )}
     </section>
   );
 }
@@ -176,11 +202,13 @@ function SkillCard({
   accent,
   glow,
   subtle,
+  onActivate,
 }: {
-  skill:  Skill;
-  accent: string;
-  glow:   string;
-  subtle: string;
+  skill:      Skill;
+  accent:     string;
+  glow:       string;
+  subtle:     string;
+  onActivate: () => void;
 }) {
   const { name, kind, icon: Icon, description, example } = skill;
   const isToml = kind === 'toml';
@@ -251,6 +279,32 @@ function SkillCard({
         <span style={{ color: accent }}>›</span>
         <span>"{example}"</span>
       </div>
+
+      {/* Activate button — opens the modal pre-filled with the example */}
+      <button
+        type="button"
+        onClick={onActivate}
+        aria-label={`Activate ${name}`}
+        className="self-end flex items-center gap-2 px-3 py-1 text-[9px] font-bold tracking-[0.22em] transition-colors"
+        style={{
+          color:        accent,
+          background:   'transparent',
+          border:       `1px solid ${accent}`,
+          borderRadius: 3,
+          cursor:       'pointer',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = subtle;
+          e.currentTarget.style.boxShadow  = `0 0 12px -4px ${glow}`;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.boxShadow  = 'none';
+        }}
+      >
+        <Zap size={10} />
+        ACTIVATE
+      </button>
     </article>
   );
 }
