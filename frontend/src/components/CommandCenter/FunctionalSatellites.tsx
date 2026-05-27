@@ -89,6 +89,10 @@ const SATELLITES: Satellite[] = [
     metrics: [{ label: 'FREE', value: '218GB' }, { label: 'USED', value: '47%' }] },
   { title: 'CONTAINER LOGS', desc: 'Live tail — last N lines from selected container', colorKey: 'docker', icon: Terminal, status: 'active',
     metrics: [{ label: 'ACTIVE', value: '13' }, { label: 'ERRORS', value: '0' }] },
+
+  // ── Global digest (Command Center) ───────────────────────────────────────
+  { title: 'DAILY DIGEST', desc: 'Top-line cross-world summary — STL · Notes · Errors', colorKey: 'jarvis', icon: PieChart, status: 'active',
+    metrics: [{ label: 'STL · NOTES', value: '0 · 0' }, { label: 'ERRORS 24H', value: '0' }] },
 ];
 
 function hexA(hex: string, a: number): string {
@@ -231,7 +235,7 @@ export function LiveSatellite({
   colorKey:    ModuleKey;
   snapshotKey: keyof Omit<WorldCardsSnapshotData, 'generated_at'>;
 }) {
-  const { data } = useLiveMetric(fetchWorldCardsSnapshot, { intervalMs: 30000 });
+  const { data } = useLiveMetric(fetchWorldCardsSnapshot, { intervalMs: 30000, wsTopic: 'snapshot/world-cards' });
   const card = data?.[snapshotKey];
   return (
     <NamedSatellite

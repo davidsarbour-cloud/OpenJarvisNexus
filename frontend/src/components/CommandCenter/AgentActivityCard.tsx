@@ -4,7 +4,7 @@ import { useLiveMetric } from '../../hooks/useLiveMetric';
 import { fetchAgents } from '../../lib/apiLive';
 
 export function AgentActivityCard() {
-  const { data, error, loading } = useLiveMetric(fetchAgents, { intervalMs: 8000 });
+  const { data, error, loading } = useLiveMetric(fetchAgents, { intervalMs: 8000, wsTopic: 'snapshot/agents' });
   const agents = data?.agents ?? [];
   const online = agents.filter((a) => a.status === 'online').length;
   const offline = agents.filter((a) => a.status === 'offline').length;

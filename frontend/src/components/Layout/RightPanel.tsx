@@ -28,12 +28,11 @@ type Event = {
   note?: string;
 };
 
+// Single neutral placeholder used only when both WS and /v1/logs are empty
+// (e.g. backend just restarted, no events emitted yet). Avoids the previous
+// 5-item mock list that looked like real activity.
 const SEED: Event[] = [
-  { id: 's1', ts: '14:02:11', level: 'info',  source: 'JARVIS',   msg: 'orchestrator ready' },
-  { id: 's2', ts: '14:02:14', level: 'info',  source: 'OLLAMA',   msg: 'qwen3:14b loaded' },
-  { id: 's3', ts: '14:02:30', level: 'warn',  source: 'FORGE',    msg: 'STL queue backlog (3)' },
-  { id: 's4', ts: '14:02:58', level: 'alert', source: 'SECURITY', msg: 'unusual port scan 10.0.0.5' },
-  { id: 's5', ts: '14:03:12', level: 'info',  source: 'DOCKER',   msg: 'sonarqube healthy' },
+  { id: 's0', ts: '——:——:——', level: 'info', source: 'NEXUS', msg: 'awaiting events — scheduler will emit on next fire' },
 ];
 
 /**
@@ -45,8 +44,8 @@ const SEED: Event[] = [
 export function RightPanel() {
   const ws = useWsEvents(50);
   const { data: logsData } = useLiveMetric(fetchLogs,    { intervalMs: 4000 });
-  const { data: agentsData } = useLiveMetric(fetchAgents, { intervalMs: 8000 });
-  const { data: jobsData } = useLiveMetric(fetchCrewJobs, { intervalMs: 6000 });
+  const { data: agentsData } = useLiveMetric(fetchAgents, { intervalMs: 8000, wsTopic: 'snapshot/agents' });
+  const { data: jobsData } = useLiveMetric(fetchCrewJobs, { intervalMs: 6000, wsTopic: 'snapshot/jobs' });
 
   const wsEvents = mapWs(ws.events);
   const httpEvents = mapLogs(logsData?.logs ?? []);

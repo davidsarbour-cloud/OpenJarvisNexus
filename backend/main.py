@@ -71,6 +71,41 @@ async def _lifespan(app: FastAPI):
     )
     _scheduler.start()
     app.state.scheduler = _scheduler
+
+    # ── Wire APScheduler → EventHub so the RightPanel sees every job fire ────
+    # JOB_EXECUTED → info  · JOB_ERROR → alert  · JOB_MISSED → warn
+    # The skill-completion notes attach their own clickable `note` link via
+    # _write_skill_brain_note(); this listener only surfaces the firing itself.
+    try:
+        from apscheduler.events import (
+            EVENT_JOB_ERROR,
+            EVENT_JOB_EXECUTED,
+            EVENT_JOB_MISSED,
+        )
+        from ws_router import emit_sync as _emit_sync
+
+        def _on_scheduler_event(event) -> None:  # pyright: ignore[reportMissingParameterType]
+            try:
+                job = _scheduler.get_job(event.job_id)
+                name = job.name if job else event.job_id
+            except Exception:
+                name = event.job_id
+            if event.code == EVENT_JOB_EXECUTED:
+                _emit_sync("info", "SCHEDULER", f"{name} · executed")
+            elif event.code == EVENT_JOB_ERROR:
+                exc = getattr(event, "exception", None)
+                _emit_sync("alert", "SCHEDULER", f"{name} · error: {exc}")
+            elif event.code == EVENT_JOB_MISSED:
+                _emit_sync("warn", "SCHEDULER", f"{name} · missed run")
+
+        _scheduler.add_listener(
+            _on_scheduler_event,
+            EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
+        )
+        print("[Daily] Scheduler → EventHub listener attached.")
+    except Exception as _e:
+        print(f"[Daily] Scheduler event listener wiring failed: {_e}")
+
     print("[Daily] Scheduler démarré — STL research 21:00, brain re-index 03:55 (daily_tasks)")
 
     # ── Ollama heartbeat — garde qwen3:14b chaud en VRAM ────────────────
@@ -101,6 +136,15 @@ async def _lifespan(app: FastAPI):
     from config import OLLAMA_MODEL as _hb_model_name
     print(f"[Ollama] Heartbeat démarré — {_hb_model_name} restera chaud 07h-23h.")
 
+    # ── Snapshot publishers — broadcasts agents/jobs/world-cards on WS ─
+    # Replaces ~15 HTTP polls/min/client with O(1) fan-out via EventHub.
+    try:
+        from snapshot_publisher import start_publishers
+        app.state.snapshot_tasks = start_publishers()
+        print(f"[Snapshots] {len(app.state.snapshot_tasks)} publishers started.")
+    except Exception as _e:
+        print(f"[Snapshots] Failed to start: {_e}")
+
     print("[Nexus9] Startup complet — client HTTP partagé prêt.")
     yield
 
@@ -108,6 +152,10 @@ async def _lifespan(app: FastAPI):
     if hasattr(app.state, "scheduler"):
         app.state.scheduler.shutdown()
         print("[Daily] Scheduler arrêté")
+    if hasattr(app.state, "snapshot_tasks"):
+        for _t in app.state.snapshot_tasks:
+            _t.cancel()
+        print("[Snapshots] publishers cancelled")
     if get_http() is not None:
         await get_http().aclose()
     # Close shared Playwright browser if it was used

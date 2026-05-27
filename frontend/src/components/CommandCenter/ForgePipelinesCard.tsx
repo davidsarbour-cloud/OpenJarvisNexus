@@ -4,7 +4,7 @@ import { useLiveMetric } from '../../hooks/useLiveMetric';
 import { fetchCrewJobs } from '../../lib/apiLive';
 
 export function ForgePipelinesCard() {
-  const { data, error, loading } = useLiveMetric(fetchCrewJobs, { intervalMs: 6000 });
+  const { data, error, loading } = useLiveMetric(fetchCrewJobs, { intervalMs: 6000, wsTopic: 'snapshot/jobs' });
   const jobs = data?.jobs ?? [];
   const running = jobs.filter((j) => String(j.status).toLowerCase() === 'running').length;
   const done    = jobs.filter((j) => String(j.status).toLowerCase() === 'done').length;

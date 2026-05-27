@@ -76,7 +76,7 @@ function ringPosition(idx: number, total: number, radius = 320) {
 const NODE_TYPES: NodeTypes = { agent: AgentNode };
 
 export default function AgentNetworkPage() {
-  const { data, error } = useLiveMetric(fetchAgents, { intervalMs: 8000 });
+  const { data, error } = useLiveMetric(fetchAgents, { intervalMs: 8000, wsTopic: 'snapshot/agents' });
   const setFocusedService = useNexusStore((s) => s.setFocusedService);
   const rfRef = useRef<ReactFlowInstance<AgentFlowNode, Edge> | null>(null);
   // Selected agent for the side-panel detail view. null = panel closed.

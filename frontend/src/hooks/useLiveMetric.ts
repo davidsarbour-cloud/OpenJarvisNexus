@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { wsBus } from '../lib/wsBus';
 
 export interface LiveMetricState<T> {
   data: T | null;
@@ -13,6 +14,16 @@ export interface LiveMetricOptions {
   intervalMs?: number;
   /** Pause polling while tab hidden. Default true. */
   pauseWhenHidden?: boolean;
+  /**
+   * Optional WebSocket topic to listen for. When provided, the hook
+   * subscribes to the shared wsBus and replaces `data` whenever an
+   * event whose `source` matches the topic arrives. The event must
+   * carry the payload under a `data` key. The HTTP poll continues as
+   * a fallback but at a relaxed cadence (at least 60s) because the
+   * WS push is the primary update channel; the poll just covers the
+   * "WS disconnected for a while" gap and the initial paint.
+   */
+  wsTopic?: string;
 }
 
 /**
@@ -27,7 +38,11 @@ export function useLiveMetric<T>(
   fetcher: () => Promise<T>,
   options: LiveMetricOptions = {},
 ): LiveMetricState<T> {
-  const { intervalMs = 5000, pauseWhenHidden = true } = options;
+  const { intervalMs = 5000, pauseWhenHidden = true, wsTopic } = options;
+  // When a WS topic is provided, the HTTP poll is a safety net only —
+  // relax it to at least 60s so we don't double-pay for data we are
+  // already getting pushed in real time.
+  const effectiveInterval = wsTopic ? Math.max(intervalMs, 60_000) : intervalMs;
 
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,16 +73,36 @@ export function useLiveMetric<T>(
 
     run();
 
-    if (intervalMs <= 0) {
+    // WebSocket subscription — when a matching snapshot arrives, replace
+    // `data` from the event payload without making an HTTP call. The
+    // backend tags snapshots with `source: "snapshot/<topic>"` so the
+    // filter is a strict equality match.
+    let unsubWs: (() => void) | null = null;
+    if (wsTopic) {
+      unsubWs = wsBus.subscribe(
+        (e) => e.source === wsTopic,
+        (e) => {
+          const payload = (e as { data?: unknown }).data;
+          if (cancelledRef.current || payload === undefined) return;
+          setData(payload as T);
+          setError(null);
+          setLoading(false);
+          lastOkRef.current = Date.now();
+        },
+      );
+    }
+
+    if (effectiveInterval <= 0) {
       return () => {
         cancelledRef.current = true;
+        unsubWs?.();
       };
     }
 
     const poll = setInterval(() => {
       if (pauseWhenHidden && document.hidden) return;
       run();
-    }, intervalMs);
+    }, effectiveInterval);
 
     const ageTick = setInterval(() => {
       if (lastOkRef.current) setAge(Date.now() - lastOkRef.current);
@@ -77,8 +112,9 @@ export function useLiveMetric<T>(
       cancelledRef.current = true;
       clearInterval(poll);
       clearInterval(ageTick);
+      unsubWs?.();
     };
-  }, [intervalMs, pauseWhenHidden]);
+  }, [effectiveInterval, pauseWhenHidden, wsTopic]);
 
   return { data, error, loading, age };
 }
