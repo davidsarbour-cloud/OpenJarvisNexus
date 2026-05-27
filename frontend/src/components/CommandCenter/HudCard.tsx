@@ -1,19 +1,12 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import type { ModuleKey } from '../../lib/colors';
 import { cssVar, MODULE_COLORS } from '../../lib/colors';
+import { CardAccentContext } from './cardAccentContext';
 
+export type { ModuleKey };
+export { CardAccentContext };
 export type CardStatus = 'live' | 'demo' | 'warn' | 'down' | 'loading';
-
-/**
- * CardAccentContext — when set by an ancestor, every HudCard inside
- * uses this ModuleKey for its tint (border, title, icon, glow) instead
- * of its own hardcoded `colorKey`. Used by the /world/* pages so each
- * room re-themes the embedded Command Center cards in its own colour.
- *
- * `null` means "no override" — cards keep their own colorKey.
- */
-export const CardAccentContext = createContext<ModuleKey | null>(null);
 
 // Healthy statuses use the world's accent (forge orange, vault violet,
 // commerce teal, cyberdeck red, docker green, jarvis cyan — see

@@ -142,6 +142,9 @@ export function Spaceship({ def, onSelect }: Props) {
   const tmpLookAt = useMemo(() => new THREE.Matrix4(), []);
   const tmpQuat   = useMemo(() => new THREE.Quaternion(), []);
 
+  // R3F useFrame: mesh/ref mutations here are per-frame, not per-render —
+  // the new react-hooks/immutability rule can't distinguish the two.
+  /* eslint-disable react-hooks/immutability */
   useFrame(({ clock, camera }) => {
     if (!groupRef.current) return;
     const t = clock.elapsedTime * def.speed + def.phase;
@@ -216,6 +219,7 @@ export function Spaceship({ def, onSelect }: Props) {
     }
     void TAU; // satisfy lint (TAU exported for shader consumers if needed)
   });
+  /* eslint-enable react-hooks/immutability */
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();

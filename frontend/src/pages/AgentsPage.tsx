@@ -1669,6 +1669,7 @@ function InteractTab({ agentId, agentStatus }: { agentId: string; agentStatus: s
     'inference_end',
   ]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setLiveStatus(agentStatus); }, [agentStatus]);
 
   // Clean up elapsed-time timer on unmount
@@ -3255,8 +3256,9 @@ function LogsTab({ agentId }: { agentId: string }) {
   }, [agentId]);
 
   useEffect(() => {
+    // WS-primary, 30s HTTP fallback. loadData sets state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
-    // Fallback slow poll — WS is primary, this catches missed events
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
   }, [loadData]);
@@ -3455,6 +3457,8 @@ export function AgentsPage() {
   }, [setManagedAgents]);
 
   useEffect(() => {
+    // Once-on-mount refresh + template prefetch. Both set state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
     fetchTemplates().then(setTemplates).catch(() => {});
   }, [refresh]);

@@ -136,6 +136,8 @@ export function TraceDebugger() {
   }, []);
 
   useEffect(() => {
+    // Once-on-mount fetch. fetchTraces sets loading/state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTraces();
   }, [fetchTraces]);
 

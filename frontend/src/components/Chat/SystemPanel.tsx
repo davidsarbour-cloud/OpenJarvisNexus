@@ -59,7 +59,11 @@ export function SystemPanel() {
     }
   }, []);
 
+  // Initial fetch + 3s polling. fetchData() flips a loading flag inside
+  // — the lint rule flags any setState-on-mount even when, as here,
+  // it's an async data-loader signalling progress.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
     const interval = setInterval(fetchData, 3000);
     return () => clearInterval(interval);
@@ -67,6 +71,7 @@ export function SystemPanel() {
 
   // Re-fetch energy/telemetry when savings updates (after a chat message)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (savings) fetchData();
   }, [savings, fetchData]);
 

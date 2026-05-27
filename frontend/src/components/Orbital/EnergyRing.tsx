@@ -133,7 +133,10 @@ void main() {
     });
   }, [color, flowSpeed, baseOpacity, phase]);
 
+  // R3F useFrame: shader-uniform mutation is per-frame, not per-render —
+  // the new react-hooks/immutability rule can't distinguish the two.
   useFrame(({ clock }) => {
+    // eslint-disable-next-line react-hooks/immutability
     material.uniforms.uTime.value = clock.elapsedTime;
   });
 

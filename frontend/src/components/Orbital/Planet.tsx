@@ -129,6 +129,11 @@ ${fireGLSL}
     return mat;
   }, [def.color, def.fire]);
 
+  // R3F useFrame runs per animation frame (rAF), not per React render —
+  // mutating mesh refs / Three.js objects here is the canonical pattern.
+  // The new react-hooks/immutability rule can't distinguish render time
+  // from frame time, so we silence it across the whole useFrame body.
+  /* eslint-disable react-hooks/immutability */
   useFrame(({ clock }) => {
     if (!groupRef.current) return;
     const t = clock.elapsedTime * def.speed + def.phase;
@@ -150,6 +155,7 @@ ${fireGLSL}
     const wobble = Math.sin(clock.elapsedTime * speed + def.phase) * 0.08;
     material.emissiveIntensity = base + wobble;
   });
+  /* eslint-enable react-hooks/immutability */
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();

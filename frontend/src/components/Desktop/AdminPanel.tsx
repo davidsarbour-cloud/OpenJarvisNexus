@@ -263,6 +263,8 @@ export function AdminPanel({ apiUrl }: { apiUrl: string }) {
   }, [apiUrl]);
 
   useEffect(() => {
+    // 15s polling — refresh() sets loading state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
     const timer = setInterval(refresh, 15_000);
     return () => clearInterval(timer);

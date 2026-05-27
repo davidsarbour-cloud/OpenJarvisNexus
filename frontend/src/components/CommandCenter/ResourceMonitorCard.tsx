@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LineChart } from 'lucide-react';
 import { HudCard } from './HudCard';
 import { useLiveMetric } from '../../hooks/useLiveMetric';
@@ -41,31 +41,39 @@ interface Hist {
   net: number[];
 }
 
+// Push a value into a rolling window of size MAX, returning a *new*
+// array (so React sees a state change). Pure — safe to call during
+// render via useEffect's setter.
+function push(arr: number[], v: number): number[] {
+  const next = arr.length >= MAX ? arr.slice(1) : arr.slice();
+  next.push(v);
+  return next;
+}
+
 export function ResourceMonitorCard() {
   const { data, error, loading } = useLiveMetric(fetchSystemMetrics, { intervalMs: 2000, wsTopic: 'snapshot/system-metrics' });
   const status = error ? 'down' : loading ? 'loading' : 'live';
-  const hist = useRef<Hist>({ cpu: [], ram: [], vram: [], net: [] });
-  const [, force] = useState(0);
+  const [hist, setHist] = useState<Hist>({ cpu: [], ram: [], vram: [], net: [] });
 
   useEffect(() => {
     if (!data) return;
-    const h = hist.current;
-    const push = (arr: number[], v: number) => {
-      arr.push(v);
-      if (arr.length > MAX) arr.shift();
-    };
-    push(h.cpu, data.cpu);
-    push(h.ram, data.ram);
-    push(h.vram, data.vram ?? 0);
-    push(h.net, data.network_mbps);
-    force((n) => n + 1);
+    // History-accumulation pattern: every new poll appends to a rolling
+    // window. React 19's set-state-in-effect lint flags this even though
+    // it's the textbook React pattern for derived-time-series state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHist((prev) => ({
+      cpu:  push(prev.cpu,  data.cpu),
+      ram:  push(prev.ram,  data.ram),
+      vram: push(prev.vram, data.vram ?? 0),
+      net:  push(prev.net,  data.network_mbps),
+    }));
   }, [data]);
 
   const rows = [
-    { label: 'CPU', val: data ? `${data.cpu}%` : '—', series: hist.current.cpu, max: 100 },
-    { label: 'RAM', val: data ? `${data.ram}%` : '—', series: hist.current.ram, max: 100 },
-    { label: 'VRAM', val: data?.vram != null ? `${data.vram}%` : '—', series: hist.current.vram, max: 100 },
-    { label: 'NETWORK', val: data ? `${data.network_mbps} MB/s` : '—', series: hist.current.net, max: undefined },
+    { label: 'CPU',     val: data ? `${data.cpu}%` : '—',                    series: hist.cpu,  max: 100      },
+    { label: 'RAM',     val: data ? `${data.ram}%` : '—',                    series: hist.ram,  max: 100      },
+    { label: 'VRAM',    val: data?.vram != null ? `${data.vram}%` : '—',    series: hist.vram, max: 100      },
+    { label: 'NETWORK', val: data ? `${data.network_mbps} MB/s` : '—',       series: hist.net,  max: undefined },
   ];
 
   return (

@@ -508,6 +508,8 @@ function DataSourcesSection() {
 
   useEffect(() => {
     if (connectors.some((c) => c.connected)) {
+      // Sync-status polling when at least one connector is wired.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadSyncStatuses();
       const interval = setInterval(loadSyncStatuses, 5000);
       return () => clearInterval(interval);
@@ -1846,6 +1848,8 @@ export function DataSourcesPage() {
   // Auto-create agent when switching to messaging tab
   useEffect(() => {
     if (activeTab === 'messaging' && !firstAgent && !creatingAgent) {
+      // ensureAgent flips creatingAgent inside.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       ensureAgent();
     }
   }, [activeTab, firstAgent, creatingAgent, ensureAgent]);

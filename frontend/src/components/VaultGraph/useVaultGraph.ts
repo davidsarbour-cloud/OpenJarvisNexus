@@ -65,6 +65,9 @@ export function useVaultGraph(options: UseVaultGraphOptions = {}): UseVaultGraph
 
   useEffect(() => {
     if (!enabled) {
+      // Reset the connection state when the hook is disabled — this is
+      // the textbook "react to a prop change" pattern.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState('closed');
       return;
     }

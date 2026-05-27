@@ -104,6 +104,10 @@ totalEmissiveRadiance += emissive * plasma * 1.25;
     return mat;
   }, []);
 
+  // R3F useFrame: mesh/ref/shader-uniform mutations here are per-frame,
+  // not per-render — the new react-hooks/immutability rule can't tell
+  // the two apart.
+  /* eslint-disable react-hooks/immutability */
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
 
@@ -139,6 +143,7 @@ totalEmissiveRadiance += emissive * plasma * 1.25;
       ringCGroupRef.current.rotation.z = Math.PI * 0.15;
     }
   });
+  /* eslint-enable react-hooks/immutability */
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();

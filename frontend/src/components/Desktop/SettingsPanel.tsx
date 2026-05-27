@@ -128,6 +128,8 @@ export function SettingsPanel({ onSettingsChange }: SettingsPanelProps) {
   useEffect(() => {
     saveSettings(settings);
     onSettingsChange?.(settings);
+    // Flash a "saved" banner for 2s on every settings change.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSaved(true);
     const timer = setTimeout(() => setSaved(false), 2000);
     return () => clearTimeout(timer);

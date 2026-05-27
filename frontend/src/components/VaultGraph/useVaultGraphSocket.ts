@@ -63,6 +63,8 @@ export function useVaultGraphSocket(
 
   useEffect(() => {
     if (!enabled) {
+      // Same pattern as useVaultGraph — reset on disable.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState('closed');
       return;
     }

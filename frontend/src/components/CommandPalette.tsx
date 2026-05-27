@@ -122,7 +122,12 @@ export function CommandPalette() {
     inputRef.current?.focus();
   }, []);
 
+  // Resetting the selected index when the search query or tab changes is
+  // a derived-from-input state — `useMemo`-style logic but with state so
+  // arrow keys can still increment it. set-state-in-effect is the
+  // textbook React pattern here; the rule flags it anyway.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedIdx(0);
   }, [query, tab]);
 

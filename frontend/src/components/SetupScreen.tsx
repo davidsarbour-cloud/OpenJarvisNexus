@@ -79,6 +79,8 @@ export function SetupScreen({ onReady }: { onReady: () => void }) {
   }, [onReady]);
 
   useEffect(() => {
+    // Fast 800ms setup-status polling — poll() sets progress state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     poll();
     const interval = setInterval(poll, 800);
     return () => clearInterval(interval);

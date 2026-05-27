@@ -17,7 +17,8 @@ export function useWsEvents(maxEvents: number = 50): UseWsEventsResult {
   const [events, setEvents] = useState<WsEvent[]>([]);
   const [state, setState] = useState<WsState>('connecting');
   const maxRef = useRef(maxEvents);
-  maxRef.current = maxEvents;
+  // Sync ref via effect so we don't mutate it during render (react-hooks/refs).
+  useEffect(() => { maxRef.current = maxEvents; });
 
   useEffect(() => {
     const append = (e: WsEvent) => {

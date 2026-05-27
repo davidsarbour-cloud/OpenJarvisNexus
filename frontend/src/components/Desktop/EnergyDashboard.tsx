@@ -161,6 +161,8 @@ export function EnergyDashboard({ apiUrl }: { apiUrl: string }) {
   }, [apiUrl]);
 
   useEffect(() => {
+    // Periodic refresh — fetchData sets loading state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
     const timer = setInterval(fetchData, REFRESH_INTERVAL_MS);
     return () => clearInterval(timer);

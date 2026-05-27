@@ -221,6 +221,8 @@ export function MemoryBrowser({ apiUrl }: { apiUrl: string }) {
   }, [apiUrl]);
 
   useEffect(() => {
+    // Once-on-mount stats fetch. loadStats sets loading state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadStats();
   }, [loadStats]);
 

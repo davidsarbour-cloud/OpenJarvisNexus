@@ -46,6 +46,8 @@ export function UpdateChecker() {
       return;
     }
 
+    // Initial check + interval. checkForUpdate sets loading state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     checkForUpdate();
     const interval = setInterval(checkForUpdate, CHECK_INTERVAL_MS);
     return () => clearInterval(interval);

@@ -213,6 +213,8 @@ export function LearningCurve({ apiUrl }: { apiUrl: string }) {
   }, [apiUrl]);
 
   useEffect(() => {
+    // 10s polling — refresh() sets loading state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
     const timer = setInterval(refresh, 10_000);
     return () => clearInterval(timer);

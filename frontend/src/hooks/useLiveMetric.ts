@@ -51,7 +51,9 @@ export function useLiveMetric<T>(
   const lastOkRef = useRef<number>(0);
   const cancelledRef = useRef(false);
   const fetcherRef = useRef(fetcher);
-  fetcherRef.current = fetcher;
+  // Keep a latest-value ref so the polling effect always calls the
+  // current fetcher closure without restarting on every render.
+  useEffect(() => { fetcherRef.current = fetcher; });
 
   useEffect(() => {
     cancelledRef.current = false;

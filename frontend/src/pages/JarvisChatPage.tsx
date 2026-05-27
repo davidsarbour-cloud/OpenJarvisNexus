@@ -58,7 +58,11 @@ export function JarvisChatPage() {
     : 'NO MODEL';
 
   // ── Auto-open sidebar when JARVIS starts streaming ─────────────────────
+  // Triggered by an external state change (the streaming flag flipping
+  // true). Effect-driven setState is the correct pattern for "react to
+  // a derived event"; lint flags it anyway.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (speaking) setSidebarOpen(true);
   }, [speaking]);
 
@@ -181,6 +185,9 @@ export function JarvisChatPage() {
     prevStreaming.current = speaking;
     if (wasStreaming && !speaking && ttsEnabled) {
       const last = [...messages].reverse().find((m) => m.role === 'assistant' && m.content);
+      // speakText updates internal speech state — calling it from an
+      // effect that observes the streaming edge is intentional.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (last?.content) speakText(last.content, last.id);
     }
   }, [speaking, messages, ttsEnabled, speakText]);

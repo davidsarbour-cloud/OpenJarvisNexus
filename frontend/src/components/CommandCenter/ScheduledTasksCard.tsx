@@ -11,7 +11,9 @@ import { CalendarClock, BookOpen } from 'lucide-react';
 import { HudCard } from './HudCard';
 import { useLiveMetric } from '../../hooks/useLiveMetric';
 import { fetchScheduledTasks, type ScheduledJob } from '../../lib/apiLive';
-import { urgencyFor, type Urgency } from './scheduledTaskUtils';
+// urgencyFor + URGENCY_COLOR are no longer used in the rendered output —
+// the visual treatment is uniform white now. Imports/types kept tree-
+// shaken to nothing.
 
 type Bucket = 'daily' | 'weekly' | 'monthly';
 
@@ -34,13 +36,6 @@ function fmtDuration(ms: number): string {
   if (m > 0) return `${m}m ${s % 60}s`;
   return `${s}s`;
 }
-
-const URGENCY_COLOR: Record<Urgency, string> = {
-  idle: 'var(--color-docker)',
-  warn: 'var(--color-security)',
-  alert: 'var(--color-forge)',
-  overdue: 'var(--color-cyberdeck)',
-};
 
 function bucketize(name: string): Bucket | null {
   const lower = name.toLowerCase();
@@ -132,7 +127,6 @@ export function ScheduledTasksCard() {
   const status = error ? 'down' : loading ? 'loading' : 'live';
 
   const nextDelta = nextOverall ? nextOverall.at.getTime() - now : null;
-  const nextUrgency = urgencyFor(nextDelta);
 
   return (
     <HudCard
@@ -192,8 +186,6 @@ export function ScheduledTasksCard() {
                   {jobs.map((j) => {
                     const at = parseNextRun(j.next_run);
                     const delta = at ? at.getTime() - now : null;
-                    const u = urgencyFor(delta);
-                    const color = URGENCY_COLOR[u];
                     const obsidianPath = JOB_OBSIDIAN_PATHS[j.id];
                     return (
                       <div

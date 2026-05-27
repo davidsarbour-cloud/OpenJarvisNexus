@@ -32,9 +32,11 @@ export function useAgentEvents(
   eventTypes?: readonly string[],
 ): void {
   const onEventRef = useRef(onEvent);
-  onEventRef.current = onEvent;
   const typesRef = useRef(eventTypes);
-  typesRef.current = eventTypes;
+  // Sync via effect so the WS handler always sees the latest closure
+  // without making the subscription effect re-run on every prop change.
+  useEffect(() => { onEventRef.current = onEvent; });
+  useEffect(() => { typesRef.current = eventTypes; });
 
   useEffect(() => {
     if (!agentId) return;

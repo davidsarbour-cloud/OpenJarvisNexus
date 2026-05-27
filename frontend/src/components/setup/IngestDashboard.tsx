@@ -112,6 +112,8 @@ export function IngestDashboard({
   }, [connectedIds]);
 
   useEffect(() => {
+    // Ingest-progress polling — poll() sets state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     poll();
     const interval = setInterval(poll, 2000);
     return () => clearInterval(interval);

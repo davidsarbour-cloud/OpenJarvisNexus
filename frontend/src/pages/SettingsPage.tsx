@@ -57,10 +57,13 @@ function ApiKeyInput({ storageKey, placeholder }: { storageKey: string; placehol
 }
 
 function CloudProviderStatus({ label, storageKey }: { label: string; storageKey: string }) {
-  const [hasKey, setHasKey] = useState(false);
-  useEffect(() => {
-    try { setHasKey(!!localStorage.getItem(storageKey)); } catch { setHasKey(false); }
-  }, [storageKey]);
+  // Lazy initial state — read once at mount. localStorage doesn't
+  // change under us in this component's lifetime, and if storageKey
+  // ever did rotate we'd remount the row from the parent anyway.
+  const [hasKey] = useState(() => {
+    try { return !!localStorage.getItem(storageKey); }
+    catch { return false; }
+  });
   return (
     <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
       <span style={{

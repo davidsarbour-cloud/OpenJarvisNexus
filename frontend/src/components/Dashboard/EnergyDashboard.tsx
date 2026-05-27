@@ -100,6 +100,8 @@ export function EnergyDashboard() {
   }, []);
 
   useEffect(() => {
+    // Initial fetch + 5s polling. fetchData flips loading state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);

@@ -83,6 +83,8 @@ export function usePolling<T>(
   }, [command, argsKey]);
 
   useEffect(() => {
+    // Periodic Tauri command polling — refresh sets loading state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
     const timer = setInterval(refresh, intervalMs);
     return () => clearInterval(timer);

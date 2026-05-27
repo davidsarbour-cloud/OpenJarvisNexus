@@ -461,6 +461,8 @@ function InteractTab({ apiUrl, agentId }: { apiUrl: string; agentId: string }) {
   }, [apiUrl, agentId]);
 
   useEffect(() => {
+    // 5s polling for agent messages — loadMessages sets state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadMessages();
     const t = setInterval(loadMessages, 5000);
     return () => clearInterval(t);
@@ -1054,6 +1056,8 @@ export function AgentsPanel({ apiUrl }: Props) {
   }, [apiUrl]);
 
   useEffect(() => {
+    // 10s polling — refresh() sets loading state inside.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
     const t = setInterval(refresh, 10_000);
     return () => clearInterval(t);
