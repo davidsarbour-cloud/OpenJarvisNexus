@@ -20,6 +20,7 @@ import { type LucideIcon, Container, FileText, Activity, RefreshCw,
 import { SkillActivator } from './SkillActivator';
 
 type SkillKind = 'toml' | 'protocol';
+type Cadence   = 'daily' | 'weekly';
 
 interface Skill {
   name:        string;
@@ -27,16 +28,24 @@ interface Skill {
   icon:        LucideIcon;
   description: string;
   example:     string;
+  /**
+   * Marks a skill that already runs on a recurring APScheduler cron
+   * (see daily_tasks.py). When set, the card hides the manual ACTIVATE
+   * button — the schedule covers it — and shows an "AUTO · {cadence}"
+   * tag instead.
+   */
+  scheduledAuto?: Cadence;
 }
 
 const SKILLS: Skill[] = [
   // ── TOML auto-executables ────────────────────────────────────────────────
   {
-    name:        'docker-health',
-    kind:        'toml',
-    icon:        Container,
-    description: 'Vérifie l\'état de tous les containers Docker et signale ceux qui sont down.',
-    example:     'check la santé des containers',
+    name:          'docker-health',
+    kind:          'toml',
+    icon:          Container,
+    description:   'Vérifie l\'état de tous les containers Docker et signale ceux qui sont down.',
+    example:       'check la santé des containers',
+    scheduledAuto: 'daily',
   },
   {
     name:        'docker-logs-check',
@@ -76,11 +85,12 @@ const SKILLS: Skill[] = [
     example:     'applique humanizer sur ce paragraphe',
   },
   {
-    name:        'ideation',
-    kind:        'protocol',
-    icon:        Lightbulb,
-    description: 'Génère des idées de projets via contraintes créatives (5W, SCAMPER, etc.).',
-    example:     'utilise ideation pour 10 idées STL Etsy',
+    name:          'ideation',
+    kind:          'protocol',
+    icon:          Lightbulb,
+    description:   'Génère des idées de projets via contraintes créatives (5W, SCAMPER, etc.).',
+    example:       'utilise ideation pour 10 idées STL Etsy',
+    scheduledAuto: 'weekly',
   },
   {
     name:        'plan',
@@ -90,11 +100,12 @@ const SKILLS: Skill[] = [
     example:     'fais un plan pour le refactor du forge_room',
   },
   {
-    name:        'codebase-inspection',
-    kind:        'protocol',
-    icon:        Code2,
-    description: 'Audit un codebase avec pygount : LOC, langues, ratios test/source.',
-    example:     'inspecte le codebase Nexus9',
+    name:          'codebase-inspection',
+    kind:          'protocol',
+    icon:          Code2,
+    description:   'Audit un codebase avec pygount : LOC, langues, ratios test/source.',
+    example:       'inspecte le codebase Nexus9',
+    scheduledAuto: 'weekly',
   },
   {
     name:        'obsidian',
@@ -104,18 +115,20 @@ const SKILLS: Skill[] = [
     example:     'cherche dans Obsidian les notes sur le trading',
   },
   {
-    name:        'blogwatcher',
-    kind:        'protocol',
-    icon:        Rss,
-    description: 'Monitor des blogs et flux RSS/Atom via blogwatcher-cli.',
-    example:     'watch le flux RSS de Hacker News',
+    name:          'blogwatcher',
+    kind:          'protocol',
+    icon:          Rss,
+    description:   'Monitor des blogs et flux RSS/Atom via blogwatcher-cli.',
+    example:       'watch le flux RSS de Hacker News',
+    scheduledAuto: 'daily',
   },
   {
-    name:        'polymarket',
-    kind:        'protocol',
-    icon:        TrendingUp,
-    description: 'Query Polymarket : marchés, prix, orderbooks, historique.',
-    example:     'quels marchés Polymarket sont chauds cette semaine ?',
+    name:          'polymarket',
+    kind:          'protocol',
+    icon:          TrendingUp,
+    description:   'Query Polymarket : marchés, prix, orderbooks, historique.',
+    example:       'quels marchés Polymarket sont chauds cette semaine ?',
+    scheduledAuto: 'daily',
   },
   {
     name:        'comfyui',
@@ -210,7 +223,7 @@ function SkillCard({
   subtle:     string;
   onActivate: () => void;
 }) {
-  const { name, kind, icon: Icon, description, example } = skill;
+  const { name, kind, icon: Icon, description, example, scheduledAuto } = skill;
   const isToml = kind === 'toml';
 
   return (
@@ -280,31 +293,45 @@ function SkillCard({
         <span>"{example}"</span>
       </div>
 
-      {/* Activate button — opens the modal pre-filled with the example */}
-      <button
-        type="button"
-        onClick={onActivate}
-        aria-label={`Activate ${name}`}
-        className="self-end flex items-center gap-2 px-3 py-1 text-[9px] font-bold tracking-[0.22em] transition-colors"
-        style={{
-          color:        accent,
-          background:   'transparent',
-          border:       `1px solid ${accent}`,
-          borderRadius: 3,
-          cursor:       'pointer',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = subtle;
-          e.currentTarget.style.boxShadow  = `0 0 12px -4px ${glow}`;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.boxShadow  = 'none';
-        }}
-      >
-        <Zap size={10} />
-        ACTIVATE
-      </button>
+      {/* Footer — manual ACTIVATE button OR scheduled-auto badge */}
+      {scheduledAuto ? (
+        <div
+          className="self-end flex items-center gap-2 px-3 py-1 text-[9px] tracking-[0.22em]"
+          style={{
+            color:        'var(--hud-text-dim)',
+            border:       '1px dashed var(--hud-border)',
+            borderRadius: 3,
+          }}
+          title={`Runs automatically on a ${scheduledAuto} APScheduler cron. No manual trigger here — see AUTOMATION SCHEDULE on the Command Center.`}
+        >
+          🗓️ AUTO · {scheduledAuto.toUpperCase()}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onActivate}
+          aria-label={`Activate ${name}`}
+          className="self-end flex items-center gap-2 px-3 py-1 text-[9px] font-bold tracking-[0.22em] transition-colors"
+          style={{
+            color:        accent,
+            background:   'transparent',
+            border:       `1px solid ${accent}`,
+            borderRadius: 3,
+            cursor:       'pointer',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = subtle;
+            e.currentTarget.style.boxShadow  = `0 0 12px -4px ${glow}`;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.boxShadow  = 'none';
+          }}
+        >
+          <Zap size={10} />
+          ACTIVATE
+        </button>
+      )}
     </article>
   );
 }
