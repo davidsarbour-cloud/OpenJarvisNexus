@@ -12,7 +12,7 @@
  *
  * Closed via the X button, by clicking outside the panel, or by hitting Esc.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { X, type LucideIcon } from 'lucide-react';
 import {
@@ -49,6 +49,21 @@ const AGENT_ICON: Record<string, LucideIcon> = {
   etsy:    ShoppingBag,
 };
 
+/**
+ * Try to load a real avatar image from `/agents/<id>.{png,jpg,webp}` in
+ * the public folder. If the image fails to load (404 or no file dropped
+ * yet) we fall back to the Lucide icon. Drop files at:
+ *
+ *   frontend/public/agents/jarvis.png
+ *   frontend/public/agents/ultron.png
+ *   …
+ *
+ * (lowercase id matches the agent IDs used by /v1/agents.)
+ */
+function avatarSrc(agentId: string): string {
+  return `/agents/${agentId}.png`;
+}
+
 interface AgentDetailPanelProps {
   agent: AgentInfo | null;
   colorKey: ModuleKey;
@@ -56,6 +71,11 @@ interface AgentDetailPanelProps {
 }
 
 export function AgentDetailPanel({ agent, colorKey, onClose }: AgentDetailPanelProps) {
+  // Image-load tracking: once an <img> hits onError we know there's no
+  // photo for this agent and we drop back to the Lucide icon for the
+  // rest of this panel session.
+  const [imgFailedFor, setImgFailedFor] = useState<string | null>(null);
+
   // Close on Esc.
   useEffect(() => {
     if (!agent) return;
@@ -74,6 +94,7 @@ export function AgentDetailPanel({ agent, colorKey, onClose }: AgentDetailPanelP
   const statusKey = (agent?.status ?? 'offline').toLowerCase();
   const statusColor = STATUS_COLOR[statusKey] ?? 'var(--hud-text-dim)';
   const statusLabel = STATUS_LABEL[statusKey] ?? statusKey.toUpperCase();
+  const showPhoto = agent && imgFailedFor !== agent.id;
 
   return (
     <AnimatePresence>
@@ -142,10 +163,10 @@ export function AgentDetailPanel({ agent, colorKey, onClose }: AgentDetailPanelP
 
             {/* Scroll area */}
             <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-4">
-              {/* Avatar — big themed disk */}
+              {/* Avatar — big themed disk, photo if available else Lucide icon */}
               <div className="flex flex-col items-center gap-3">
                 <div
-                  className="relative flex items-center justify-center rounded-full"
+                  className="relative flex items-center justify-center rounded-full overflow-hidden"
                   style={{
                     width: 120, height: 120,
                     background: `radial-gradient(circle at 30% 30%, ${subtle} 0%, rgba(0,0,0,0.6) 90%)`,
@@ -153,7 +174,17 @@ export function AgentDetailPanel({ agent, colorKey, onClose }: AgentDetailPanelP
                     boxShadow: `0 0 36px -6px ${glow}, inset 0 0 24px -8px ${glow}`,
                   }}
                 >
-                  <Icon size={56} color={accent} strokeWidth={1.5} />
+                  {showPhoto ? (
+                    <img
+                      src={avatarSrc(agent.id)}
+                      alt={agent.name}
+                      onError={() => setImgFailedFor(agent.id)}
+                      className="w-full h-full object-cover"
+                      draggable={false}
+                    />
+                  ) : (
+                    <Icon size={56} color={accent} strokeWidth={1.5} />
+                  )}
                   {/* Pulsing status ring at bottom-right */}
                   <span
                     className="absolute rounded-full"
