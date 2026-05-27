@@ -4,13 +4,21 @@ FastAPI + Claude + Ollama + CrewAI + SSE Streaming + Mémoire
 """
 
 import os
+import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+
+# Boot identity — regenerated on every Python process start (= every
+# uvicorn boot, even with --reload). The frontend compares this hex to
+# its localStorage record and replays the intro overlay when it differs.
+BOOT_ID = uuid.uuid4().hex
+BOOT_AT = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 # ── Environnement ────────────────────────────────────────
 load_dotenv(override=True)
@@ -147,6 +155,7 @@ from stl_researcher import generate_daily_report
 from stl_researcher import router as research_router
 from trend_hunter import router as trends_router
 from vault.vault_router import router as vault_router
+from world_cards_router import router as world_cards_router
 from ws_router import router as ws_router
 
 app.include_router(stl_router)
@@ -171,6 +180,7 @@ app.include_router(crew_router)
 app.include_router(orchestrate_router)
 app.include_router(agents_router)
 app.include_router(chat_router)
+app.include_router(world_cards_router)
 
 # ── Sert Nexus9.html (UI principale) à la racine ─────────
 # Permet l'accès micro (Web Speech API exige un contexte sécurisé : localhost OK, file:// bloqué)
@@ -300,6 +310,15 @@ def server_info():
         "model":   CLAUDE_MODEL,
         "host":    os.getenv("HOSTNAME", "nexus_backend"),
     }
+
+
+@app.get("/v1/boot/info")
+def boot_info():
+    """Per-process boot identity. The SPA reads this once on first paint
+    and replays the intro overlay (NexusBootIntro) whenever ``boot_id``
+    differs from the value it last persisted in localStorage. Restarting
+    uvicorn → new ``BOOT_ID`` → intro plays once at the next page load."""
+    return {"boot_id": BOOT_ID, "started_at": BOOT_AT}
 
 @app.get("/v1/connectors")
 def list_connectors():

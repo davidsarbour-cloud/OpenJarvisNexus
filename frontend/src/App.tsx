@@ -21,6 +21,7 @@ import { DataSourcesPage } from './pages/DataSourcesPage';
 import { LogsPage } from './pages/LogsPage';
 import { CommandPalette } from './components/CommandPalette';
 import { SetupScreen } from './components/SetupScreen';
+import { NexusBootIntro } from './components/Boot/NexusBootIntro';
 import { Toaster } from './components/ui/sonner';
 import { useAppStore } from './lib/store';
 import { fetchModels, fetchServerInfo, fetchSavings, submitSavings, isTauri } from './lib/api';
@@ -33,6 +34,11 @@ const PipelineHubPage = lazy(() => import('./pages/PipelineHubPage'));
 export default function App() {
   const [setupDone, setSetupDone] = useState(!isTauri());
   const handleSetupReady = useCallback(() => setSetupDone(true), []);
+  // Boot intro overlay — gates nothing visually, just sits on top
+  // until the user (or the video's onEnded) dismisses it. Mount-and-
+  // forget; it removes itself from the DOM once complete.
+  const [bootIntroDone, setBootIntroDone] = useState(false);
+  const handleBootIntroDone = useCallback(() => setBootIntroDone(true), []);
   const setModels = useAppStore((s) => s.setModels);
   const setModelsLoading = useAppStore((s) => s.setModelsLoading);
   const setSelectedModel = useAppStore((s) => s.setSelectedModel);
@@ -246,6 +252,7 @@ export default function App() {
       {optInModalOpen && (
         <OptInModal onClose={() => setOptInModalOpen(false)} />
       )}
+      {!bootIntroDone && <NexusBootIntro onComplete={handleBootIntroDone} />}
     </>
   );
 }
