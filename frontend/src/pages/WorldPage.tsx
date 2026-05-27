@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { cssVar, moduleColor, type ModuleKey } from '../lib/colors';
 import { CardSlot } from '../systems/CardSlot';
+import { JarvisSkillsSection } from '../components/JarvisWorld/JarvisSkillsSection';
 import { SystemHealthCard }   from '../components/CommandCenter/SystemHealthCard';
 import { AgentActivityCard }  from '../components/CommandCenter/AgentActivityCard';
 import { OllamaStatusCard }   from '../components/CommandCenter/OllamaStatusCard';
@@ -127,6 +128,10 @@ export function WorldPage({ worldKey, title }: WorldPageProps) {
         glow={color.glow}
         subtle={color.subtle}
       />
+
+      {worldKey === 'jarvis' && (
+        <JarvisSkillsSection accent={accent} glow={color.glow} subtle={color.subtle} />
+      )}
 
       {liveCards.length > 0 && (
         <Section label="LIVE TELEMETRY" accent={accent}>

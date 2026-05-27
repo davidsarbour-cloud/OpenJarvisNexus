@@ -121,7 +121,7 @@ export function HudSidebar() {
                 >
                   <entry.icon size={13} style={{ color }} />
                   <span className="flex-1">{entry.label}</span>
-                  {entry.escapable && isActive ? (
+                  {entry.escapable && isActive && (
                     <span
                       role="button"
                       tabIndex={0}
@@ -146,8 +146,6 @@ export function HudSidebar() {
                     >
                       <X size={11} />
                     </span>
-                  ) : (
-                    <StatusDot state={entry.status} />
                   )}
                 </button>
               );
@@ -156,20 +154,5 @@ export function HudSidebar() {
         </div>
       ))}
     </aside>
-  );
-}
-
-function StatusDot({ state }: { state?: 'on' | 'off' | 'warn' }) {
-  const map = {
-    on:   { c: 'var(--color-docker)',    glow: 'var(--color-docker-glow)' },
-    warn: { c: 'var(--color-security)',  glow: 'var(--color-security-glow)' },
-    off:  { c: 'var(--color-cyberdeck)', glow: 'var(--color-cyberdeck-glow)' },
-  } as const;
-  const s = state ? map[state] : map.off;
-  return (
-    <span
-      className="w-1.5 h-1.5 rounded-full"
-      style={{ background: s.c, boxShadow: `0 0 4px ${s.glow}` }}
-    />
   );
 }
