@@ -4,21 +4,6 @@ import { Layout } from './components/Layout';
 import { HudLayout } from './components/Layout/HudLayout';
 import { CommandCenterPage } from './pages/CommandCenterPage';
 import { OrbitalPage } from './pages/OrbitalPage';
-import { JarvisChatPage } from './pages/JarvisChatPage';
-import { BrainPage } from './pages/BrainPage';
-import { BrainHubPage } from './pages/BrainHubPage';
-import { WorldForgePage } from './pages/WorldForgePage';
-import { WorldJarvisPage } from './pages/WorldJarvisPage';
-import { WorldCommercePage } from './pages/WorldCommercePage';
-import { WorldVaultPage } from './pages/WorldVaultPage';
-import { WorldCyberdeckPage } from './pages/WorldCyberdeckPage';
-import { WorldDockerPage } from './pages/WorldDockerPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { GetStartedPage } from './pages/GetStartedPage';
-import { AgentsPage } from './pages/AgentsPage';
-import { DataSourcesPage } from './pages/DataSourcesPage';
-import { LogsPage } from './pages/LogsPage';
 import { CommandPalette } from './components/CommandPalette';
 import { SetupScreen } from './components/SetupScreen';
 import { NexusBootIntro } from './components/Boot/NexusBootIntro';
@@ -27,9 +12,38 @@ import { useAppStore } from './lib/store';
 import { fetchModels, fetchServerInfo, fetchSavings, submitSavings, isTauri } from './lib/api';
 import { OptInModal } from './components/OptInModal';
 
-// Lazy: React Flow bundle (~120 KB) only loaded when /agent-network is hit.
-const AgentNetworkPage = lazy(() => import('./pages/AgentNetworkPage'));
-const PipelineHubPage = lazy(() => import('./pages/PipelineHubPage'));
+// Route-level code splitting — every page below ships as its own chunk
+// and only loads when the user actually navigates to it. CommandCenter
+// (the index route) and Orbital stay eager because they are the two
+// most-trafficked entry points.
+const JarvisChatPage     = lazy(() => import('./pages/JarvisChatPage').then(m => ({ default: m.JarvisChatPage })));
+const BrainPage          = lazy(() => import('./pages/BrainPage').then(m => ({ default: m.BrainPage })));
+const BrainHubPage       = lazy(() => import('./pages/BrainHubPage').then(m => ({ default: m.BrainHubPage })));
+const WorldForgePage     = lazy(() => import('./pages/WorldForgePage').then(m => ({ default: m.WorldForgePage })));
+const WorldJarvisPage    = lazy(() => import('./pages/WorldJarvisPage').then(m => ({ default: m.WorldJarvisPage })));
+const WorldCommercePage  = lazy(() => import('./pages/WorldCommercePage').then(m => ({ default: m.WorldCommercePage })));
+const WorldVaultPage     = lazy(() => import('./pages/WorldVaultPage').then(m => ({ default: m.WorldVaultPage })));
+const WorldCyberdeckPage = lazy(() => import('./pages/WorldCyberdeckPage').then(m => ({ default: m.WorldCyberdeckPage })));
+const WorldDockerPage    = lazy(() => import('./pages/WorldDockerPage').then(m => ({ default: m.WorldDockerPage })));
+const DashboardPage      = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const SettingsPage       = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const GetStartedPage     = lazy(() => import('./pages/GetStartedPage').then(m => ({ default: m.GetStartedPage })));
+const AgentsPage         = lazy(() => import('./pages/AgentsPage').then(m => ({ default: m.AgentsPage })));
+const DataSourcesPage    = lazy(() => import('./pages/DataSourcesPage').then(m => ({ default: m.DataSourcesPage })));
+const LogsPage           = lazy(() => import('./pages/LogsPage').then(m => ({ default: m.LogsPage })));
+const AgentNetworkPage   = lazy(() => import('./pages/AgentNetworkPage'));
+const PipelineHubPage    = lazy(() => import('./pages/PipelineHubPage'));
+
+function RouteFallback() {
+  return (
+    <div
+      className="flex-1 flex items-center justify-center text-[11px] tracking-[0.18em]"
+      style={{ color: 'var(--hud-text-dim)' }}
+    >
+      LOADING…
+    </div>
+  );
+}
 
 export default function App() {
   const [setupDone, setSetupDone] = useState(!isTauri());
@@ -189,64 +203,34 @@ export default function App() {
 
   return (
     <>
-      <Routes>
-        <Route element={<HudLayout />}>
-          <Route index element={<CommandCenterPage />} />
-          <Route path="orbital" element={<OrbitalPage />} />
-          <Route path="brain" element={<BrainHubPage />} />
-          <Route path="chat" element={<JarvisChatPage />} />
-          <Route
-            path="agent-network"
-            element={
-              <Suspense
-                fallback={
-                  <div
-                    className="flex-1 flex items-center justify-center text-[11px] tracking-[0.18em]"
-                    style={{ color: 'var(--hud-text-dim)' }}
-                  >
-                    loading agent network…
-                  </div>
-                }
-              >
-                <AgentNetworkPage />
-              </Suspense>
-            }
-          />
-          <Route
-            path="pipeline-hub"
-            element={
-              <Suspense
-                fallback={
-                  <div
-                    className="flex-1 flex items-center justify-center text-[11px] tracking-[0.18em]"
-                    style={{ color: 'var(--hud-text-dim)' }}
-                  >
-                    loading pipeline hub…
-                  </div>
-                }
-              >
-                <PipelineHubPage />
-              </Suspense>
-            }
-          />
-          {/* WORLD pages — empty canvases parameterised by ModuleKey. */}
-          <Route path="world/jarvis"    element={<WorldJarvisPage />} />
-          <Route path="world/forge"     element={<WorldForgePage />} />
-          <Route path="world/commerce"  element={<WorldCommercePage />} />
-          <Route path="world/cyberdeck" element={<WorldCyberdeckPage />} />
-          <Route path="world/vault"     element={<WorldVaultPage />} />
-          <Route path="world/docker"    element={<WorldDockerPage />} />
-        </Route>
-        <Route element={<Layout />}>
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="get-started" element={<GetStartedPage />} />
-          <Route path="data-sources" element={<DataSourcesPage />} />
-          <Route path="agents" element={<AgentsPage />} />
-          <Route path="logs" element={<LogsPage />} />
-        </Route>
-        <Route path="vault-graph" element={<BrainPage />} />
-      </Routes>
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route element={<HudLayout />}>
+            <Route index element={<CommandCenterPage />} />
+            <Route path="orbital" element={<OrbitalPage />} />
+            <Route path="brain" element={<BrainHubPage />} />
+            <Route path="chat" element={<JarvisChatPage />} />
+            <Route path="agent-network" element={<AgentNetworkPage />} />
+            <Route path="pipeline-hub" element={<PipelineHubPage />} />
+            {/* WORLD pages — empty canvases parameterised by ModuleKey. */}
+            <Route path="world/jarvis"    element={<WorldJarvisPage />} />
+            <Route path="world/forge"     element={<WorldForgePage />} />
+            <Route path="world/commerce"  element={<WorldCommercePage />} />
+            <Route path="world/cyberdeck" element={<WorldCyberdeckPage />} />
+            <Route path="world/vault"     element={<WorldVaultPage />} />
+            <Route path="world/docker"    element={<WorldDockerPage />} />
+          </Route>
+          <Route element={<Layout />}>
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="get-started" element={<GetStartedPage />} />
+            <Route path="data-sources" element={<DataSourcesPage />} />
+            <Route path="agents" element={<AgentsPage />} />
+            <Route path="logs" element={<LogsPage />} />
+          </Route>
+          <Route path="vault-graph" element={<BrainPage />} />
+        </Routes>
+      </Suspense>
       <Toaster position="bottom-right" />
       {commandPaletteOpen && <CommandPalette />}
       {optInModalOpen && (
