@@ -34,7 +34,11 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp}'],
+        // Skip the multi-MB PNG fallbacks for world heroes and agent
+        // avatars — modern browsers fetch the WebP via <picture> source
+        // instead, and the PWA precache has a 2 MB-per-file limit anyway.
+        globIgnores: ['**/world/*.png', '**/agents/*.png', '**/intro/boot.mp4'],
         navigateFallbackDenylist: [/^\/v1\//, /^\/health/, /^\/orbital/, /^\/dashboard/, /^\/ws\//],
         skipWaiting: true,
         clientsClaim: true,
