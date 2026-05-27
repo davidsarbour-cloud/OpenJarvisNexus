@@ -5,7 +5,7 @@ import { fetchDockerContainers } from '../../lib/apiLive';
 import { useServiceAlert } from '../../systems/alerts';
 
 export function DockerLiveCard() {
-  const { data, error, loading } = useLiveMetric(fetchDockerContainers, { intervalMs: 8000 });
+  const { data, error, loading } = useLiveMetric(fetchDockerContainers, { intervalMs: 8000, wsTopic: 'snapshot/docker' });
 
   // "available" vient du backend (available:false = Docker engine inaccessible).
   // Une erreur réseau (timeout, fetch throw) indique seulement que le proxy est

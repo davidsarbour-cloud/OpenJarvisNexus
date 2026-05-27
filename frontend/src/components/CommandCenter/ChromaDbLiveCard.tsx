@@ -4,7 +4,7 @@ import { useLiveMetric } from '../../hooks/useLiveMetric';
 import { fetchChromaStats } from '../../lib/apiLive';
 
 export function ChromaDbLiveCard() {
-  const { data, error, loading } = useLiveMetric(fetchChromaStats, { intervalMs: 12000 });
+  const { data, error, loading } = useLiveMetric(fetchChromaStats, { intervalMs: 12000, wsTopic: 'snapshot/chromadb' });
   const available = data?.available ?? false;
   const status = error || !available ? 'down' : loading ? 'loading' : 'live';
   const cols = data?.collections;

@@ -38,7 +38,7 @@ export function BottomPanel() {
   }, []);
 
   // Try live system metrics — fall back to demo if missing
-  const sysMetrics = useLiveMetric(fetchSystemMetrics, { intervalMs: 2000 });
+  const sysMetrics = useLiveMetric(fetchSystemMetrics, { intervalMs: 2000, wsTopic: 'snapshot/system-metrics' });
 
   const cpu  = sysMetrics.data?.cpu_pct  ?? demoVal(tick, 45, 28, 0.55);
   const ram  = sysMetrics.data?.ram_pct  ?? demoVal(tick, 58, 18, 0.30);
@@ -47,7 +47,7 @@ export function BottomPanel() {
   const live = !sysMetrics.error;
 
   // Budget badge (real)
-  const budget = useLiveMetric(fetchBudget, { intervalMs: 5000 });
+  const budget = useLiveMetric(fetchBudget, { intervalMs: 5000, wsTopic: 'snapshot/budget' });
   const cost = budget.data?.session?.cost_usd ?? 0;
 
   return (

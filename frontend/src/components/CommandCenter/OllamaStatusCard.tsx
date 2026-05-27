@@ -5,7 +5,7 @@ import { fetchModels } from '../../lib/apiLive';
 import { useServiceAlert } from '../../systems/alerts';
 
 export function OllamaStatusCard() {
-  const { data, error, loading } = useLiveMetric(fetchModels, { intervalMs: 15000 });
+  const { data, error, loading } = useLiveMetric(fetchModels, { intervalMs: 15000, wsTopic: 'snapshot/models' });
   const models = data?.models ?? [];
   const ollamaCount = models.filter((m) => m.provider === 'ollama').length;
   const cloudCount = models.length - ollamaCount;

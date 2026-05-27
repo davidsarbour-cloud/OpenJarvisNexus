@@ -92,7 +92,7 @@ const FETCH_INTERVAL_MS = 30 * 60 * 1000;
 const TICK_INTERVAL_MS = 1000;
 
 export function ScheduledTasksCard() {
-  const { data, error, loading } = useLiveMetric(fetchScheduledTasks, { intervalMs: FETCH_INTERVAL_MS });
+  const { data, error, loading } = useLiveMetric(fetchScheduledTasks, { intervalMs: FETCH_INTERVAL_MS, wsTopic: 'snapshot/scheduled' });
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {

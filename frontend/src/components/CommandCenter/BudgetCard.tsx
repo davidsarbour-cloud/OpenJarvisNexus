@@ -4,7 +4,7 @@ import { useLiveMetric } from '../../hooks/useLiveMetric';
 import { fetchBudget } from '../../lib/apiLive';
 
 export function BudgetCard() {
-  const { data, error, loading } = useLiveMetric(fetchBudget, { intervalMs: 8000 });
+  const { data, error, loading } = useLiveMetric(fetchBudget, { intervalMs: 8000, wsTopic: 'snapshot/budget' });
   const status = error ? 'down' : loading ? 'loading' : 'live';
 
   const cost   = data?.session?.cost_usd ?? 0;

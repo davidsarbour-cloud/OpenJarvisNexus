@@ -69,7 +69,7 @@ function Bar({ label, pct }: { label: string; pct: number | null }) {
 }
 
 export function SystemHealthGauge() {
-  const { data, error, loading } = useLiveMetric(fetchSystemMetrics, { intervalMs: 2000 });
+  const { data, error, loading } = useLiveMetric(fetchSystemMetrics, { intervalMs: 2000, wsTopic: 'snapshot/system-metrics' });
   const status = error ? 'down' : loading ? 'loading' : 'live';
   const score = data?.health_score ?? 0;
   const label = data?.health_label ?? '—';

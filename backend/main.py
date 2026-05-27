@@ -140,7 +140,7 @@ async def _lifespan(app: FastAPI):
     # Replaces ~15 HTTP polls/min/client with O(1) fan-out via EventHub.
     try:
         from snapshot_publisher import start_publishers
-        app.state.snapshot_tasks = start_publishers()
+        app.state.snapshot_tasks = start_publishers(app)
         print(f"[Snapshots] {len(app.state.snapshot_tasks)} publishers started.")
     except Exception as _e:
         print(f"[Snapshots] Failed to start: {_e}")

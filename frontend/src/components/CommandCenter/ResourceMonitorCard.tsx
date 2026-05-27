@@ -42,7 +42,7 @@ interface Hist {
 }
 
 export function ResourceMonitorCard() {
-  const { data, error, loading } = useLiveMetric(fetchSystemMetrics, { intervalMs: 2000 });
+  const { data, error, loading } = useLiveMetric(fetchSystemMetrics, { intervalMs: 2000, wsTopic: 'snapshot/system-metrics' });
   const status = error ? 'down' : loading ? 'loading' : 'live';
   const hist = useRef<Hist>({ cpu: [], ram: [], vram: [], net: [] });
   const [, force] = useState(0);

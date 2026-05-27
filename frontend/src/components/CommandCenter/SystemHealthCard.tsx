@@ -12,7 +12,7 @@ const SERVICES: Array<{ key: keyof HealthDeep; label: string }> = [
 ];
 
 export function SystemHealthCard() {
-  const { data, error, loading } = useLiveMetric(fetchHealthDeep, { intervalMs: 10000 });
+  const { data, error, loading } = useLiveMetric(fetchHealthDeep, { intervalMs: 10000, wsTopic: 'snapshot/health' });
   const status = error ? 'down' : loading ? 'loading' : 'live';
 
   return (
