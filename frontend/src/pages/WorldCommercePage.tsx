@@ -31,7 +31,7 @@ const TokenBudget        = () => <LiveSatellite  title="TOKEN BUDGET"         co
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const CANDIDATES = ['/world/commerce.jpg', '/world/commerce.png', '/world/commerce.webp'];
+const CANDIDATES = ['/world/commerce.webp', '/world/commerce.png', '/world/commerce.jpg'];
 const STORAGE_KEY = 'nexus9.world-commerce.layout';
 const DOCK_WIDTH  = 260;
 const MIN_CARD_H  = 160;

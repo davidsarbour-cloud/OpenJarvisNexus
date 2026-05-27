@@ -22,12 +22,13 @@ import type { ComponentType } from 'react';
 import {
   ChevronUp, ChevronDown, X, Plus,
   Activity, GitBranch, FlaskConical, Settings,
-  Sparkles, Box, Printer,
+  Sparkles, Box, Printer, Hammer,
   ArrowLeft, ArrowRight,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { ForgePipelinesCard } from '../components/CommandCenter/ForgePipelinesCard';
+import { QuickForgeCard } from '../components/CommandCenter/QuickForgeCard';
 import { NamedSatellite, LiveSatellite } from '../components/CommandCenter/FunctionalSatellites';
 import { CardAccentContext } from '../components/CommandCenter/HudCard';
 
@@ -41,13 +42,13 @@ const BambuQueue           = () => <NamedSatellite title="BAMBU QUEUE"       col
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const CANDIDATES = ['/world/forge.jpg', '/world/forge.png', '/world/forge.webp'];
+const CANDIDATES = ['/world/forge.webp', '/world/forge.png', '/world/forge.jpg'];
 const STORAGE_KEY = 'nexus9.world-forge.layout';
 const DOCK_WIDTH  = 260;
 const MIN_CARD_H  = 160;
 const DEFAULT_CARD_H = 240;
 
-type CardType = 'pulse' | 'pipelinemon' | 'testdrone' | 'optimizerdrone' | 'meshy' | 'stl' | 'bambu';
+type CardType = 'pulse' | 'pipelinemon' | 'testdrone' | 'optimizerdrone' | 'meshy' | 'stl' | 'bambu' | 'quickforge';
 type Side     = 'left' | 'right';
 
 interface CardDef {
@@ -59,6 +60,7 @@ interface CardDef {
 
 const CARD_REGISTRY: Record<CardType, CardDef> = {
   pulse:          { label: 'PULSE',            sub: 'Pipeline Monitor',            icon: Activity,      Card: ForgePipelinesCard    },
+  quickforge:     { label: 'QUICK FORGE',      sub: 'Launch STL mission inline',   icon: Hammer,        Card: QuickForgeCard        },
   pipelinemon:    { label: 'PIPELINE MONITOR', sub: 'Real-time pipeline status',   icon: GitBranch,     Card: PipelineMonitorForge  },
   testdrone:      { label: 'TEST DRONE',       sub: 'Automated STL / code checks', icon: FlaskConical,  Card: TestDroneForge        },
   optimizerdrone: { label: 'OPTIMIZER DRONE',  sub: 'STL orientation / params',    icon: Settings,      Card: OptimizerDroneForge   },

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { SkillActivator } from '../components/JarvisWorld/SkillActivator';
 
-const CANDIDATES = ['/world/jarvis.png', '/world/jarvis.jpg', '/world/jarvis.webp'];
+const CANDIDATES = ['/world/jarvis.webp', '/world/jarvis.png', '/world/jarvis.jpg'];
 const DOCK_WIDTH = 300;
 
 type SkillKind = 'toml' | 'protocol';

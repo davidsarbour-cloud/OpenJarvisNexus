@@ -34,7 +34,7 @@ const MorningBrief       = () => <LiveSatellite  title="MORNING BRIEF"  colorKey
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const CANDIDATES = ['/world/vault.jpg', '/world/vault.png', '/world/vault.webp'];
+const CANDIDATES = ['/world/vault.webp', '/world/vault.png', '/world/vault.jpg'];
 const STORAGE_KEY = 'nexus9.world-vault.layout';
 const DOCK_WIDTH  = 260;
 const MIN_CARD_H  = 160;

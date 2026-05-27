@@ -29,7 +29,7 @@ const ContainerLogs    = () => <LiveSatellite  title="CONTAINER LOGS"    colorKe
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const CANDIDATES = ['/world/docker.jpg', '/world/docker.png', '/world/docker.webp'];
+const CANDIDATES = ['/world/docker.webp', '/world/docker.png', '/world/docker.jpg'];
 const STORAGE_KEY = 'nexus9.world-docker.layout';
 const DOCK_WIDTH  = 260;
 const MIN_CARD_H  = 160;

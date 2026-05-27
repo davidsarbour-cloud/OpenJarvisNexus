@@ -30,12 +30,12 @@ const AiResearchProbe       = () => <NamedSatellite title="AI RESEARCH PROBE"   
 const GpuTemp               = () => <LiveSatellite  title="GPU TEMP"               colorKey="cyberdeck" snapshotKey="gpu_temp" />;
 const ErrorLogTail          = () => <LiveSatellite  title="ERROR LOG TAIL"         colorKey="cyberdeck" snapshotKey="error_log" />;
 const ApiRateLimits         = () => <NamedSatellite title="API RATE LIMITS"        colorKey="cyberdeck" />;
-const TelegramActivity      = () => <NamedSatellite title="TELEGRAM ACTIVITY"      colorKey="cyberdeck" />;
-const ModelRouting          = () => <NamedSatellite title="MODEL ROUTING"          colorKey="cyberdeck" />;
+const TelegramActivity      = () => <LiveSatellite  title="TELEGRAM ACTIVITY"      colorKey="cyberdeck" snapshotKey="telegram_activity" />;
+const ModelRouting          = () => <LiveSatellite  title="MODEL ROUTING"          colorKey="cyberdeck" snapshotKey="model_routing"     />;
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const CANDIDATES = ['/world/cyberdeck.jpg', '/world/cyberdeck.png', '/world/cyberdeck.webp'];
+const CANDIDATES = ['/world/cyberdeck.webp', '/world/cyberdeck.png', '/world/cyberdeck.jpg'];
 const STORAGE_KEY = 'nexus9.world-cyberdeck.layout';
 const DOCK_WIDTH  = 260;
 const MIN_CARD_H  = 160;
