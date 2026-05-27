@@ -65,10 +65,17 @@ const BUCKET_LABEL: Record<Bucket, string> = {
 // the custom URI protocol — same pattern as the Pipeline Hub cards.
 const OBSIDIAN_VAULT = 'BRAIN';
 const JOB_OBSIDIAN_PATHS: Record<string, string> = {
-  trend_hunt:         '07_Schemas/workflows/trend-hunt-schema.md',
-  morning_briefing:   '07_Schemas/workflows/morning-briefing-schema.md',
-  daily_stl_research: '07_Schemas/workflows/stl-research-schema.md',
-  brain_autolink:     '07_Schemas/workflows/brain-autolink-schema.md',
+  trend_hunt:                '07_Schemas/workflows/trend-hunt-schema.md',
+  morning_briefing:          '07_Schemas/workflows/morning-briefing-schema.md',
+  daily_stl_research:        '07_Schemas/workflows/stl-research-schema.md',
+  brain_autolink:            '07_Schemas/workflows/brain-autolink-schema.md',
+  // Skill-driven cron jobs → Hermes reference notes
+  skill_docker_health:       '05_Resources/Research/hermes.md',
+  skill_blogwatcher:         '05_Resources/Research/hermes/blogwatcher.md',
+  skill_polymarket:          '05_Resources/Research/hermes/polymarket.md',
+  skill_codebase_inspection: '05_Resources/Research/hermes/codebase-inspection.md',
+  skill_ideation:            '05_Resources/Research/hermes/ideation.md',
+  skill_polymarket_digest:   '05_Resources/Research/hermes/polymarket.md',
 };
 
 function openObsidian(path: string) {

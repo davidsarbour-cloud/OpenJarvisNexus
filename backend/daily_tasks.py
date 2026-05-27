@@ -406,6 +406,168 @@ async def task_commerce_analytics():
         logger.error(f"Commerce analytics failed: {e}")
 
 
+# ─────────────────────────────────────────────────────────────────────────
+# Skill-driven scheduled jobs (daily + weekly)
+#
+# Maps directly to entries in backend/skills/ (TOML auto-exec) and
+# backend/skills/hermes/ (markdown protocols). Each run writes a markdown
+# note in BRAIN/02_Daily/YYYY-MM-DD/skill-<name>.md with a [[…]] link to
+# the Hermes reference note in BRAIN/05_Resources/Research/hermes/<name>.md
+# so the autolinker picks it up and Obsidian shows the backlinks.
+#
+# When a skill's underlying tool is not yet wired into the backend (e.g.
+# blogwatcher-cli, Polymarket API, Claude-based ideation), the task writes
+# a "stub" note with instructions on how to invoke the skill manually.
+# This keeps the schedule visible in /v1/daily/status and the
+# AUTOMATION SCHEDULE card so the calendar slot is always documented.
+# ─────────────────────────────────────────────────────────────────────────
+
+def _write_skill_brain_note(
+    skill_name: str,
+    kind: str,
+    body: str,
+    when: str = "daily",
+) -> Path | None:
+    """Write a skill-run report to BRAIN/02_Daily/<today>/skill-<name>.md.
+
+    Returns the path (or None if BRAIN_DIR isn't writable, which we never
+    raise on — scheduled jobs must not crash the scheduler).
+    """
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        brain_root = BACKEND_DIR / "BRAIN" / "BRAIN"
+        day_dir = brain_root / "02_Daily" / today
+        day_dir.mkdir(parents=True, exist_ok=True)
+        note = day_dir / f"skill-{skill_name}.md"
+        front_matter = (
+            "---\n"
+            f"nexus9_skill: {skill_name}\n"
+            f"nexus9_kind: {kind}\n"
+            f"nexus9_schedule: {when}\n"
+            f"nexus9_run_at: {datetime.now().isoformat(timespec='seconds')}\n"
+            f"tags: [skill-run, {skill_name}, automated]\n"
+            f"related: [[../../05_Resources/Research/hermes/{skill_name}]]\n"
+            "---\n\n"
+        )
+        note.write_text(front_matter + body, encoding="utf-8")
+        return note
+    except Exception as e:
+        logger.error(f"Skill brain note write failed for {skill_name}: {e}")
+        return None
+
+
+async def task_skill_docker_health():
+    """Daily 03:00 — snapshot container health (TOML skill `docker-health`)."""
+    try:
+        from tools.docker_tools import docker_status
+        s = docker_status()
+        if not s.get("ok"):
+            body = (
+                "# Docker Health · snapshot failed\n\n"
+                f"```\n{s.get('error', 'unknown error')}\n```\n"
+            )
+        else:
+            up    = s.get("up", 0)
+            total = s.get("total", 0)
+            rows  = [f"| {c['name']} | {'✅ UP' if c.get('running') else '❌ DOWN'} | {c.get('image','?')} |"
+                     for c in s.get("containers", [])]
+            body = (
+                f"# Docker Health · {up}/{total} UP\n\n"
+                f"Snapshot pris à {datetime.now().strftime('%H:%M:%S')}.\n\n"
+                "| Container | Status | Image |\n|---|---|---|\n"
+                + "\n".join(rows) + "\n"
+            )
+        _write_skill_brain_note("docker-health", "TOML", body, "daily")
+    except Exception as e:
+        logger.error(f"task_skill_docker_health: {e}")
+
+
+async def task_skill_blogwatcher():
+    """Daily 06:00 — monitor RSS/Atom feeds (Hermes skill `blogwatcher`)."""
+    body = (
+        "# Blogwatcher · scheduled run\n\n"
+        "**Status**: `blogwatcher-cli` not yet wired into the Nexus9 backend.\n\n"
+        "## To run manually\n"
+        "- UI : `/world/jarvis` → Quick Actions → BLOGWATCHER\n"
+        "- Chat : *applique blogwatcher sur <feed-url>*\n\n"
+        "## What this slot is for\n"
+        "Daily 06:00 sweep of subscribed RSS / Atom feeds → digest of new posts,\n"
+        "scored by relevance to BRAIN tags (trading, dropshipping, IA tools).\n"
+    )
+    _write_skill_brain_note("blogwatcher", "Hermes", body, "daily")
+
+
+async def task_skill_polymarket():
+    """Daily 21:00 — Polymarket market snapshot (Hermes skill `polymarket`)."""
+    body = (
+        "# Polymarket · scheduled snapshot\n\n"
+        "**Status**: Polymarket API not yet wired into the Nexus9 backend.\n\n"
+        "## To run manually\n"
+        "- UI : `/world/jarvis` → Quick Actions → POLYMARKET\n"
+        "- Chat : *utilise polymarket pour les marchés hot ce soir*\n\n"
+        "## What this slot is for\n"
+        "Evening snapshot of top-moving prediction markets so the weekly\n"
+        "digest (Sun 18:00) has 7 days of data to aggregate.\n"
+    )
+    _write_skill_brain_note("polymarket", "Hermes", body, "daily")
+
+
+async def task_skill_codebase_inspection():
+    """Weekly Sunday 02:00 — pygount LOC trend (Hermes skill `codebase-inspection`)."""
+    import subprocess
+
+    repo_paths = [
+        str(BACKEND_DIR),
+        str(BACKEND_DIR.parent / "frontend" / "src"),
+    ]
+    body = "# Codebase Inspection · weekly\n\n"
+    try:
+        # Skip backend/.venv + frontend/node_modules with --suffix filter
+        proc = subprocess.run(
+            ["pygount", "--format=summary", *repo_paths],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=180,
+        )
+        body += "```\n" + (proc.stdout or "").strip() + "\n```\n"
+        if proc.returncode != 0:
+            body += "\n**stderr**\n```\n" + (proc.stderr or "").strip() + "\n```\n"
+    except FileNotFoundError:
+        body += "**Status**: `pygount` introuvable. `pip install pygount` dans backend/.venv.\n"
+    except Exception as e:
+        body += f"**Status**: failed — {type(e).__name__}: {e}\n"
+    _write_skill_brain_note("codebase-inspection", "Hermes", body, "weekly")
+
+
+async def task_skill_polymarket_digest():
+    """Weekly Sunday 18:00 — aggregate the week's polymarket runs."""
+    body = (
+        "# Polymarket · weekly digest\n\n"
+        "**Status**: Stub — aggregate of the 7 daily polymarket runs not yet\n"
+        "implemented (needs the daily polymarket fetch wired first).\n\n"
+        "## Expected output once live\n"
+        "- Top 5 movers of the week (price delta)\n"
+        "- New high-volume markets created this week\n"
+        "- Resolved markets vs. predicted probability\n"
+    )
+    _write_skill_brain_note("polymarket-digest", "Hermes", body, "weekly")
+
+
+async def task_skill_ideation():
+    """Weekly Friday 14:00 — fresh STL/Etsy idea batch (Hermes skill `ideation`)."""
+    body = (
+        "# Ideation · weekly Friday batch\n\n"
+        "**Status**: Stub — requires a Claude or Ollama call. Auto-run is disabled\n"
+        "until budget-guarded routing is wired into the scheduler.\n\n"
+        "## To run manually\n"
+        "- UI : `/world/jarvis` → Quick Actions → IDEATION\n"
+        "- Chat : *utilise ideation pour 10 idées STL Etsy*\n\n"
+        "## What this slot is for\n"
+        "Friday afternoon idea batch: 10 fresh product ideas crossing\n"
+        "current trends × your STL/Etsy niches, ready for the weekend.\n"
+    )
+    _write_skill_brain_note("ideation", "Hermes", body, "weekly")
+
+
 def create_scheduler():
     """Crée et configure l'APScheduler avec toutes les tâches quotidiennes."""
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -482,5 +644,31 @@ def create_scheduler():
         misfire_grace_time=7200,  # tolère 2h de retard (hebdo)
     )
     logger.info("Scheduled: brain_autolink (weekly Sunday 02:30)")
+
+    # ── Skill jobs — 3 daily + 3 weekly ─────────────────────────────────────
+    # Each writes a markdown note to BRAIN/02_Daily/<today>/skill-<name>.md
+    # with a wikilink to the skill's Hermes reference note. Naming follows
+    # the `Daily:`/`Weekly:` prefix convention so the AUTOMATION SCHEDULE
+    # frontend card buckets them correctly.
+
+    skill_jobs = [
+        # (task,                         id,                          name,                                                  cron kwargs,                        grace)
+        (task_skill_docker_health,       "skill_docker_health",       "Daily: skill-docker-health (03:00)",                  {"hour":  3, "minute":  0},        3600),
+        (task_skill_blogwatcher,         "skill_blogwatcher",         "Daily: skill-blogwatcher (06:00)",                    {"hour":  6, "minute":  0},        3600),
+        (task_skill_polymarket,          "skill_polymarket",          "Daily: skill-polymarket (21:00)",                     {"hour": 21, "minute":  0},        3600),
+        (task_skill_codebase_inspection, "skill_codebase_inspection", "Weekly: skill-codebase-inspection (Sun 02:00)",       {"day_of_week": "sun", "hour":  2}, 7200),
+        (task_skill_ideation,            "skill_ideation",            "Weekly: skill-ideation (Fri 14:00)",                  {"day_of_week": "fri", "hour": 14}, 7200),
+        (task_skill_polymarket_digest,   "skill_polymarket_digest",   "Weekly: skill-polymarket-digest (Sun 18:00)",         {"day_of_week": "sun", "hour": 18}, 7200),
+    ]
+    for fn, job_id, job_name, cron_kwargs, grace in skill_jobs:
+        scheduler.add_job(
+            fn,
+            trigger=CronTrigger(**cron_kwargs),
+            id=job_id,
+            name=job_name,
+            replace_existing=True,
+            misfire_grace_time=grace,
+        )
+        logger.info(f"Scheduled: {job_name}")
 
     return scheduler
