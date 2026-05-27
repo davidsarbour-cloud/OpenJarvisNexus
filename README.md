@@ -28,7 +28,17 @@
 START_ALL.bat
 ```
 
-→ Ollama natif + backend FastAPI (`:8000`) + Vite (`:5173`) + sidecar Vault Graph. Voir `CLAUDE.md` et `PLAN_NEXUS9.md` pour l'architecture et la roadmap.
+→ Ollama natif + backend FastAPI (`:8000`) + Vite (`:5173`) + sidecar Vault Graph.
+
+**Documentation Nexus9** :
+
+- 📚 **[`docs/nexus9/`](docs/nexus9/README.md)** — guide d'entrée
+- ⚙️ [Architecture](docs/nexus9/architecture.md) — diagramme + live data fabric
+- 🚀 [Quickstart](docs/nexus9/quickstart.md) — cold machine → HUD en 10 min
+- 🃏 [Adding a card](docs/nexus9/adding-a-card.md) · [Adding a skill](docs/nexus9/adding-a-skill.md)
+- 🔌 [API reference](docs/nexus9/api.md) avec exemples curl
+- 🛠 [Troubleshooting](docs/nexus9/troubleshooting.md) (Windows-first)
+- 📋 `CLAUDE.md` (project constitution) · `PLAN_NEXUS9.md` (roadmap)
 
 ---
 

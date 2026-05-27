@@ -6,6 +6,81 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## NEXUS9 (fork de David Arbour) — 2026-05-27
+
+### Performance (`-95 %` images, `~0` HTTP polls in idle)
+- Agent avatars + world heroes resized (512 / 2560 px) and re-encoded
+  as WebP via ffmpeg. Combined 93 MB → 3.5 MB (−96 %). `<picture>`
+  source with PNG fallback so legacy browsers still work.
+- New `wsBus` singleton multiplexes every `useLiveMetric({ wsTopic })`
+  over one shared `/ws/events` socket. HTTP poll relaxed to 60 s
+  fallback when a wsTopic is set.
+- Backend `snapshot_publisher` spawns 10 asyncio loops (agents 8s ·
+  jobs 6s · world-cards 6s · system-metrics 2s · budget 8s · docker
+  8s · health 10s · chromadb 12s · models 30s · scheduled 60s) so
+  card data is pushed instead of polled. Idle HTTP traffic dropped
+  from ~140 req/min/client to ~0.
+- React routes lazy-loaded (`React.lazy()` on 15 pages). Initial
+  bundle ~30 % lighter; first paint quasi-instant.
+
+### Added
+- **Boot intro overlay** (`NexusBootIntro`) — splash that plays once per
+  backend boot. `GET /v1/boot/info` returns a per-process uuid; the
+  frontend compares with localStorage and replays only when it
+  differs. `<video src="/intro/boot.mp4">` with an animated HUD
+  placeholder fallback (NEXUS9 wordmark + scan lines + terminal
+  trace + progress bar) so the overlay is never broken.
+- **`<WorldShell>` shared component** — 5 world dashboard pages
+  (Forge/Commerce/Vault/Cyberdeck/Docker) now thin wrappers (~45 LOC
+  each) around one generic 3-column dashboard parameterised on
+  colorKey, cardRegistry, imageCandidates, defaultSeeds.
+  2 500 LOC of duplication → 886 LOC total (−65 %).
+- **QuickForge card** — inline STL-mission launcher (`POST /v1/forge/mission`)
+  docked in `/world/forge`. No nav required.
+- **Telegram activity / Model routing / Daily digest** world cards —
+  new snapshot keys in `/v1/world/cards/snapshot` + matching backend
+  fetchers and an in-process `_telegram_state` counter.
+- **Skill completion events on `/ws/events`** — scheduled and manual
+  skill runs publish `{level, source: "SKILL", note: "<vault path>"}`.
+  The RightPanel renders clickable rows that open the note via
+  `obsidian://open?vault=BRAIN&file=…`.
+- **Agent avatars** (7 of 10) — `<picture>` with WebP source +
+  Lucide-icon fallback for agents without a photo yet.
+
+### Tests (`25 → 45`, +80 %)
+- `wsBus.test.ts` (7) — singleton socket, filter-routed delivery,
+  history replay, ignored ping/error frames, unsubscribe, state.
+- `useLiveMetric.test.ts` (8) — initial fetch, error capture, WS
+  push replace, mismatched topic, no-sub-when-no-topic, exactly-one-
+  when-set, HTTP poll relaxed to ≥60 s, unsubscribe on unmount.
+- `test_snapshot_publisher.py` (3) — start_publishers spawns 10
+  expected topics with correct names, `_publish_loop` nests results
+  under `data`, fetcher exceptions are swallowed.
+- `test_boot_endpoint.py` (2) — boot_id stable for the process
+  lifetime; `/v1/info` and `/v1/boot/info` payloads don't overlap.
+
+### Security
+- `CORSMiddleware` switched from `allow_origins=["*"]` to an explicit
+  allow-list (localhost:5173 / :8000 / :1420 + tauri://localhost).
+  `NEXUS9_CORS_ORIGINS` env var extends without code changes. The
+  `["*"]` + `allow_credentials=True` combination violated the CORS
+  spec and is now impossible.
+
+### Documentation
+- New `docs/nexus9/` section with: architecture overview (mermaid
+  diagrams), quickstart, adding-a-card walkthrough, adding-a-skill
+  walkthrough (TOML + Hermes flavours), endpoint catalog with curl
+  examples, Windows-first troubleshooting guide.
+
+### Fixed
+- PWA service-worker build (`workbox.globIgnores` skips heavy world
+  PNG fallbacks; the WebP versions are precached instead).
+- "Phare de lumière" sweep animation removed from every world page
+  + the JARVIS portrait (too distracting; vignette breath + scan
+  lines kept).
+
+---
+
 ## NEXUS9 (fork de David Arbour) — 2026-05-23
 
 Surcouche NEXUS9 (Command Center React + agents) au-dessus d'OpenJarvis.
