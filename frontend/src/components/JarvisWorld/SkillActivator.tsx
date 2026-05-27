@@ -46,6 +46,15 @@ export function SkillActivator({
   const [error,  setError]    = useState<string>('');
   const [loading, setLoading] = useState(false);
   const textareaRef           = useRef<HTMLTextAreaElement>(null);
+  const resultRef             = useRef<HTMLDivElement>(null);
+
+  // When a response (or error) arrives, scroll the modal body to it —
+  // budget-block messages especially are easy to miss otherwise.
+  useEffect(() => {
+    if (result || error) {
+      resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [result, error]);
 
   // Esc to close + autofocus the textarea
   useEffect(() => {
@@ -65,10 +74,27 @@ export function SkillActivator({
     setResult('');
     setModel('');
     try {
+      // Prefix the prompt with `!local` so chat_router → should_use_claude()
+      // returns False and Ollama (qwen3:14b) handles the skill instead of
+      // Claude. Reasons:
+      //   1. qwen3:14b is fully capable of every Hermes protocol (plan,
+      //      humanizer, ideation, systematic-debugging…) — they're text
+      //      analyses, not Claude-specific.
+      //   2. Skills can fire often from the UI; routing them to Claude
+      //      drained the budget on the first try and surfaced as
+      //      "doesn't send" in the modal (model=bloqué).
+      //   3. Frees the Claude budget for ad-hoc chat in /chat where
+      //      reasoning quality matters.
+      // The `!local` token is stripped by chat_router and never appears
+      // in the assistant context. The displayed `prompt` stays unchanged
+      // so the user always sees the natural-language invocation they
+      // typed.
+      const wireMessage = `!local ${prompt.trim()}`;
+
       const r = await fetch(`${getBase()}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: prompt.trim(), stream: false }),
+        body: JSON.stringify({ message: wireMessage, stream: false }),
       });
       if (!r.ok) {
         setError(`HTTP ${r.status}`);
@@ -186,7 +212,10 @@ export function SkillActivator({
 
             <div className="flex items-center justify-between text-[9px] tracking-wider"
                  style={{ color: 'var(--hud-text-dim)' }}>
-              <span>Ctrl+Enter pour envoyer</span>
+              <span>
+                Ctrl+Enter pour envoyer · routé sur{' '}
+                <span style={{ color: accent }}>Ollama</span> (local, sans budget)
+              </span>
               <button
                 type="button"
                 onClick={() => void send()}
@@ -208,6 +237,7 @@ export function SkillActivator({
 
             {error && (
               <div
+                ref={resultRef}
                 className="px-3 py-2 text-[10.5px]"
                 style={{
                   color:      'var(--color-cyberdeck)',
@@ -220,29 +250,47 @@ export function SkillActivator({
               </div>
             )}
 
-            {result && (
-              <>
-                <label className="text-[8px] tracking-[0.3em] mt-1"
-                       style={{ color: 'var(--hud-text-dim)' }}>
-                  RESPONSE {model && <span style={{ color: accent }}>· {model}</span>}
-                </label>
-                <pre
-                  className="px-3 py-2 text-[11px] whitespace-pre-wrap break-words"
-                  style={{
-                    background: 'rgba(0,0,0,0.4)',
-                    border:     '1px solid var(--hud-border)',
-                    borderLeft: `2px solid ${accent}`,
-                    color:      'var(--hud-text)',
-                    fontFamily: 'inherit',
-                    borderRadius: 3,
-                    maxHeight: '40vh',
-                    overflowY: 'auto',
-                  }}
-                >
-                  {result}
-                </pre>
-              </>
-            )}
+            {result && (() => {
+              // Chat router returns model="bloqué" when the budget guard
+              // intercepts a Claude-routed prompt. Render that path as a
+              // warning so the user doesn't read "the SEND did nothing" —
+              // the response IS the budget message.
+              const isBlocked = model === 'bloqué' || model === 'bloque';
+              const stripeColor = isBlocked ? 'var(--color-security)' : accent;
+              const tagColor    = isBlocked ? 'var(--color-security)' : accent;
+              const tagLabel    = isBlocked ? 'BUDGET BLOCKED' : `RESPONSE · ${model || '?'}`;
+              return (
+                <div ref={!error ? resultRef : null} className="flex flex-col gap-2">
+                  <label className="text-[8px] tracking-[0.3em] mt-1"
+                         style={{ color: tagColor }}>
+                    {tagLabel}
+                  </label>
+                  <pre
+                    className="px-3 py-2 text-[11px] whitespace-pre-wrap break-words"
+                    style={{
+                      background: isBlocked ? 'rgba(245,158,11,0.05)' : 'rgba(0,0,0,0.4)',
+                      border:     `1px solid ${isBlocked ? 'var(--color-security)' : 'var(--hud-border)'}`,
+                      borderLeft: `2px solid ${stripeColor}`,
+                      color:      'var(--hud-text)',
+                      fontFamily: 'inherit',
+                      borderRadius: 3,
+                      maxHeight: '40vh',
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {result}
+                  </pre>
+                  {isBlocked && (
+                    <div className="text-[10px] leading-relaxed"
+                         style={{ color: 'var(--hud-text-dim)' }}>
+                      Le routing chat a tenté Claude. Pour débloquer : bump
+                      <code style={{ color: 'var(--color-security)' }}> BUDGET_MAX_USD </code>
+                      dans <code style={{ color: accent }}>backend/.env</code> puis restart le backend.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </motion.div>
       </motion.div>
