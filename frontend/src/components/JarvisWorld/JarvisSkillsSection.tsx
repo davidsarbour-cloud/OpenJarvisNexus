@@ -149,6 +149,10 @@ export function JarvisSkillsSection({ accent, glow, subtle }: Props) {
   // Which skill (if any) has its ACTIVATE modal open
   const [activeSkill, setActiveSkill] = useState<Skill | null>(null);
 
+  // Split skills by execution mode for the 2-column layout
+  const autoSkills   = SKILLS.filter((s) =>  s.scheduledAuto);
+  const manualSkills = SKILLS.filter((s) => !s.scheduledAuto);
+
   return (
     <section className="flex flex-col gap-3">
       {/* Section header */}
@@ -173,25 +177,28 @@ export function JarvisSkillsSection({ accent, glow, subtle }: Props) {
           borderRadius: 4,
         }}
       >
-        JARVIS reçoit le catalogue ci-dessous à chaque tour de chat. Tu peux invoquer
-        une skill par son nom (<em style={{ color: accent }}>"applique humanizer sur X"</em>),
-        décrire ton intent (<em style={{ color: accent }}>"ce texte sonne trop IA"</em>),
-        ou cliquer <strong style={{ color: accent }}>ACTIVATE</strong> sur une card
-        ci-dessous pour ouvrir le composer pré-rempli.
+        JARVIS reçoit le catalogue à chaque tour de chat. Cliquer une card
+        ouvre le composer pré-rempli, ou tu peux invoquer par nom dans le chat
+        (<em style={{ color: accent }}>"applique humanizer sur X"</em>).
       </div>
 
-      {/* Skill grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {SKILLS.map((s) => (
-          <SkillCard
-            key={s.name}
-            skill={s}
-            accent={accent}
-            glow={glow}
-            subtle={subtle}
-            onActivate={() => setActiveSkill(s)}
-          />
-        ))}
+      {/* Two-column layout: AUTO scheduled vs manual ACTIVATE */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <SkillColumn
+          label={`AUTO · ${autoSkills.length} SCHEDULED`}
+          accent={accent}
+          glow={glow}
+          subtle={subtle}
+          skills={autoSkills}
+        />
+        <SkillColumn
+          label={`ACTIVATE · ${manualSkills.length} ON-DEMAND`}
+          accent={accent}
+          glow={glow}
+          subtle={subtle}
+          skills={manualSkills}
+          onActivate={(s) => setActiveSkill(s)}
+        />
       </div>
 
       {/* Activator modal */}
@@ -210,6 +217,43 @@ export function JarvisSkillsSection({ accent, glow, subtle }: Props) {
   );
 }
 
+function SkillColumn({
+  label,
+  accent,
+  glow,
+  subtle,
+  skills,
+  onActivate,
+}: {
+  label:       string;
+  accent:      string;
+  glow:        string;
+  subtle:      string;
+  skills:      Skill[];
+  onActivate?: (s: Skill) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="text-[8px] font-bold tracking-[0.3em] pb-1"
+           style={{ color: 'var(--hud-text-dim)', borderBottom: '1px solid var(--hud-border)' }}>
+        {label}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {skills.map((s) => (
+          <SkillCard
+            key={s.name}
+            skill={s}
+            accent={accent}
+            glow={glow}
+            subtle={subtle}
+            onActivate={onActivate ? () => onActivate(s) : undefined}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SkillCard({
   skill,
   accent,
@@ -217,120 +261,113 @@ function SkillCard({
   subtle,
   onActivate,
 }: {
-  skill:      Skill;
-  accent:     string;
-  glow:       string;
-  subtle:     string;
-  onActivate: () => void;
+  skill:       Skill;
+  accent:      string;
+  glow:        string;
+  subtle:      string;
+  onActivate?: () => void;
 }) {
   const { name, kind, icon: Icon, description, example, scheduledAuto } = skill;
-  const isToml = kind === 'toml';
+  const isToml    = kind === 'toml';
+  const clickable = !scheduledAuto && !!onActivate;
+
+  const wrapperProps = clickable
+    ? {
+        role:     'button' as const,
+        tabIndex: 0,
+        onClick:  onActivate,
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onActivate?.();
+          }
+        },
+        title:    `Click to open the composer pre-filled with: "${example}"`,
+      }
+    : { title: `Runs automatically on a ${scheduledAuto} APScheduler cron — see AUTOMATION SCHEDULE.` };
 
   return (
     <article
-      className="flex flex-col gap-2 px-4 py-3 transition-colors"
+      {...wrapperProps}
+      className="flex items-center gap-2 px-2 py-1.5 transition-colors"
       style={{
         background: 'rgba(2,5,11,0.5)',
         border:     '1px solid var(--hud-border)',
-        borderRadius: 4,
+        borderRadius: 3,
+        cursor:     clickable ? 'pointer' : 'default',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.borderColor = accent;
-        e.currentTarget.style.boxShadow   = `inset 0 0 16px -10px ${glow}`;
+        e.currentTarget.style.boxShadow   = `inset 0 0 12px -8px ${glow}`;
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.borderColor = 'var(--hud-border)';
         e.currentTarget.style.boxShadow   = 'none';
       }}
     >
-      {/* Header: icon + name + kind badge */}
-      <header className="flex items-center gap-2">
-        <span
-          className="flex items-center justify-center"
-          style={{
-            width: 28, height: 28,
-            background: subtle,
-            color:      accent,
-            border:     `1px solid ${accent}`,
-            borderRadius: 4,
-          }}
-        >
-          <Icon size={14} strokeWidth={1.7} />
-        </span>
-        <span className="text-[11px] font-bold tracking-[0.18em] flex-1"
-              style={{ color: accent, textShadow: `0 0 6px ${glow}` }}>
+      {/* Icon — small square chip */}
+      <span
+        className="flex items-center justify-center shrink-0"
+        style={{
+          width: 22, height: 22,
+          background:   subtle,
+          color:        accent,
+          border:       `1px solid ${accent}`,
+          borderRadius: 3,
+        }}
+      >
+        <Icon size={11} strokeWidth={1.8} />
+      </span>
+
+      {/* Name + truncated description on one row */}
+      <div className="flex flex-col min-w-0 flex-1 leading-tight">
+        <span className="text-[10px] font-bold tracking-[0.18em] truncate"
+              style={{ color: accent }}>
           {name.toUpperCase()}
         </span>
-        <span
-          className="px-1.5 py-0.5 text-[8px] tracking-[0.2em]"
-          style={{
-            color:      isToml ? 'var(--color-docker)' : 'var(--color-vault)',
-            border:     `1px solid ${isToml ? 'var(--color-docker)' : 'var(--color-vault)'}`,
-            background: isToml ? 'rgba(0,255,136,0.06)' : 'rgba(168,85,247,0.06)',
-            borderRadius: 2,
-          }}
-        >
-          {isToml ? 'AUTO-EXEC' : 'PROTOCOL'}
+        <span className="text-[9.5px] truncate"
+              style={{ color: 'var(--hud-text-dim)' }}>
+          {description}
         </span>
-      </header>
-
-      {/* Description */}
-      <div className="text-[10.5px] leading-relaxed" style={{ color: 'var(--hud-text)' }}>
-        {description}
       </div>
 
-      {/* Example invocation */}
-      <div
-        className="px-2 py-1 text-[10px] tracking-wide italic flex items-center gap-2"
+      {/* Kind badge (auto-exec / protocol) */}
+      <span
+        className="shrink-0 px-1 py-px text-[7.5px] tracking-[0.2em]"
         style={{
-          background: 'rgba(0,0,0,0.4)',
-          color:      'var(--hud-text-dim)',
-          borderLeft: `2px solid ${accent}`,
+          color:        isToml ? 'var(--color-docker)' : 'var(--color-vault)',
+          border:       `1px solid ${isToml ? 'var(--color-docker)' : 'var(--color-vault)'}`,
+          background:   isToml ? 'rgba(0,255,136,0.06)' : 'rgba(168,85,247,0.06)',
           borderRadius: 2,
         }}
       >
-        <span style={{ color: accent }}>›</span>
-        <span>"{example}"</span>
-      </div>
+        {isToml ? 'TOML' : 'PROTO'}
+      </span>
 
-      {/* Footer — manual ACTIVATE button OR scheduled-auto badge */}
+      {/* Trailing tag — either AUTO chip or a tiny zap icon */}
       {scheduledAuto ? (
-        <div
-          className="self-end flex items-center gap-2 px-3 py-1 text-[9px] tracking-[0.22em]"
+        <span
+          className="shrink-0 px-1 py-px text-[7.5px] tracking-[0.2em]"
           style={{
             color:        'var(--hud-text-dim)',
             border:       '1px dashed var(--hud-border)',
-            borderRadius: 3,
+            borderRadius: 2,
           }}
-          title={`Runs automatically on a ${scheduledAuto} APScheduler cron. No manual trigger here — see AUTOMATION SCHEDULE on the Command Center.`}
         >
-          🗓️ AUTO · {scheduledAuto.toUpperCase()}
-        </div>
+          {scheduledAuto.toUpperCase()}
+        </span>
       ) : (
-        <button
-          type="button"
-          onClick={onActivate}
-          aria-label={`Activate ${name}`}
-          className="self-end flex items-center gap-2 px-3 py-1 text-[9px] font-bold tracking-[0.22em] transition-colors"
+        <span
+          className="shrink-0 flex items-center justify-center"
           style={{
-            color:        accent,
-            background:   'transparent',
-            border:       `1px solid ${accent}`,
-            borderRadius: 3,
-            cursor:       'pointer',
+            width: 18, height: 18,
+            color:      accent,
+            borderRadius: 2,
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = subtle;
-            e.currentTarget.style.boxShadow  = `0 0 12px -4px ${glow}`;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.boxShadow  = 'none';
-          }}
+          aria-hidden
         >
-          <Zap size={10} />
-          ACTIVATE
-        </button>
+          <Zap size={11} />
+        </span>
       )}
     </article>
   );
