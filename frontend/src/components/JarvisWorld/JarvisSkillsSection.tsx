@@ -311,8 +311,6 @@ function JarvisPortrait({ accent, glow }: { accent: string; glow: string }) {
               mixBlendMode:  'overlay',
             }}
           />
-          {/* Slow vertical sweep */}
-          <div className="jarvis-sweep" aria-hidden="true" />
           {/* Vignette breath */}
           <div className="jarvis-vignette" aria-hidden="true" />
 
@@ -323,21 +321,6 @@ function JarvisPortrait({ accent, glow }: { accent: string; glow: string }) {
             }
             .jarvis-ambient { animation: jarvis-ambient-breath 9s ease-in-out infinite; }
 
-            @keyframes jarvis-sweep {
-              0%   { transform: translateY(-15%); opacity: 0;    }
-              12%  { opacity: 0.42; }
-              88%  { opacity: 0.42; }
-              100% { transform: translateY(110%); opacity: 0;    }
-            }
-            .jarvis-sweep {
-              position: absolute;
-              left: 0; right: 0; top: 0;
-              height: 80px;
-              background: linear-gradient(180deg, transparent 0%, rgba(0,212,255,0.10) 50%, transparent 100%);
-              pointer-events: none;
-              animation: jarvis-sweep 24s linear infinite;
-              will-change: transform;
-            }
             @keyframes jarvis-vignette {
               0%, 100% { box-shadow: inset 0 0 90px -10px rgba(0,0,0,0.55); }
               50%      { box-shadow: inset 0 0 130px -4px rgba(0,0,0,0.7);  }

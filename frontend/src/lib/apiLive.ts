@@ -150,6 +150,34 @@ export interface ChromaStatsResponse {
 export const fetchChromaStats = () =>
   getJSON<ChromaStatsResponse>('/v1/chromadb/stats');
 
+// ─── World Cards Snapshot (/v1/world/cards/snapshot) ───
+export interface WorldCardMetric {
+  label: string;
+  value: string;
+}
+
+export interface WorldCardSnapshot {
+  status:  'active' | 'standby';
+  metrics: WorldCardMetric[];
+}
+
+export interface WorldCardsSnapshotData {
+  stl_output:     WorldCardSnapshot;
+  approval_queue: WorldCardSnapshot;
+  token_budget:   WorldCardSnapshot;
+  gpu_temp:       WorldCardSnapshot;
+  error_log:      WorldCardSnapshot;
+  vault_growth:   WorldCardSnapshot;
+  orphan_alert:   WorldCardSnapshot;
+  morning_brief:  WorldCardSnapshot;
+  disk_usage:     WorldCardSnapshot;
+  container_logs: WorldCardSnapshot;
+  generated_at:   string;
+}
+
+export const fetchWorldCardsSnapshot = () =>
+  getJSON<WorldCardsSnapshotData>('/v1/world/cards/snapshot', 6000);
+
 // ─── Scheduled Tasks (/v1/daily/status) ────────────────
 export interface ScheduledJob {
   id: string;

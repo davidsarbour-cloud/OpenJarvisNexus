@@ -1,17 +1,12 @@
-import { SystemHealthCard }    from '../components/CommandCenter/SystemHealthCard';
-import { AgentActivityCard }   from '../components/CommandCenter/AgentActivityCard';
-import { OllamaStatusCard }    from '../components/CommandCenter/OllamaStatusCard';
-import { ForgePipelinesCard }  from '../components/CommandCenter/ForgePipelinesCard';
-import { BudgetCard }          from '../components/CommandCenter/BudgetCard';
-import { DockerLiveCard }      from '../components/CommandCenter/DockerLiveCard';
-import { ChromaDbLiveCard }    from '../components/CommandCenter/ChromaDbLiveCard';
-import { ScheduledTasksCard }  from '../components/CommandCenter/ScheduledTasksCard';
-import { SatelliteCards } from '../components/CommandCenter/FunctionalSatellites';
-import { CardSlot }           from '../systems/CardSlot';
+import { ScheduledTasksCard } from '../components/CommandCenter/ScheduledTasksCard';
 
 /**
  * CommandCenterPage — route `/`.
- * Shows the 10 live service cards grid only.
+ *
+ * After the Phase 7 card migration, every service card was relocated to
+ * its themed `/world/<name>` room. Only AUTOMATION SCHEDULE remains here
+ * (it spans all rooms — global view of every APScheduler job).
+ * Navigation to worlds lives in the left sidebar (HudSidebar).
  */
 export function CommandCenterPage() {
   return (
@@ -22,21 +17,11 @@ export function CommandCenterPage() {
           <ScheduledTasksCard />
         </div>
       </div>
-
-      <SectionTitle text="SYSTEM OVERVIEW" />
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-10 gap-3">
-        <CardSlot serviceId="backend"><SystemHealthCard /></CardSlot>
-        <CardSlot serviceId="bruce"><AgentActivityCard /></CardSlot>
-        <CardSlot serviceId="ollama"><OllamaStatusCard /></CardSlot>
-        <CardSlot serviceId="forge"><ForgePipelinesCard /></CardSlot>
-        <CardSlot serviceId="backend"><BudgetCard /></CardSlot>
-        <CardSlot serviceId="docker"><DockerLiveCard /></CardSlot>
-        <CardSlot serviceId="chromadb"><ChromaDbLiveCard /></CardSlot>
-        <SatelliteCards />
-      </div>
     </div>
   );
 }
+
+// ── Section title ───────────────────────────────────────────────────────────
 
 function SectionTitle({ text }: { text: string }) {
   return (

@@ -7,7 +7,12 @@ import { OrbitalPage } from './pages/OrbitalPage';
 import { JarvisChatPage } from './pages/JarvisChatPage';
 import { BrainPage } from './pages/BrainPage';
 import { BrainHubPage } from './pages/BrainHubPage';
-import { WorldPage } from './pages/WorldPage';
+import { WorldForgePage } from './pages/WorldForgePage';
+import { WorldJarvisPage } from './pages/WorldJarvisPage';
+import { WorldCommercePage } from './pages/WorldCommercePage';
+import { WorldVaultPage } from './pages/WorldVaultPage';
+import { WorldCyberdeckPage } from './pages/WorldCyberdeckPage';
+import { WorldDockerPage } from './pages/WorldDockerPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { GetStartedPage } from './pages/GetStartedPage';
@@ -219,12 +224,12 @@ export default function App() {
             }
           />
           {/* WORLD pages — empty canvases parameterised by ModuleKey. */}
-          <Route path="world/jarvis"    element={<WorldPage worldKey="jarvis" />} />
-          <Route path="world/forge"     element={<WorldPage worldKey="forge" />} />
-          <Route path="world/commerce"  element={<WorldPage worldKey="commerce" />} />
-          <Route path="world/cyberdeck" element={<WorldPage worldKey="cyberdeck" />} />
-          <Route path="world/vault"     element={<WorldPage worldKey="vault" />} />
-          <Route path="world/docker"    element={<WorldPage worldKey="docker" />} />
+          <Route path="world/jarvis"    element={<WorldJarvisPage />} />
+          <Route path="world/forge"     element={<WorldForgePage />} />
+          <Route path="world/commerce"  element={<WorldCommercePage />} />
+          <Route path="world/cyberdeck" element={<WorldCyberdeckPage />} />
+          <Route path="world/vault"     element={<WorldVaultPage />} />
+          <Route path="world/docker"    element={<WorldDockerPage />} />
         </Route>
         <Route element={<Layout />}>
           <Route path="dashboard" element={<DashboardPage />} />

@@ -2,6 +2,10 @@ import { motion } from 'motion/react';
 import {
   CloudUpload, Activity, ShoppingCart, Bell, PieChart, Network,
   Settings, Layers, Brain, FileText, Megaphone, Wrench,
+  // Extra-card icons
+  Sparkles, Box, Printer, Package, CheckCircle, TrendingUp,
+  Thermometer, AlertTriangle, Gauge, BookOpen, Unlink, Sun,
+  HardDrive, Terminal, MessageSquare, GitFork, DollarSign,
 } from 'lucide-react';
 import { cssVar, MODULE_COLORS, type ModuleKey } from '../../lib/colors';
 
@@ -41,6 +45,50 @@ const SATELLITES: Satellite[] = [
     metrics: [{ label: 'PRIORITY', value: 'HIGH' }, { label: 'FILTERS', value: '7' }] },
   { title: 'MAINTENANCE DRONE', desc: 'Checks system health / resource usage / errors', colorKey: 'docker', icon: Wrench, status: 'active',
     metrics: [{ label: 'SYSTEM HEALTH', value: '98.7%' }, { label: 'ISSUES', value: '0' }] },
+
+  // ── Forge extras ─────────────────────────────────────────────────────────
+  { title: 'MESHY CREDITS', desc: 'Meshy AI API quota — generation tokens left', colorKey: 'forge', icon: Sparkles, status: 'active',
+    metrics: [{ label: 'CREDITS', value: '847' }, { label: 'DAYS LEFT', value: '~14' }] },
+  { title: 'STL OUTPUT', desc: 'Recent STL files exported from the Forge pipeline', colorKey: 'forge', icon: Box, status: 'active',
+    metrics: [{ label: 'TODAY', value: '4' }, { label: 'SUCCESS', value: '92%' }] },
+  { title: 'BAMBU QUEUE', desc: 'Bambu Lab printer status + current print ETA', colorKey: 'forge', icon: Printer, status: 'standby',
+    metrics: [{ label: 'STATUS', value: 'IDLE' }, { label: 'LAST PRINT', value: '2h ago' }] },
+
+  // ── Commerce extras ──────────────────────────────────────────────────────
+  { title: 'ETSY ORDERS', desc: "Today's Etsy orders + revenue + top product", colorKey: 'commerce', icon: Package, status: 'active',
+    metrics: [{ label: 'ORDERS', value: '12' }, { label: 'REVENUE', value: '$387' }] },
+  { title: 'APPROVAL QUEUE', desc: 'Commerce pipelines waiting for human approval', colorKey: 'commerce', icon: CheckCircle, status: 'active',
+    metrics: [{ label: 'PENDING', value: '3' }, { label: 'OLDEST', value: '47m' }] },
+  { title: 'LISTING PERFORMANCE', desc: 'Top listings — views, favs, conversion rate', colorKey: 'commerce', icon: TrendingUp, status: 'active',
+    metrics: [{ label: 'TOP VIEWS', value: '482' }, { label: 'CONV', value: '4.2%' }] },
+  { title: 'TOKEN BUDGET', desc: 'Anthropic API spend today + monthly projection', colorKey: 'commerce', icon: DollarSign, status: 'active',
+    metrics: [{ label: 'SPENT', value: '$4.27' }, { label: 'BUDGET', value: '30%' }] },
+
+  // ── Cyberdeck extras ─────────────────────────────────────────────────────
+  { title: 'GPU TEMP', desc: 'RTX 4070 Super temperature + utilization', colorKey: 'cyberdeck', icon: Thermometer, status: 'active',
+    metrics: [{ label: 'TEMP', value: '62°C' }, { label: 'UTIL', value: '78%' }] },
+  { title: 'ERROR LOG TAIL', desc: 'Last backend errors — click to open log file', colorKey: 'cyberdeck', icon: AlertTriangle, status: 'active',
+    metrics: [{ label: '24H', value: '4' }, { label: 'LAST', value: '47m' }] },
+  { title: 'API RATE LIMITS', desc: 'Remaining quota: Anthropic · Meshy · Etsy', colorKey: 'cyberdeck', icon: Gauge, status: 'active',
+    metrics: [{ label: 'ANTHROPIC', value: '87%' }, { label: 'MESHY', value: '64%' }] },
+  { title: 'TELEGRAM ACTIVITY', desc: 'Last David ↔ JARVIS messages via Telegram bot', colorKey: 'cyberdeck', icon: MessageSquare, status: 'active',
+    metrics: [{ label: 'MESSAGES', value: '31' }, { label: 'LAST', value: '12m' }] },
+  { title: 'MODEL ROUTING', desc: 'Which agents handled which queries today', colorKey: 'cyberdeck', icon: GitFork, status: 'active',
+    metrics: [{ label: 'ROUTED', value: '142' }, { label: 'CLAUDE', value: '56%' }] },
+
+  // ── Vault extras ─────────────────────────────────────────────────────────
+  { title: 'VAULT GROWTH', desc: 'Notes added today / week — total Obsidian count', colorKey: 'vault', icon: BookOpen, status: 'active',
+    metrics: [{ label: 'TODAY', value: '12' }, { label: 'TOTAL', value: '1.4K' }] },
+  { title: 'ORPHAN ALERT', desc: 'Notes with no [[backlinks]] — auto-fix dimanche 02:30', colorKey: 'vault', icon: Unlink, status: 'active',
+    metrics: [{ label: 'ORPHANS', value: '7' }, { label: 'LAST FIX', value: '5d' }] },
+  { title: 'MORNING BRIEF', desc: 'Daily brief auto-generated at 07:30 in BRAIN/02_Daily', colorKey: 'vault', icon: Sun, status: 'active',
+    metrics: [{ label: 'GENERATED', value: '07:30' }, { label: 'ITEMS', value: '8' }] },
+
+  // ── Docker extras ────────────────────────────────────────────────────────
+  { title: 'DISK USAGE', desc: 'Drive C: free space + output folder sizes', colorKey: 'docker', icon: HardDrive, status: 'active',
+    metrics: [{ label: 'FREE', value: '218GB' }, { label: 'USED', value: '47%' }] },
+  { title: 'CONTAINER LOGS', desc: 'Live tail — last N lines from selected container', colorKey: 'docker', icon: Terminal, status: 'active',
+    metrics: [{ label: 'ACTIVE', value: '13' }, { label: 'ERRORS', value: '0' }] },
 ];
 
 function hexA(hex: string, a: number): string {
@@ -57,8 +105,12 @@ function SatelliteCard({ sat }: { sat: Satellite }) {
   const c = cssVar(sat.colorKey);
   const mc = MODULE_COLORS[sat.colorKey];
   const Icon = sat.icon;
-  const statusColor = sat.status === 'active' ? 'var(--color-docker)' : 'var(--color-security)';
-  const statusLabel = sat.status === 'active' ? 'ACTIVE' : 'STANDBY';
+  // Healthy = world accent (passed via sat.colorKey from NamedSatellite),
+  // standby/offline = solid black.
+  const isHealthy = sat.status === 'active';
+  const statusColor = isHealthy ? c : '#000000';
+  const statusGlow  = isHealthy ? mc.glow : 'rgba(0,0,0,0.8)';
+  const statusTitle = isHealthy ? 'Active' : 'Standby';
 
   return (
     <motion.div
@@ -90,16 +142,19 @@ function SatelliteCard({ sat }: { sat: Satellite }) {
 
       <div className="flex-1" />
 
-      {/* Status */}
-      <div className="flex items-center gap-1.5 mb-2">
-        <span
-          className="w-1.5 h-1.5 rounded-full shrink-0"
-          style={{ background: statusColor, boxShadow: `0 0 6px ${statusColor}` }}
-        />
-        <span className="text-[9px] font-bold tracking-[0.2em]" style={{ color: statusColor }}>
-          {statusLabel}
-        </span>
-      </div>
+      {/* Status dot — top-right, tiny, room-coloured (or black if standby) */}
+      <span
+        aria-label={statusTitle}
+        title={statusTitle}
+        className="absolute"
+        style={{
+          top: 8, right: 8,
+          width: 7, height: 7, borderRadius: '50%',
+          background: statusColor,
+          boxShadow: `0 0 6px ${statusGlow}`,
+          border: isHealthy ? 'none' : '1px solid var(--hud-border)',
+        }}
+      />
 
       {/* Divider */}
       <div style={{ height: 1, background: 'var(--hud-border)' }} className="mb-2" />
@@ -133,5 +188,57 @@ export function SatelliteCards() {
         <SatelliteCard key={sat.title} sat={sat} />
       ))}
     </>
+  );
+}
+
+/**
+ * NamedSatellite — render a single satellite by its title.
+ *   - `colorKey`     overrides the default tint (re-theme per world)
+ *   - `status`       overrides the static status (live wrappers feed it)
+ *   - `liveMetrics`  overrides the 2 static metrics with fetched values
+ */
+export function NamedSatellite({
+  title, colorKey, status, liveMetrics,
+}: {
+  title:        string;
+  colorKey?:    ModuleKey;
+  status?:      'active' | 'standby';
+  liveMetrics?: [{ label: string; value: string }, { label: string; value: string }] | { label: string; value: string }[];
+}) {
+  const sat = SATELLITES.find((s) => s.title === title);
+  if (!sat) return null;
+  const themed: Satellite = { ...sat };
+  if (colorKey) themed.colorKey = colorKey;
+  if (status)   themed.status   = status;
+  if (liveMetrics && liveMetrics.length >= 2) {
+    themed.metrics = [liveMetrics[0], liveMetrics[1]] as Satellite['metrics'];
+  }
+  return <SatelliteCard sat={themed} />;
+}
+
+/**
+ * LiveSatellite — wraps NamedSatellite with a poll on the world-cards
+ * snapshot endpoint. Falls back to the satellite's static metrics until
+ * the first response arrives.
+ */
+import { useLiveMetric } from '../../hooks/useLiveMetric';
+import { fetchWorldCardsSnapshot, type WorldCardsSnapshotData } from '../../lib/apiLive';
+
+export function LiveSatellite({
+  title, colorKey, snapshotKey,
+}: {
+  title:       string;
+  colorKey:    ModuleKey;
+  snapshotKey: keyof Omit<WorldCardsSnapshotData, 'generated_at'>;
+}) {
+  const { data } = useLiveMetric(fetchWorldCardsSnapshot, { intervalMs: 30000 });
+  const card = data?.[snapshotKey];
+  return (
+    <NamedSatellite
+      title={title}
+      colorKey={colorKey}
+      status={card?.status}
+      liveMetrics={card?.metrics}
+    />
   );
 }

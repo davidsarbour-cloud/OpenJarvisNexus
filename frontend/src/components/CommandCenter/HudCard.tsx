@@ -1,21 +1,44 @@
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import type { ModuleKey } from '../../lib/colors';
 import { cssVar, MODULE_COLORS } from '../../lib/colors';
 
 export type CardStatus = 'live' | 'demo' | 'warn' | 'down' | 'loading';
 
-const STATUS_STYLE: Record<CardStatus, { label: string; color: string }> = {
-  live:    { label: 'LIVE',    color: 'var(--color-docker)' },
-  demo:    { label: 'DEMO',    color: 'var(--hud-text-dim)' },
-  warn:    { label: 'WARN',    color: 'var(--color-security)' },
-  down:    { label: 'DOWN',    color: 'var(--color-cyberdeck)' },
-  loading: { label: '…',       color: 'var(--color-jarvis)' },
+/**
+ * CardAccentContext — when set by an ancestor, every HudCard inside
+ * uses this ModuleKey for its tint (border, title, icon, glow) instead
+ * of its own hardcoded `colorKey`. Used by the /world/* pages so each
+ * room re-themes the embedded Command Center cards in its own colour.
+ *
+ * `null` means "no override" — cards keep their own colorKey.
+ */
+export const CardAccentContext = createContext<ModuleKey | null>(null);
+
+// Healthy statuses use the world's accent (forge orange, vault violet,
+// commerce teal, cyberdeck red, docker green, jarvis cyan — see
+// CardAccentContext). Down/warn = solid black to read as "offline".
+const HEALTHY: Record<CardStatus, boolean> = {
+  live:    true,
+  demo:    true,
+  loading: true,
+  warn:    false,
+  down:    false,
+};
+
+const DOT_LABEL: Record<CardStatus, string> = {
+  live:    'live',
+  demo:    'demo',
+  loading: 'loading',
+  warn:    'warning',
+  down:    'offline',
 };
 
 /**
  * HudCard — shared chrome for every Command Center card.
  * Phase 6: animated hover (Framer Motion) with scale + module-tinted glow.
+ * Phase 7: status badge replaced by a small green/red dot; colorKey can
+ * be overridden by an ancestor via CardAccentContext (world re-theming).
  */
 export function HudCard({
   title, subtitle, colorKey, icon: Icon, status, children,
@@ -27,9 +50,15 @@ export function HudCard({
   status: CardStatus;
   children: ReactNode;
 }) {
-  const c = cssVar(colorKey);
-  const glow = MODULE_COLORS[colorKey].glow;
-  const s = STATUS_STYLE[status];
+  const ctxAccent = useContext(CardAccentContext);
+  const effectiveKey: ModuleKey = ctxAccent ?? colorKey;
+  const c = cssVar(effectiveKey);
+  const glow = MODULE_COLORS[effectiveKey].glow;
+  const isHealthy = HEALTHY[status];
+  const dot = isHealthy ? c : '#000000';
+  const dotGlow = isHealthy ? glow : 'rgba(0,0,0,0.8)';
+  const dotBorder = isHealthy ? 'none' : '1px solid var(--hud-border)';
+
   return (
     <motion.div
       className="flex flex-col p-3 relative"
@@ -46,17 +75,22 @@ export function HudCard({
       }}
       transition={{ type: 'spring', stiffness: 320, damping: 22 }}
     >
+      {/* Status dot — tiny, top-right. Healthy = room colour, down = black */}
       <span
-        className="absolute top-1.5 right-1.5 text-[8px] font-bold tracking-[0.18em] px-1.5 py-0.5"
+        aria-label={`Card status: ${DOT_LABEL[status]}`}
+        title={DOT_LABEL[status]}
+        className="absolute"
         style={{
-          color: s.color,
-          border: `1px solid ${s.color}`,
-          background: 'rgba(0,0,0,0.3)',
-          borderRadius: 1,
+          top: 8,
+          right: 8,
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          background: dot,
+          boxShadow: `0 0 6px ${dotGlow}`,
+          border: dotBorder,
         }}
-      >
-        {s.label}
-      </span>
+      />
 
       <div className="flex items-center gap-2 mb-0.5">
         <Icon size={14} style={{ color: c }} />
@@ -85,7 +119,9 @@ export function CardValue({
   unit?: string;
   colorKey: ModuleKey;
 }) {
-  const c = cssVar(colorKey);
+  const ctxAccent = useContext(CardAccentContext);
+  const effectiveKey: ModuleKey = ctxAccent ?? colorKey;
+  const c = cssVar(effectiveKey);
   return (
     <div className="flex items-baseline gap-2">
       <span className="text-3xl font-bold tabular-nums" style={{ color: c, lineHeight: 1 }}>

@@ -148,30 +148,22 @@ export function ScheduledTasksCard() {
         style={{
           background: 'rgba(0,0,0,0.3)',
           border: '1px solid var(--hud-border)',
-          borderLeft: `2px solid ${URGENCY_COLOR[nextUrgency]}`,
         }}
       >
-        <span
-          className="w-2 h-2 rounded-full"
-          style={{
-            background: URGENCY_COLOR[nextUrgency],
-            boxShadow: `0 0 8px ${URGENCY_COLOR[nextUrgency]}`,
-          }}
-        />
-        <span className="text-[10px] tracking-[0.22em]" style={{ color: 'var(--hud-text-dim)' }}>
+        <span className="text-[10px] tracking-[0.22em]" style={{ color: '#ffffff' }}>
           NEXT
         </span>
-        <span className="text-[11px] font-bold" style={{ color: 'var(--hud-text)' }}>
+        <span className="text-[11px] font-bold" style={{ color: '#ffffff' }}>
           {nextOverall ? nextOverall.name : '—'}
         </span>
-        <span className="ml-auto text-[14px] font-bold tabular-nums" style={{ color: URGENCY_COLOR[nextUrgency] }}>
+        <span className="ml-auto text-[14px] font-bold tabular-nums" style={{ color: '#ffffff' }}>
           {nextDelta === null
             ? '—'
             : nextDelta < 0
               ? `OVERDUE ${fmtDuration(nextDelta)}`
               : `in ${fmtDuration(nextDelta)}`}
         </span>
-        <span className="text-[9px] tracking-wider" style={{ color: 'var(--hud-text-dim)' }}>
+        <span className="text-[9px] tracking-wider" style={{ color: '#ffffff' }}>
           {jobCount} JOBS
         </span>
       </div>
@@ -185,14 +177,14 @@ export function ScheduledTasksCard() {
               <div
                 className="text-[9px] font-bold tracking-[0.3em] mb-1.5 pb-1"
                 style={{
-                  color: 'var(--hud-text-dim)',
+                  color: '#ffffff',
                   borderBottom: '1px solid var(--hud-border)',
                 }}
               >
                 {BUCKET_LABEL[bucket]} ({jobs.length})
               </div>
               {jobs.length === 0 ? (
-                <div className="text-[9px] py-1" style={{ color: 'var(--hud-text-dim)', opacity: 0.5 }}>
+                <div className="text-[9px] py-1" style={{ color: '#ffffff', opacity: 0.5 }}>
                   none scheduled
                 </div>
               ) : (
@@ -207,21 +199,11 @@ export function ScheduledTasksCard() {
                       <div
                         key={j.id}
                         className="flex items-center gap-2 text-[10px] py-0.5 px-1"
-                        style={{
-                          background: u === 'alert' || u === 'overdue' ? `${color}1a` : 'transparent',
-                          borderRadius: 1,
-                        }}
+                        style={{ borderRadius: 1 }}
                       >
                         <span
-                          className="w-1.5 h-1.5 rounded-full shrink-0"
-                          style={{
-                            background: color,
-                            boxShadow: `0 0 4px ${color}`,
-                          }}
-                        />
-                        <span
                           className="truncate"
-                          style={{ color: 'var(--hud-text)', flex: 1 }}
+                          style={{ color: '#ffffff', flex: 1 }}
                           title={j.id}
                         >
                           {stripPrefix(j.name)}
@@ -251,7 +233,7 @@ export function ScheduledTasksCard() {
                             <BookOpen size={10} />
                           </button>
                         )}
-                        <span className="tabular-nums shrink-0" style={{ color }}>
+                        <span className="tabular-nums shrink-0" style={{ color: '#ffffff' }}>
                           {delta === null
                             ? '—'
                             : delta < 0
