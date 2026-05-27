@@ -70,10 +70,52 @@
     "enabled": true,
     "schedule_hour": 6,
     "schedule_minute": 0,
-    "tickers": [],
-    "crypto": [],
-    "dropshipping_keywords": [],
-    "reddit_subreddits": [],
+    "tickers": [
+      "NVDA",
+      "AMD",
+      "TSLA",
+      "ASML",
+      "INTC",
+      "AMZN"
+    ],
+    "crypto": [
+      "BTC-USD",
+      "XRP-USD"
+    ],
+    "dropshipping_keywords": [
+      "AI agents",
+      "Open-source AI",
+      "Local LLM",
+      "Ollama",
+      "Claude Code",
+      "Automation",
+      "n8n",
+      "Docker",
+      "Self-hosted",
+      "RAG",
+      "Vector DB",
+      "AI workflow",
+      "3D printing",
+      "Etsy trends",
+      "Passive income",
+      "Cyberpunk UI",
+      "Sci-fi dashboard",
+      "Warhammer 40K"
+    ],
+    "reddit_subreddits": [
+      "LocalLLaMA",
+      "singularity",
+      "OpenAI",
+      "ClaudeAI",
+      "StableDiffusion",
+      "selfhosted",
+      "ollama",
+      "n8n",
+      "docker",
+      "SideProject",
+      "EtsySellers",
+      "3Dprinting"
+    ],
     "snapshot_dir": "trend_snapshots"
   }
 }
