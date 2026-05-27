@@ -170,15 +170,37 @@ async def _lifespan(app: FastAPI):
 
 # ── App ──────────────────────────────────────────────────
 app = FastAPI(title="OpenJarvis Nexus Backend", version="0.5.0", lifespan=_lifespan)
+
+# CORS — explicit allow-list. Dev defaults cover localhost (FastAPI :8000
+# serving the SPA + Vite :5173 dev server) and Tauri's tauri://localhost
+# / asset.localhost origins. Set NEXUS9_CORS_ORIGINS in the environment
+# (comma-separated) to extend the list — e.g. for a LAN IP, a tunnel, or
+# a prod domain. Wildcard is intentionally NOT supported in conjunction
+# with allow_credentials=True per the CORS spec.
+_DEFAULT_CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:1420",       # Tauri default dev port
+    "tauri://localhost",
+    "https://tauri.localhost",
+]
+_env_origins = os.getenv("NEXUS9_CORS_ORIGINS", "").strip()
+_extra_origins = [o.strip() for o in _env_origins.split(",") if o.strip()] if _env_origins else []
+_CORS_ORIGINS = _DEFAULT_CORS_ORIGINS + _extra_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
     max_age=3600,
 )
+print(f"[CORS] {len(_CORS_ORIGINS)} allowed origins"
+      f"{' (+' + str(len(_extra_origins)) + ' from env)' if _extra_origins else ''}")
 
 from agents_router import router as agents_router
 from brain_router import router as brain_router
