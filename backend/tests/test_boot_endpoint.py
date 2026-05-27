@@ -2,13 +2,26 @@
 
 The frontend's NexusBootIntro keys off boot_id to decide whether to
 replay the splash overlay — drift here means the intro either plays
-every refresh or never plays at all."""
+every refresh or never plays at all.
+
+Skipped in minimal-CI environments that don't install the full backend
+runtime (chromadb, trimesh, playwright, …). Run locally via the
+`backend/.venv` interpreter."""
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-from fastapi.testclient import TestClient
+import pytest
+
+# Heavy runtime deps the full FastAPI app chain pulls in transitively.
+# When any of them is missing we skip rather than fail — these tests are
+# meant for the local full-venv loop, not the minimal CI pure-helper job.
+pytest.importorskip("fastapi")
+pytest.importorskip("trimesh")
+pytest.importorskip("playwright")
+
+from fastapi.testclient import TestClient  # noqa: E402
 
 BACKEND = Path(__file__).resolve().parent.parent
 if str(BACKEND) not in sys.path:

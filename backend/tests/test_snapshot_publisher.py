@@ -15,6 +15,14 @@ from pathlib import Path
 
 import pytest
 
+# start_publishers lazily imports every router (agents, chat, crew,
+# health, monitoring, world_cards) which transitively pull fastapi,
+# trimesh, playwright, etc. The minimal-CI pure-helper job doesn't
+# install those — skip there, run locally.
+pytest.importorskip("fastapi")
+pytest.importorskip("trimesh")
+pytest.importorskip("playwright")
+
 # Make the backend package importable when pytest is run from repo root.
 BACKEND = Path(__file__).resolve().parent.parent
 if str(BACKEND) not in sys.path:
