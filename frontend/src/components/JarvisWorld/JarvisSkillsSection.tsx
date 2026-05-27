@@ -182,15 +182,14 @@ export function JarvisSkillsSection({ accent, glow, subtle }: Props) {
         (<em style={{ color: accent }}>"applique humanizer sur X"</em>).
       </div>
 
-      {/* Two-column layout: AUTO scheduled vs manual ACTIVATE */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <SkillColumn
-          label={`AUTO · ${autoSkills.length} SCHEDULED`}
-          accent={accent}
-          glow={glow}
-          subtle={subtle}
-          skills={autoSkills}
-        />
+      {/* 3-column layout — ACTIVATE left · JARVIS portrait center · SCHEDULED right */}
+      <div
+        className="grid gap-3"
+        style={{
+          gridTemplateColumns: 'minmax(260px, 320px) 1fr minmax(260px, 320px)',
+          minHeight: 520,
+        }}
+      >
         <SkillColumn
           label={`ACTIVATE · ${manualSkills.length} ON-DEMAND`}
           accent={accent}
@@ -198,6 +197,16 @@ export function JarvisSkillsSection({ accent, glow, subtle }: Props) {
           subtle={subtle}
           skills={manualSkills}
           onActivate={(s) => setActiveSkill(s)}
+        />
+
+        <JarvisPortrait accent={accent} glow={glow} />
+
+        <SkillColumn
+          label={`AUTO · ${autoSkills.length} SCHEDULED`}
+          accent={accent}
+          glow={glow}
+          subtle={subtle}
+          skills={autoSkills}
         />
       </div>
 
@@ -216,6 +225,154 @@ export function JarvisSkillsSection({ accent, glow, subtle }: Props) {
     </section>
   );
 }
+
+/**
+ * Centre column of the 3-col JARVIS layout: a hero portrait of the
+ * JARVIS image with HUD overlays (low-amplitude CRT scan lines, slow
+ * vertical sweep, vignette breath). The image lives in
+ * frontend/public/world/ — we try a few candidate names so it works
+ * regardless of how the user saved it.
+ */
+function JarvisPortrait({ accent, glow }: { accent: string; glow: string }) {
+  const candidates = [
+    '/world/jarvis.png',
+    '/world/JARVIS.png',
+    '/world/jarvis.jpg',
+    '/world/jarvis.webp',
+  ];
+  const [idx, setIdx]       = useState(0);
+  const [failed, setFailed] = useState(false);
+
+  const handleError = () => {
+    if (idx + 1 < candidates.length) setIdx(idx + 1);
+    else setFailed(true);
+  };
+
+  return (
+    <div
+      className="relative overflow-hidden flex items-center justify-center"
+      style={{
+        background:   'rgba(2,5,11,0.6)',
+        border:       `1px solid ${accent}`,
+        borderRadius: 4,
+        boxShadow:    `0 0 28px -10px ${glow}, inset 0 0 36px -16px ${glow}`,
+      }}
+    >
+      {!failed ? (
+        <>
+          {/* Blurred ambient copy — gentle breathing */}
+          <img
+            src={candidates[idx]}
+            alt=""
+            aria-hidden="true"
+            onError={handleError}
+            className="jarvis-ambient"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width:  '100%',
+              height: '100%',
+              objectFit:     'cover',
+              objectPosition: 'center',
+              filter:    'blur(36px) saturate(1.15) brightness(0.55)',
+              transform: 'scale(1.12)',
+              opacity:   0.85,
+              display:   'block',
+            }}
+          />
+          {/* Foreground portrait — fits its natural aspect ratio */}
+          <img
+            src={candidates[idx]}
+            alt="JARVIS Core"
+            onError={handleError}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width:  '100%',
+              height: '100%',
+              objectFit:      'contain',
+              objectPosition: 'center',
+              display:        'block',
+            }}
+          />
+          {/* CRT scan lines — very faint cyan tint */}
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute', inset: 0,
+              background:
+                'repeating-linear-gradient(0deg, transparent 0px, transparent 3px, rgba(0,212,255,0.025) 3px, rgba(0,212,255,0.025) 4px)',
+              pointerEvents: 'none',
+              mixBlendMode:  'overlay',
+            }}
+          />
+          {/* Slow vertical sweep */}
+          <div className="jarvis-sweep" aria-hidden="true" />
+          {/* Vignette breath */}
+          <div className="jarvis-vignette" aria-hidden="true" />
+
+          <style>{`
+            @keyframes jarvis-ambient-breath {
+              0%, 100% { opacity: 0.78; }
+              50%      { opacity: 0.94; }
+            }
+            .jarvis-ambient { animation: jarvis-ambient-breath 9s ease-in-out infinite; }
+
+            @keyframes jarvis-sweep {
+              0%   { transform: translateY(-15%); opacity: 0;    }
+              12%  { opacity: 0.42; }
+              88%  { opacity: 0.42; }
+              100% { transform: translateY(110%); opacity: 0;    }
+            }
+            .jarvis-sweep {
+              position: absolute;
+              left: 0; right: 0; top: 0;
+              height: 80px;
+              background: linear-gradient(180deg, transparent 0%, rgba(0,212,255,0.10) 50%, transparent 100%);
+              pointer-events: none;
+              animation: jarvis-sweep 24s linear infinite;
+              will-change: transform;
+            }
+            @keyframes jarvis-vignette {
+              0%, 100% { box-shadow: inset 0 0 90px -10px rgba(0,0,0,0.55); }
+              50%      { box-shadow: inset 0 0 130px -4px rgba(0,0,0,0.7);  }
+            }
+            .jarvis-vignette {
+              position: absolute;
+              inset: 0;
+              pointer-events: none;
+              animation: jarvis-vignette 11s ease-in-out infinite;
+            }
+          `}</style>
+        </>
+      ) : (
+        <div className="flex flex-col items-center justify-center gap-3 px-6 text-center"
+             style={{ color: 'var(--hud-text-dim)' }}>
+          <div className="text-[10px] font-bold tracking-[0.3em]"
+               style={{ color: accent }}>
+            ◆ JARVIS IMAGE NOT FOUND
+          </div>
+          <div className="text-[10px] tracking-wider">
+            Drop your portrait at one of:
+          </div>
+          <pre className="text-[9px] p-3"
+               style={{
+                 background: 'rgba(0,212,255,0.05)',
+                 border:     `1px solid ${accent}`,
+                 color:      'var(--hud-text)',
+                 borderRadius: 3,
+               }}>
+{`public/world/jarvis.png
+public/world/jarvis.jpg
+public/world/jarvis.webp`}
+          </pre>
+          <div className="text-[9px] tracking-wider opacity-70">refresh after</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function SkillColumn({
   label,
