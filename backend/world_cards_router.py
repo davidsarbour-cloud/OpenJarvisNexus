@@ -9,8 +9,6 @@ Cards NOT included here (require external auth or hardware not connected):
   - ETSY ORDERS, LISTING PERFORMANCE (Etsy OAuth)
   - BAMBU QUEUE (Bambu Lab network printer)
   - API RATE LIMITS (Anthropic response header parsing)
-  - TELEGRAM ACTIVITY (telegram_bot in-process state tracking)
-  - MODEL ROUTING (routing decision log infrastructure)
 
 Endpoint: GET /v1/world/cards/snapshot
 Polling: clients should poll every 30s — most metrics change slowly.
@@ -394,6 +392,102 @@ def _container_logs_snapshot() -> dict:
         }
 
 
+# ── TELEGRAM ACTIVITY (Cyberdeck) ──────────────────────────────────────────
+
+def _telegram_activity_snapshot() -> dict:
+    try:
+        from app_state import _telegram_state
+        # Roll counter if day changed
+        today = datetime.now().strftime("%Y-%m-%d")
+        if _telegram_state.get("today_date") != today:
+            count = 0
+        else:
+            count = int(_telegram_state.get("messages_today", 0))
+        last_ts = _telegram_state.get("last_message_ts")
+        last_label = "—"
+        if isinstance(last_ts, datetime):
+            last_label = _humanize_age(last_ts)
+        return {
+            "status": "active" if count else "standby",
+            "metrics": [
+                {"label": "MESSAGES", "value": str(count)},
+                {"label": "LAST",     "value": last_label},
+            ],
+        }
+    except Exception:
+        return {
+            "status": "standby",
+            "metrics": [
+                {"label": "MESSAGES", "value": "—"},
+                {"label": "LAST",     "value": "—"},
+            ],
+        }
+
+
+# ── MODEL ROUTING (Cyberdeck) ──────────────────────────────────────────────
+
+def _model_routing_snapshot() -> dict:
+    try:
+        from app_state import _routing_state
+        today = datetime.now().strftime("%Y-%m-%d")
+        if _routing_state.get("today_date") != today:
+            total = 0
+            top_label = "—"
+        else:
+            total = int(_routing_state.get("total", 0))
+            counts: dict[str, int] = _routing_state.get("counts", {})  # type: ignore[assignment]
+            if counts and total:
+                top_intent = max(counts, key=lambda k: counts[k])
+                pct = round(counts[top_intent] / total * 100)
+                top_label = f"{pct}%"
+            else:
+                top_label = "0%"
+        return {
+            "status": "active" if total else "standby",
+            "metrics": [
+                {"label": "ROUTED", "value": str(total)},
+                {"label": "TOP",    "value": top_label},
+            ],
+        }
+    except Exception:
+        return {
+            "status": "standby",
+            "metrics": [
+                {"label": "ROUTED", "value": "—"},
+                {"label": "TOP",    "value": "—"},
+            ],
+        }
+
+
+# ── DAILY DIGEST (Command Center / global) ─────────────────────────────────
+
+def _daily_digest_snapshot() -> dict:
+    """Aggregate counter from other snapshots into a single top-line view."""
+    try:
+        stl  = _stl_output_snapshot()["metrics"]
+        vlt  = _vault_growth_snapshot()["metrics"]
+        err  = _error_log_snapshot()["metrics"]
+        stl_today   = stl[0]["value"]    # TODAY
+        vault_today = vlt[0]["value"]    # TODAY
+        err_24h     = err[0]["value"]    # 24H
+        # Compact "STL · NOTES" left metric, "ERR" right metric
+        return {
+            "status": "active",
+            "metrics": [
+                {"label": "STL · NOTES", "value": f"{stl_today} · {vault_today}"},
+                {"label": "ERRORS 24H",  "value": err_24h},
+            ],
+        }
+    except Exception:
+        return {
+            "status": "standby",
+            "metrics": [
+                {"label": "STL · NOTES", "value": "—"},
+                {"label": "ERRORS 24H",  "value": "—"},
+            ],
+        }
+
+
 # ── Snapshot endpoint ───────────────────────────────────────────────────────
 
 @router.get("/v1/world/cards/snapshot")
@@ -415,5 +509,10 @@ def world_cards_snapshot() -> dict[str, Any]:
         # Docker
         "disk_usage":      _disk_usage_snapshot(),
         "container_logs":  _container_logs_snapshot(),
-        "generated_at":    datetime.now().isoformat(),
+        # Cyberdeck (state-tracked)
+        "telegram_activity": _telegram_activity_snapshot(),
+        "model_routing":     _model_routing_snapshot(),
+        # Global
+        "daily_digest":      _daily_digest_snapshot(),
+        "generated_at":      datetime.now().isoformat(),
     }

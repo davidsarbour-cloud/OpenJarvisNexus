@@ -162,17 +162,20 @@ export interface WorldCardSnapshot {
 }
 
 export interface WorldCardsSnapshotData {
-  stl_output:     WorldCardSnapshot;
-  approval_queue: WorldCardSnapshot;
-  token_budget:   WorldCardSnapshot;
-  gpu_temp:       WorldCardSnapshot;
-  error_log:      WorldCardSnapshot;
-  vault_growth:   WorldCardSnapshot;
-  orphan_alert:   WorldCardSnapshot;
-  morning_brief:  WorldCardSnapshot;
-  disk_usage:     WorldCardSnapshot;
-  container_logs: WorldCardSnapshot;
-  generated_at:   string;
+  stl_output:         WorldCardSnapshot;
+  approval_queue:     WorldCardSnapshot;
+  token_budget:       WorldCardSnapshot;
+  gpu_temp:           WorldCardSnapshot;
+  error_log:          WorldCardSnapshot;
+  vault_growth:       WorldCardSnapshot;
+  orphan_alert:       WorldCardSnapshot;
+  morning_brief:      WorldCardSnapshot;
+  disk_usage:         WorldCardSnapshot;
+  container_logs:     WorldCardSnapshot;
+  telegram_activity:  WorldCardSnapshot;
+  model_routing:      WorldCardSnapshot;
+  daily_digest:       WorldCardSnapshot;
+  generated_at:       string;
 }
 
 export const fetchWorldCardsSnapshot = () =>

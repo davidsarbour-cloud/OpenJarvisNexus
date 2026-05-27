@@ -2,12 +2,11 @@ import { Outlet, useLocation } from 'react-router';
 import { TopBar } from './TopBar';
 import { HudSidebar } from './HudSidebar';
 import { RightPanel } from './RightPanel';
-import { BottomPanel } from './BottomPanel';
 import { useAlertGc } from '../../systems/alerts';
 import { TacticalOverlay } from '../../systems/TacticalOverlay';
 
 /**
- * HudLayout — tactical 5-zone command bridge layout.
+ * HudLayout — tactical 4-zone command bridge layout.
  *
  *   ┌──────────────────────────────────────────────────┐
  *   │                   TopBar                          │
@@ -16,15 +15,15 @@ import { TacticalOverlay } from '../../systems/TacticalOverlay';
  *   │ Hud    │          <Outlet />            │ Right  │
  *   │ Side   │   (CommandCenter / Orbital)    │ Panel  │
  *   │        │                                │        │
- *   ├────────┴───────────────────────────────┴────────┤
- *   │                  BottomPanel                      │
- *   └──────────────────────────────────────────────────┘
+ *   └────────┴───────────────────────────────┴────────┘
  *
  * Used for the two main routes only:
  *   /         → CommandCenterPage
  *   /orbital  → OrbitalPage
  *
  * Sub-pages (chat, agents, settings, ...) keep the legacy `Layout`.
+ * The CPU/RAM/VRAM/NETWORK bottom strip was removed — those metrics
+ * live inside the Cyberdeck world cards now.
  */
 export function HudLayout() {
   const location = useLocation();
@@ -66,9 +65,6 @@ export function HudLayout() {
         {/* Right panel — alerts + events. Hidden on full-bleed views. */}
         {!fullBleed && <RightPanel />}
       </div>
-
-      {/* Bottom strip — graphs / quick stats. Hidden on full-bleed views. */}
-      {!fullBleed && <BottomPanel />}
 
       {/* Tactical polish — scanlines + vignette + radar sweep.
           Radar disabled on /orbital (3D scene already provides motion). */}

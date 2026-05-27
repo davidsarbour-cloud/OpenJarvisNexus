@@ -107,11 +107,32 @@ def classify_intent(text: str) -> dict:
         if score > 0:
             scores[intent] = score
     if not scores:
-        return {"intent": "conversation", "confidence": 1.0, "signals": []}
-    best = max(scores, key=scores.get)
-    total = sum(scores.values())
-    signals = [k for k, v in scores.items() if v > 0]
-    return {"intent": best, "confidence": round(scores[best] / max(total, 1), 2), "signals": signals}
+        result = {"intent": "conversation", "confidence": 1.0, "signals": []}
+    else:
+        best = max(scores, key=scores.get)
+        total = sum(scores.values())
+        signals = [k for k, v in scores.items() if v > 0]
+        result = {"intent": best, "confidence": round(scores[best] / max(total, 1), 2), "signals": signals}
+
+    # Track for /v1/world/cards/snapshot (MODEL ROUTING card)
+    try:
+        from datetime import datetime as _dt
+
+        from app_state import _routing_state
+        today = _dt.now().strftime("%Y-%m-%d")
+        if _routing_state.get("today_date") != today:
+            _routing_state["today_date"] = today
+            _routing_state["counts"] = {}
+            _routing_state["total"] = 0
+        counts: dict[str, int] = _routing_state.get("counts", {})  # type: ignore[assignment]
+        intent_key = str(result.get("intent", "conversation"))
+        counts[intent_key] = counts.get(intent_key, 0) + 1
+        _routing_state["counts"] = counts
+        _routing_state["total"] = int(_routing_state.get("total", 0)) + 1
+    except Exception:
+        pass
+
+    return result
 
 
 async def query_vault_for_context(text: str, intent: str) -> list[dict]:

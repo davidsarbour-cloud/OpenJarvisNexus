@@ -401,6 +401,20 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     msg = update.message.text
     log.info(f"Message: {msg[:60]}")
+    # Track activity for /v1/world/cards/snapshot (TELEGRAM ACTIVITY card)
+    try:
+        from datetime import datetime as _dt
+
+        from app_state import _telegram_state
+        today = _dt.now().strftime("%Y-%m-%d")
+        if _telegram_state.get("today_date") != today:
+            _telegram_state["today_date"] = today
+            _telegram_state["messages_today"] = 0
+        _telegram_state["messages_today"] = int(_telegram_state.get("messages_today", 0)) + 1
+        _telegram_state["last_message_ts"] = _dt.now()
+        _telegram_state["last_user_text"] = msg[:120]
+    except Exception:
+        pass
     await update.message.chat.send_action("typing")
     loop  = asyncio.get_event_loop()
     reply = await loop.run_in_executor(None, ask_jarvis, msg, "telegram")

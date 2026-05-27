@@ -128,6 +128,24 @@ _agents_status: dict[str, str] = {
     "NOVA":     "idle",     # ollama deepseek-r1:7b — reasoning & complex code
 }
 
+# ── Telegram activity tracker (for /v1/world/cards/snapshot) ──
+# Lightweight in-process counter; updated by telegram_bot.handle_message().
+_telegram_state: dict[str, object] = {
+    "messages_today": 0,
+    "last_message_ts": None,  # datetime | None
+    "last_user_text":  "",
+    "today_date":      "",     # YYYY-MM-DD — rolls over the counter
+}
+
+# ── Model routing tracker (for /v1/world/cards/snapshot) ──
+# Increment from orchestrator.classify_intent() whenever an intent fires.
+# Maps intent → count for today; rolls over with today_date.
+_routing_state: dict[str, object] = {
+    "counts":     {},      # dict[str, int]
+    "total":      0,
+    "today_date": "",      # YYYY-MM-DD
+}
+
 # ── Client HTTP partagé (connection pooling) ─────────────
 # Set by main's lifespan via set_http(); read everywhere via get_http().
 # Returns None before startup, so callers can guard with `if get_http() is None`.

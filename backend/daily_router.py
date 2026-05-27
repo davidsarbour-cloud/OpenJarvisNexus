@@ -128,10 +128,27 @@ async def daily_run_task(body: dict):
     fn   = _task_map.get(name)
     if not fn:
         raise HTTPException(404, f"Tâche inconnue: {name}. Dispo: {list(_task_map)}")
+    # Emit a start/complete event pair so the RightPanel surfaces manual
+    # runs in real time (the scheduler listener only catches cron-driven jobs).
+    try:
+        from ws_router import emit
+        await emit("info", "DAILY", f"{name} · start")
+    except Exception:
+        pass
     try:
         await fn()
+        try:
+            from ws_router import emit
+            await emit("info", "DAILY", f"{name} · done")
+        except Exception:
+            pass
         return {"ok": True, "task": name, "message": f"{name} exécutée avec succès"}
     except Exception as e:
+        try:
+            from ws_router import emit
+            await emit("alert", "DAILY", f"{name} · error: {e}")
+        except Exception:
+            pass
         return {"ok": False, "task": name, "message": str(e)}
 
 
