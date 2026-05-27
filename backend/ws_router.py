@@ -114,6 +114,14 @@ except RuntimeError:
 # REST helpers
 # ─────────────────────────────────────────────────────────
 class EventIn(BaseModel):
+    """Public payload for POST /v1/events/publish.
+
+    Extra fields are preserved on the wire — the EventHub broadcasts dicts
+    verbatim, so callers can include e.g. ``note`` (Obsidian path) which
+    the frontend EventRow uses to make the row clickable.
+    """
+    model_config = {"extra": "allow"}
+
     level: str = "info"     # "info" | "warn" | "alert"
     source: str = "NEXUS"
     msg: str

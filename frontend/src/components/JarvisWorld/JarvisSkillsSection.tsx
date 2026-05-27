@@ -216,6 +216,11 @@ export function JarvisSkillsSection({ accent, glow, subtle }: Props) {
           skillName={activeSkill.name}
           description={activeSkill.description}
           exampleText={activeSkill.example}
+          notePath={
+            activeSkill.kind === 'protocol'
+              ? `05_Resources/Research/hermes/${activeSkill.name}.md`
+              : '05_Resources/Research/hermes.md'
+          }
           accent={accent}
           glow={glow}
           subtle={subtle}

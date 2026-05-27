@@ -1,14 +1,11 @@
-import { AlertTriangle, Info, Zap, CalendarClock, Sparkles, BookOpen } from 'lucide-react';
+import { AlertTriangle, Info, Zap, BookOpen } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useLiveMetric } from '../../hooks/useLiveMetric';
 import { useWsEvents } from '../../hooks/useWsEvents';
-import {
-  fetchLogs, fetchAgents, fetchCrewJobs, fetchScheduledTasks,
-  type LogEntry, type ScheduledJob,
-} from '../../lib/apiLive';
+import { fetchLogs, fetchAgents, fetchCrewJobs, type LogEntry } from '../../lib/apiLive';
 import type { WsEvent } from '../../lib/ws';
 
-// ── Obsidian wikilink helper ───────────────────────────────────────────────
+// ── Obsidian deep-link helper ──────────────────────────────────────────────
 
 const OBSIDIAN_VAULT = 'BRAIN';
 
@@ -18,53 +15,17 @@ function openObsidian(notePath: string) {
   window.open(url, '_self');
 }
 
-// ── Skill catalog (kept in sync with JarvisSkillsSection) ──────────────────
-
-interface SkillEntry {
-  name:     string;
-  schedule: 'daily' | 'weekly' | 'manual';
-  /** Path under BRAIN/, no leading slash. */
-  note:     string;
-}
-
-const SKILL_CATALOG: SkillEntry[] = [
-  // TOML auto-exec (docker)
-  { name: 'docker-health',            schedule: 'daily',   note: '05_Resources/Research/hermes.md' },
-  { name: 'docker-logs-check',        schedule: 'manual',  note: '05_Resources/Research/hermes.md' },
-  { name: 'docker-stats',             schedule: 'manual',  note: '05_Resources/Research/hermes.md' },
-  { name: 'docker-restart-container', schedule: 'manual',  note: '05_Resources/Research/hermes.md' },
-  // Hermes protocols
-  { name: 'systematic-debugging',     schedule: 'manual',  note: '05_Resources/Research/hermes/systematic-debugging.md' },
-  { name: 'humanizer',                schedule: 'manual',  note: '05_Resources/Research/hermes/humanizer.md' },
-  { name: 'ideation',                 schedule: 'weekly',  note: '05_Resources/Research/hermes/ideation.md' },
-  { name: 'plan',                     schedule: 'manual',  note: '05_Resources/Research/hermes/plan.md' },
-  { name: 'codebase-inspection',      schedule: 'weekly',  note: '05_Resources/Research/hermes/codebase-inspection.md' },
-  { name: 'obsidian',                 schedule: 'manual',  note: '05_Resources/Research/hermes/obsidian.md' },
-  { name: 'blogwatcher',              schedule: 'daily',   note: '05_Resources/Research/hermes/blogwatcher.md' },
-  { name: 'polymarket',               schedule: 'daily',   note: '05_Resources/Research/hermes/polymarket.md' },
-  { name: 'comfyui',                  schedule: 'manual',  note: '05_Resources/Research/hermes/comfyui.md' },
-];
-
-// APScheduler job id → Obsidian note (mirror of ScheduledTasksCard.JOB_OBSIDIAN_PATHS)
-const JOB_NOTE: Record<string, string> = {
-  trend_hunt:                '07_Schemas/workflows/trend-hunt-schema.md',
-  morning_briefing:          '07_Schemas/workflows/morning-briefing-schema.md',
-  daily_stl_research:        '07_Schemas/workflows/stl-research-schema.md',
-  brain_autolink:            '07_Schemas/workflows/brain-autolink-schema.md',
-  skill_docker_health:       '05_Resources/Research/hermes.md',
-  skill_blogwatcher:         '05_Resources/Research/hermes/blogwatcher.md',
-  skill_polymarket:          '05_Resources/Research/hermes/polymarket.md',
-  skill_codebase_inspection: '05_Resources/Research/hermes/codebase-inspection.md',
-  skill_ideation:            '05_Resources/Research/hermes/ideation.md',
-  skill_polymarket_digest:   '05_Resources/Research/hermes/polymarket.md',
-};
-
 type Event = {
   id: string | number;
   ts: string;
   level: 'info' | 'warn' | 'alert';
   source: string;
   msg: string;
+  /** Optional Obsidian note path (relative to BRAIN vault root). When
+   *  present, the row becomes a clickable button that opens the note
+   *  via obsidian://open. Used by completion events from scheduled
+   *  skill jobs + manual skill activations. */
+  note?: string;
 };
 
 const SEED: Event[] = [
@@ -83,10 +44,9 @@ const SEED: Event[] = [
  */
 export function RightPanel() {
   const ws = useWsEvents(50);
-  const { data: logsData } = useLiveMetric(fetchLogs,           { intervalMs: 4000 });
-  const { data: agentsData } = useLiveMetric(fetchAgents,        { intervalMs: 8000 });
-  const { data: jobsData } = useLiveMetric(fetchCrewJobs,        { intervalMs: 6000 });
-  const { data: schedData } = useLiveMetric(fetchScheduledTasks, { intervalMs: 60_000 });
+  const { data: logsData } = useLiveMetric(fetchLogs,    { intervalMs: 4000 });
+  const { data: agentsData } = useLiveMetric(fetchAgents, { intervalMs: 8000 });
+  const { data: jobsData } = useLiveMetric(fetchCrewJobs, { intervalMs: 6000 });
 
   const wsEvents = mapWs(ws.events);
   const httpEvents = mapLogs(logsData?.logs ?? []);
@@ -109,7 +69,6 @@ export function RightPanel() {
   const jobs = jobsData?.jobs ?? [];
   const activeJobs = jobs.filter(j => String(j.status).toLowerCase() === 'running').length;
   const alerts = events.filter(e => e.level !== 'info').length;
-  const scheduledJobs = schedData?.jobs ?? [];
 
   return (
     <aside
@@ -120,35 +79,17 @@ export function RightPanel() {
         borderLeft: '1px solid var(--hud-border)',
       }}
     >
-      {/* ── Runtime alerts + events (WS / HTTP / seed) ─── */}
       <SectionHeader title="ALERTS & EVENTS" badge={badge} wsState={ws.state} />
-      <div className="overflow-y-auto px-2 py-2 flex flex-col gap-1" style={{ maxHeight: '30vh' }}>
-        {events.slice(0, 15).map((e) => <EventRow key={e.id} event={e} />)}
-        <div className="text-[8px] tracking-[0.18em] text-center py-1"
-             style={{ color: 'var(--hud-text-dim)' }}>
+
+      <div className="flex-1 overflow-y-auto px-2 py-2 flex flex-col gap-1">
+        {events.map((e) => <EventRow key={e.id} event={e} />)}
+        <div className="mt-2 text-[9px] tracking-[0.18em] text-center py-2" style={{ color: 'var(--hud-text-dim)' }}>
           [ {badge === 'WS LIVE' ? '/ws/events · realtime'
             : badge === 'HTTP LIVE' ? '/v1/logs · 4s poll'
-            : 'mock seed'} ]
+            : 'mock seed (no source)'} ]
         </div>
       </div>
 
-      {/* ── Upcoming scheduled jobs (clickable → schema note) ─── */}
-      <SectionHeader title={`SCHEDULE · ${scheduledJobs.length}`} border="top" />
-      <div className="overflow-y-auto px-2 py-2 flex flex-col gap-1" style={{ maxHeight: '24vh' }}>
-        {scheduledJobs.length === 0 ? (
-          <EmptyRow text="aucun job actif" />
-        ) : (
-          scheduledJobs.map((j) => <ScheduleRow key={j.id} job={j} />)
-        )}
-      </div>
-
-      {/* ── Skill catalog (clickable → hermes note) ─── */}
-      <SectionHeader title={`SKILLS · ${SKILL_CATALOG.length}`} border="top" />
-      <div className="overflow-y-auto px-2 py-2 flex flex-col gap-1" style={{ maxHeight: '24vh' }}>
-        {SKILL_CATALOG.map((s) => <SkillRow key={s.name} skill={s} />)}
-      </div>
-
-      {/* ── Quick stats footer ─── */}
       <SectionHeader title="QUICK STATS" border="top" />
       <div className="grid grid-cols-2 gap-2 p-3">
         <StatBox label="MISSIONS"   value={String(jobs.length)}    colorKey="forge" />
@@ -174,6 +115,7 @@ function mapLogs(logs: LogEntry[]): Event[] {
     level: normalizeLevel(l.level),
     source: String(l.source ?? 'NEXUS'),
     msg: String(l.msg ?? ''),
+    note: typeof l.note === 'string' ? l.note : undefined,
   }));
 }
 
@@ -184,6 +126,7 @@ function mapWs(events: WsEvent[]): Event[] {
     level: normalizeLevel(e.level),
     source: String(e.source ?? 'NEXUS'),
     msg: String(e.msg ?? ''),
+    note: typeof e.note === 'string' ? e.note : undefined,
   }));
 }
 
@@ -235,10 +178,16 @@ function EventRow({ event }: { event: Event }) {
   } as const;
   const { c, Icon } = palette[event.level];
   const isAlert = event.level === 'alert';
+  const hasNote = !!event.note;
+  const handleClick = hasNote ? () => openObsidian(event.note!) : undefined;
   return (
     <motion.div
       className="flex items-start gap-2 px-2 py-1.5 text-[10px] leading-tight"
-      style={{ borderLeft: `2px solid ${c}`, background: 'rgba(0,0,0,0.18)' }}
+      style={{
+        borderLeft: `2px solid ${c}`,
+        background: 'rgba(0,0,0,0.18)',
+        cursor: hasNote ? 'pointer' : 'default',
+      }}
       initial={isAlert ? { boxShadow: `inset 0 0 0 0 transparent` } : false}
       animate={isAlert ? {
         boxShadow: [
@@ -248,6 +197,15 @@ function EventRow({ event }: { event: Event }) {
         ],
       } : undefined}
       transition={isAlert ? { duration: 2.5, repeat: Infinity, ease: 'easeInOut' } : undefined}
+      onClick={handleClick}
+      onKeyDown={hasNote ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick?.(); }
+      } : undefined}
+      role={hasNote ? 'button' : undefined}
+      tabIndex={hasNote ? 0 : undefined}
+      title={hasNote ? `Open note: ${event.note}` : undefined}
+      onMouseEnter={hasNote ? (e) => { e.currentTarget.style.background = 'rgba(0,212,255,0.06)'; } : undefined}
+      onMouseLeave={hasNote ? (e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.18)'; } : undefined}
     >
       <Icon size={11} style={{ color: c, marginTop: 1, flexShrink: 0 }} />
       <div className="flex-1 min-w-0">
@@ -257,98 +215,10 @@ function EventRow({ event }: { event: Event }) {
         </div>
         <div style={{ color: 'var(--hud-text)' }}>{event.msg}</div>
       </div>
+      {hasNote && (
+        <BookOpen size={9} style={{ color: 'var(--hud-text-dim)', marginTop: 2, flexShrink: 0 }} aria-hidden />
+      )}
     </motion.div>
-  );
-}
-
-// ── Schedule row (clickable → opens schema note in Obsidian) ────────────────
-
-function ScheduleRow({ job }: { job: ScheduledJob }) {
-  const cadence = bucketize(job.name);
-  const cadenceColor =
-    cadence === 'daily'   ? 'var(--color-docker)'
-  : cadence === 'weekly'  ? 'var(--color-vault)'
-  : cadence === 'monthly' ? 'var(--color-jarvis)'
-  : 'var(--hud-text-dim)';
-
-  const notePath = JOB_NOTE[job.id];
-  const clickable = !!notePath;
-
-  // Strip the "Daily: " / "Weekly: " prefix and parenthetical time for display
-  const display = job.name.replace(/^(daily|weekly|monthly):\s*/i, '').replace(/\s*\([^)]*\)\s*$/, '');
-
-  return (
-    <button
-      type="button"
-      onClick={clickable ? () => openObsidian(notePath) : undefined}
-      disabled={!clickable}
-      className="flex items-center gap-2 px-2 py-1.5 text-[10px] text-left transition-colors"
-      style={{
-        borderLeft: `2px solid ${cadenceColor}`,
-        background: 'rgba(0,0,0,0.18)',
-        cursor: clickable ? 'pointer' : 'default',
-        opacity: clickable ? 1 : 0.65,
-      }}
-      onMouseEnter={(e) => { if (clickable) e.currentTarget.style.background = 'rgba(0,212,255,0.06)'; }}
-      onMouseLeave={(e) => { if (clickable) e.currentTarget.style.background = 'rgba(0,0,0,0.18)'; }}
-      title={clickable ? `Open note: ${notePath}` : 'No schema note linked'}
-    >
-      <CalendarClock size={11} style={{ color: cadenceColor, flexShrink: 0 }} />
-      <span className="flex-1 truncate" style={{ color: 'var(--hud-text)' }}>{display}</span>
-      {clickable && <BookOpen size={9} style={{ color: 'var(--hud-text-dim)', flexShrink: 0 }} />}
-    </button>
-  );
-}
-
-function bucketize(name: string): 'daily' | 'weekly' | 'monthly' | null {
-  const l = name.toLowerCase();
-  if (l.startsWith('daily:'))   return 'daily';
-  if (l.startsWith('weekly:'))  return 'weekly';
-  if (l.startsWith('monthly:')) return 'monthly';
-  return null;
-}
-
-// ── Skill row (clickable → opens Hermes note in Obsidian) ───────────────────
-
-function SkillRow({ skill }: { skill: SkillEntry }) {
-  const cadenceColor =
-    skill.schedule === 'daily'  ? 'var(--color-docker)'
-  : skill.schedule === 'weekly' ? 'var(--color-vault)'
-  : 'var(--color-jarvis)';
-
-  return (
-    <button
-      type="button"
-      onClick={() => openObsidian(skill.note)}
-      className="flex items-center gap-2 px-2 py-1.5 text-[10px] text-left transition-colors"
-      style={{
-        borderLeft: `2px solid ${cadenceColor}`,
-        background: 'rgba(0,0,0,0.18)',
-        cursor: 'pointer',
-      }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,212,255,0.06)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.18)'; }}
-      title={`Open note: ${skill.note}`}
-    >
-      <Sparkles size={11} style={{ color: cadenceColor, flexShrink: 0 }} />
-      <span className="flex-1 truncate" style={{ color: 'var(--hud-text)' }}>{skill.name}</span>
-      <span
-        className="px-1 text-[7.5px] tracking-[0.18em] shrink-0"
-        style={{ color: cadenceColor, border: `1px solid ${cadenceColor}`, borderRadius: 2 }}
-      >
-        {skill.schedule === 'manual' ? '⚡' : skill.schedule.toUpperCase()}
-      </span>
-      <BookOpen size={9} style={{ color: 'var(--hud-text-dim)', flexShrink: 0 }} />
-    </button>
-  );
-}
-
-function EmptyRow({ text }: { text: string }) {
-  return (
-    <div className="text-[9px] tracking-[0.18em] text-center py-2"
-         style={{ color: 'var(--hud-text-dim)', opacity: 0.6 }}>
-      — {text} —
-    </div>
   );
 }
 

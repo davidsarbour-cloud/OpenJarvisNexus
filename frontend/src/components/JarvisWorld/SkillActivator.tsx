@@ -20,6 +20,9 @@ interface SkillActivatorProps {
   skillName:    string;
   description:  string;
   exampleText:  string;
+  /** Obsidian note path (relative to BRAIN vault) attached to the
+   *  completion event so the RightPanel row becomes clickable. */
+  notePath?:    string;
   accent:       string;
   glow:         string;
   subtle:       string;
@@ -35,6 +38,7 @@ export function SkillActivator({
   skillName,
   description,
   exampleText,
+  notePath,
   accent,
   glow,
   subtle,
@@ -101,8 +105,28 @@ export function SkillActivator({
         return;
       }
       const data = (await r.json()) as ChatResponse;
-      setModel(data.model || '?');
+      const m = data.model || '?';
+      setModel(m);
       setResult(data.choices?.[0]?.message?.content || '(empty response)');
+
+      // Broadcast a completion event so RightPanel ALERTS & EVENTS picks
+      // it up (clickable → opens the Hermes note in Obsidian). Skipped
+      // when the budget guard blocked the request — that's not a real
+      // skill run. Fire-and-forget; errors here must not break the UI.
+      const blocked = m === 'bloqué' || m === 'bloque';
+      if (!blocked) {
+        void fetch(`${getBase()}/v1/events/publish`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            level:  'info',
+            source: 'SKILL',
+            msg:    `${skillName} · manual activation complete`,
+            ...(notePath ? { note: notePath } : {}),
+            skill:  skillName,
+          }),
+        }).catch(() => { /* event publish is best-effort */ });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
