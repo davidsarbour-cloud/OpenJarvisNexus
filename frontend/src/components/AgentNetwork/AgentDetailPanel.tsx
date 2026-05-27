@@ -49,21 +49,6 @@ const AGENT_ICON: Record<string, LucideIcon> = {
   etsy:    ShoppingBag,
 };
 
-/**
- * Try to load a real avatar image from `/agents/<id>.{png,jpg,webp}` in
- * the public folder. If the image fails to load (404 or no file dropped
- * yet) we fall back to the Lucide icon. Drop files at:
- *
- *   frontend/public/agents/jarvis.png
- *   frontend/public/agents/ultron.png
- *   …
- *
- * (lowercase id matches the agent IDs used by /v1/agents.)
- */
-function avatarSrc(agentId: string): string {
-  return `/agents/${agentId}.png`;
-}
-
 interface AgentDetailPanelProps {
   agent: AgentInfo | null;
   colorKey: ModuleKey;
@@ -175,13 +160,16 @@ export function AgentDetailPanel({ agent, colorKey, onClose }: AgentDetailPanelP
                   }}
                 >
                   {showPhoto ? (
-                    <img
-                      src={avatarSrc(agent.id)}
-                      alt={agent.name}
-                      onError={() => setImgFailedFor(agent.id)}
-                      className="w-full h-full object-cover"
-                      draggable={false}
-                    />
+                    <picture>
+                      <source srcSet={`/agents/${agent.id}.webp`} type="image/webp" />
+                      <img
+                        src={`/agents/${agent.id}.png`}
+                        alt={agent.name}
+                        onError={() => setImgFailedFor(agent.id)}
+                        className="w-full h-full object-cover"
+                        draggable={false}
+                      />
+                    </picture>
                   ) : (
                     <Icon size={56} color={accent} strokeWidth={1.5} />
                   )}
