@@ -595,6 +595,149 @@ async def task_skill_ideation():
     _write_skill_brain_note("ideation", "Hermes", body, "weekly")
 
 
+async def task_weekly_vault_growth():
+    """Weekly Sunday 20:00 — vault growth & health report.
+
+    Counts notes added / modified in the last 7 days, top tags, orphans,
+    largest sub-folders, and writes a markdown brief to the brain. The
+    completion event surfaces in RightPanel ALERTS & EVENTS with a
+    clickable obsidian:// deep-link to the report."""
+    import re
+    from collections import Counter
+    from datetime import timedelta
+
+    brain_root = BACKEND_DIR / "BRAIN" / "BRAIN"
+    if not brain_root.exists():
+        logger.warning("task_weekly_vault_growth: BRAIN/ not found, skipping")
+        _write_skill_brain_note(
+            "vault-growth-report", "report",
+            "# Vault Growth Report\n\n**Status**: BRAIN/ vault not found on disk.\n",
+            "weekly",
+        )
+        return
+
+    now = datetime.now()
+    week_ago = now - timedelta(days=7)
+    today = now.date()
+
+    total = 0
+    added_this_week  = 0
+    modif_this_week  = 0
+    by_day: Counter[str] = Counter()
+    by_tag: Counter[str] = Counter()
+    by_folder: Counter[str] = Counter()
+    orphan_count = 0
+    recent_notes: list[tuple[datetime, str]] = []
+    tag_pattern = re.compile(r"(?:^|[\s,])#([a-zA-Z][\w-]*)")
+    link_pattern = re.compile(r"\[\[([^\]]+)\]\]")
+
+    try:
+        for md in brain_root.rglob("*.md"):
+            if any(p in md.parts for p in (".obsidian", ".trash", "node_modules")):
+                continue
+            total += 1
+            try:
+                stat = md.stat()
+                mtime = datetime.fromtimestamp(stat.st_mtime)
+                ctime = datetime.fromtimestamp(stat.st_ctime)
+                rel_folder = md.relative_to(brain_root).parts[0] if md.relative_to(brain_root).parts else "(root)"
+                by_folder[rel_folder] += 1
+
+                # Read once for tags + backlinks. Skip files > 256 KB
+                # (paste dumps etc.) so the report stays fast.
+                if stat.st_size < 262144:
+                    content = md.read_text(encoding="utf-8", errors="ignore")
+                    for m in tag_pattern.finditer(content):
+                        by_tag[m.group(1).lower()] += 1
+                    if not link_pattern.search(content):
+                        orphan_count += 1
+
+                if ctime >= week_ago:
+                    added_this_week += 1
+                if mtime >= week_ago and mtime != ctime:
+                    modif_this_week += 1
+                if mtime >= week_ago:
+                    by_day[mtime.strftime("%Y-%m-%d")] += 1
+                    recent_notes.append((mtime, str(md.relative_to(brain_root)).replace("\\", "/")))
+            except Exception:                                         # noqa: BLE001 - per-file errors must not kill the loop
+                continue
+    except Exception as e:                                            # noqa: BLE001
+        logger.error(f"task_weekly_vault_growth: scan failed: {e}")
+
+    recent_notes.sort(reverse=True)
+    week_iso = today.strftime("%G-W%V")
+
+    def _bar(value: int, top: int, width: int = 24) -> str:
+        if top <= 0:
+            return ""
+        filled = int(round(width * value / top))
+        return "█" * filled + "·" * (width - filled)
+
+    # Daily activity sparkline-ish bar chart (last 7 days)
+    day_chart_lines = []
+    top_day = max(by_day.values(), default=0)
+    for delta in range(6, -1, -1):
+        d = (today - timedelta(days=delta)).strftime("%Y-%m-%d")
+        n = by_day.get(d, 0)
+        day_chart_lines.append(f"  {d}  {n:>3}  {_bar(n, top_day, 30)}")
+
+    top_tags    = by_tag.most_common(10)
+    top_folders = by_folder.most_common(8)
+
+    body_lines: list[str] = [
+        f"# Vault Growth Report · week {week_iso}",
+        "",
+        f"_Generated automatically Sunday 20:00 · run_at: {now.isoformat(timespec='seconds')}_",
+        "",
+        "## Headline",
+        f"- **Total notes** in vault: **{total}**",
+        f"- **Added this week**: **{added_this_week}**",
+        f"- **Modified this week**: **{modif_this_week}**",
+        f"- **Orphan notes** (no `[[backlinks]]`): **{orphan_count}**  "
+        f"({(orphan_count / total * 100) if total else 0:.1f}% of vault)",
+        "",
+        "## Daily activity (last 7 days)",
+        "```",
+        *day_chart_lines,
+        "```",
+        "",
+        "## Top tags",
+    ]
+    if top_tags:
+        for tag, n in top_tags:
+            body_lines.append(f"- `#{tag}` — {n}")
+    else:
+        body_lines.append("- _(no `#tags` detected)_")
+    body_lines.extend([
+        "",
+        "## Top folders",
+    ])
+    for folder, n in top_folders:
+        body_lines.append(f"- `{folder}/` — {n} notes")
+
+    body_lines.extend(["", "## 10 most recently touched notes"])
+    for mtime, rel in recent_notes[:10]:
+        body_lines.append(f"- `{mtime.strftime('%Y-%m-%d %H:%M')}` · `{rel}`")
+
+    body_lines.extend([
+        "",
+        "## Health flags",
+    ])
+    if total == 0:
+        body_lines.append("- ⚠️ Vault is empty")
+    if orphan_count > total * 0.30 and total > 20:
+        body_lines.append(
+            f"- ⚠️ Orphan ratio > 30 % ({orphan_count}/{total}) — consider running brain-autolink"
+        )
+    if added_this_week == 0 and modif_this_week == 0:
+        body_lines.append("- ⚠️ No vault activity this week")
+    if not [ln for ln in body_lines if ln.startswith("- ⚠️")]:
+        body_lines.append("- ✅ All clear")
+
+    body = "\n".join(body_lines) + "\n"
+    _write_skill_brain_note("vault-growth-report", "report", body, "weekly")
+
+
 def create_scheduler():
     """Crée et configure l'APScheduler avec toutes les tâches quotidiennes."""
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -686,6 +829,7 @@ def create_scheduler():
         (task_skill_codebase_inspection, "skill_codebase_inspection", "Weekly: skill-codebase-inspection (Sun 02:00)",       {"day_of_week": "sun", "hour":  2}, 7200),
         (task_skill_ideation,            "skill_ideation",            "Weekly: skill-ideation (Fri 14:00)",                  {"day_of_week": "fri", "hour": 14}, 7200),
         (task_skill_polymarket_digest,   "skill_polymarket_digest",   "Weekly: skill-polymarket-digest (Sun 18:00)",         {"day_of_week": "sun", "hour": 18}, 7200),
+        (task_weekly_vault_growth,       "weekly_vault_growth",       "Weekly: vault-growth-report (Sun 20:00)",             {"day_of_week": "sun", "hour": 20}, 7200),
     ]
     for fn, job_id, job_name, cron_kwargs, grace in skill_jobs:
         scheduler.add_job(

@@ -71,6 +71,11 @@ const JOB_OBSIDIAN_PATHS: Record<string, string> = {
   skill_codebase_inspection: '05_Resources/Research/hermes/codebase-inspection.md',
   skill_ideation:            '05_Resources/Research/hermes/ideation.md',
   skill_polymarket_digest:   '05_Resources/Research/hermes/polymarket.md',
+  // Generated reports — open the most recent run under 02_Daily/<today>/
+  // via a relative path; if Obsidian fails to resolve it falls back to
+  // the user's home / search. The report itself is timestamped per-run
+  // so we point at the hermes index page that links them.
+  weekly_vault_growth:       '02_Daily/index.md',
 };
 
 function openObsidian(path: string) {
