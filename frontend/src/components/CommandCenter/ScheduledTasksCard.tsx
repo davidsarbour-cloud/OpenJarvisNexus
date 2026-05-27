@@ -76,6 +76,9 @@ const JOB_OBSIDIAN_PATHS: Record<string, string> = {
   // the user's home / search. The report itself is timestamped per-run
   // so we point at the hermes index page that links them.
   weekly_vault_growth:       '02_Daily/index.md',
+  daily_brain_stubs_check:   '02_Daily/index.md',
+  monthly_repo_audit:        '02_Daily/index.md',
+  monthly_brain_snapshot:    '02_Daily/index.md',
 };
 
 function openObsidian(path: string) {
