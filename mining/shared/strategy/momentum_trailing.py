@@ -61,6 +61,26 @@ def should_sell(pos: Position, price: float) -> bool:
     return price <= current_stop(pos, price)
 
 
+# ── OHLC-aware primitives (used by the historical backtester) ────────────────
+# Live bots get a tick STREAM, so current_stop(price) updates the high-water
+# on every tick. A historical OHLC bar hides the intrabar path, so the
+# backtester reasons about high/low separately and pessimistically. These
+# pure helpers expose the state transitions without the tick coupling.
+
+def stop_price(pos: Position) -> float:
+    """Current stop from EXISTING state — pure, no mutation."""
+    if pos.trailing_active:
+        return pos.high_water * (1 - TRAIL_PCT)
+    return pos.entry * (1 - INITIAL_STOP_PCT)
+
+
+def update_high_water(pos: Position, price: float) -> None:
+    """Ratchet the high-water mark and arm trailing once +2% is reached."""
+    pos.high_water = max(pos.high_water, price)
+    if pos.high_water >= pos.entry * (1 + ACTIVATE_TP_PCT):
+        pos.trailing_active = True
+
+
 @dataclass
 class MomentumTrailing(Strategy):
     """Per-ticker strategy instance. Holds indicator + position state.
