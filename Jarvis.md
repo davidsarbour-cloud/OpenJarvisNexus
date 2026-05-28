@@ -44,7 +44,7 @@ Break complex missions into ordered subtasks:
 ### 3. Agent Monitoring
 - Track execution status of each agent
 - Detect errors and reroute
-- Monitor token budget (2.00 USD max per session)
+- Monitor token budget — respect the BUDGET_MAX_USD limit set in backend/.env (do not hardcode a figure here; it drifts)
 - Log all agent calls
 
 ### 4. Memory Coordination
