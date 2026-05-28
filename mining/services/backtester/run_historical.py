@@ -35,18 +35,24 @@ from services.backtester.backtester import BacktestResult, Trade  # noqa: E402
 
 def run_ohlc_backtest(
     bars: list[Bar],
-    ticker: str,
+    strat: MomentumTrailing,
     start_equity: float = 10_000.0,
     risk_per_trade_pct: float = 0.10,
+    slippage_pct: float = 0.0005,        # 0.05% per side (realistic market-order slip)
+    commission_per_trade: float = 0.0,   # Alpaca stocks = $0; parametrised anyway
 ) -> BacktestResult:
-    """OHLC + pessimistic intrabar exit. Entries at close, exits at stop."""
-    strat = MomentumTrailing(ticker)
+    """OHLC + pessimistic intrabar exit + transaction costs.
+
+    `strat` is a freshly-built (configured) MomentumTrailing — the sweep
+    passes a new one per param combo. Slippage applies to BOTH sides
+    (buy fills above close, sell fills below stop) — that's where a thin
+    edge dies, so it must be modelled before any capital is risked.
+    """
     res = BacktestResult(start_equity=start_equity)
     equity = start_equity
     open_entry = open_ts = open_qty = None  # type: ignore
 
     for bar in bars:
-        # Indicators must advance every bar (even while in a position).
         roc       = strat.roc.update(bar.close)
         vol_ratio = strat.vol.update(bar.volume)
         atr       = strat.atr.update(bar.high, bar.low, bar.close)
@@ -54,27 +60,27 @@ def run_ohlc_backtest(
 
         if strat.position is None:
             if strat.entry_signal(bar, roc, vol_ratio, atr):
+                fill = bar.close * (1 + slippage_pct)              # buy pays up
                 notional = equity * risk_per_trade_pct
-                qty = round(notional / bar.close, 4) if bar.close else 0
+                qty = round(notional / fill, 4) if fill else 0
                 if qty > 0:
-                    strat.open_position(bar.close, qty)
-                    open_entry, open_ts, open_qty = bar.close, bar.ts, qty
+                    strat.open_position(fill, qty)
+                    open_entry, open_ts, open_qty = fill, bar.ts, qty
         else:
             pos = strat.position
-            # 1. PESSIMISTIC: did the low pierce the stop from prior state?
-            s = stop_price(pos)
+            s = stop_price(pos)                                    # stop from prior state
             if bar.low <= s:
-                exit_px = s                       # assume filled at the stop
+                exit_px = s * (1 - slippage_pct)                   # sell gets less
                 trade = Trade(open_ts, open_entry, bar.ts, exit_px, open_qty,
                               f"stop {s:.2f} (high {pos.high_water:.2f})")
+                if commission_per_trade:
+                    equity -= 2 * commission_per_trade
                 res.trades.append(trade)
                 equity += trade.pnl
                 strat.close_position()
             else:
-                # 2. survived the dip → ratchet the trail with the bar's high
                 update_high_water(pos, bar.high)
 
-        # mark-to-market equity for the drawdown curve
         unreal = 0.0
         if strat.position is not None:
             unreal = (bar.close - strat.position.entry) * strat.position.qty
@@ -113,7 +119,7 @@ def main():
         if not bars:
             print(f"  {ticker}: no bars returned\n")
             continue
-        res = run_ohlc_backtest(bars, ticker)
+        res = run_ohlc_backtest(bars, MomentumTrailing(ticker))
         print(f"  {ticker}  ({len(bars)} bars, {bars[0].ts[:10]} -> {bars[-1].ts[:10]})")
         print(f"    {res.summary()}")
         if res.trades:

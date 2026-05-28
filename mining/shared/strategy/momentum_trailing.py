@@ -36,6 +36,12 @@ class Position:
     qty:             float
     high_water:      float = 0.0
     trailing_active: bool  = False
+    # Stop params carried per-position so the backtester's param sweep can
+    # vary them. Defaults = the module constants → existing callers and
+    # tests keep the exact -1%/+2%/-1% behaviour.
+    initial_stop_pct: float = INITIAL_STOP_PCT
+    activate_tp_pct:  float = ACTIVATE_TP_PCT
+    trail_pct:        float = TRAIL_PCT
 
     def __post_init__(self):
         if self.high_water == 0.0:
@@ -50,11 +56,11 @@ def current_stop(pos: Position, price: float) -> float:
       entry 100 -> 99.00 ; price 102 -> 100.98 ; price 105 -> 103.95.
     """
     pos.high_water = max(pos.high_water, price)
-    if pos.high_water >= pos.entry * (1 + ACTIVATE_TP_PCT):
+    if pos.high_water >= pos.entry * (1 + pos.activate_tp_pct):
         pos.trailing_active = True
     if pos.trailing_active:
-        return pos.high_water * (1 - TRAIL_PCT)
-    return pos.entry * (1 - INITIAL_STOP_PCT)
+        return pos.high_water * (1 - pos.trail_pct)
+    return pos.entry * (1 - pos.initial_stop_pct)
 
 
 def should_sell(pos: Position, price: float) -> bool:
@@ -70,14 +76,14 @@ def should_sell(pos: Position, price: float) -> bool:
 def stop_price(pos: Position) -> float:
     """Current stop from EXISTING state — pure, no mutation."""
     if pos.trailing_active:
-        return pos.high_water * (1 - TRAIL_PCT)
-    return pos.entry * (1 - INITIAL_STOP_PCT)
+        return pos.high_water * (1 - pos.trail_pct)
+    return pos.entry * (1 - pos.initial_stop_pct)
 
 
 def update_high_water(pos: Position, price: float) -> None:
-    """Ratchet the high-water mark and arm trailing once +2% is reached."""
+    """Ratchet the high-water mark and arm trailing once +TP% is reached."""
     pos.high_water = max(pos.high_water, price)
-    if pos.high_water >= pos.entry * (1 + ACTIVATE_TP_PCT):
+    if pos.high_water >= pos.entry * (1 + pos.activate_tp_pct):
         pos.trailing_active = True
 
 
@@ -93,6 +99,13 @@ class MomentumTrailing(Strategy):
     vol_period:    int = 20
     atr_period:    int = 14
     sentiment_ok:  bool = True
+    # Tunable filters + stop params (sweepable). Defaults = module constants.
+    min_roc:          float = MIN_ROC
+    min_volume_ratio: float = MIN_VOLUME_RATIO
+    max_atr_pct:      float = MAX_ATR_PCT
+    initial_stop_pct: float = INITIAL_STOP_PCT
+    activate_tp_pct:  float = ACTIVATE_TP_PCT
+    trail_pct:        float = TRAIL_PCT
 
     roc:   ROC         = field(init=False)
     vol:   VolumeRatio = field(init=False)
@@ -114,10 +127,10 @@ class MomentumTrailing(Strategy):
             return False                                   # not warmed up
         atr_pct = (atr / bar.close * 100.0) if bar.close else 999
         return (
-            roc >= MIN_ROC
-            and vol_ratio >= MIN_VOLUME_RATIO
+            roc >= self.min_roc
+            and vol_ratio >= self.min_volume_ratio
             and self.trend.up()
-            and atr_pct <= MAX_ATR_PCT
+            and atr_pct <= self.max_atr_pct
         )
 
     # ── Per-bar tick ─────────────────────────────────────────────────────────
@@ -141,7 +154,12 @@ class MomentumTrailing(Strategy):
 
     # ── Position lifecycle (called by backtester/bot on fills) ───────────────
     def open_position(self, entry: float, qty: float) -> None:
-        self.position = Position(entry=entry, qty=qty)
+        self.position = Position(
+            entry=entry, qty=qty,
+            initial_stop_pct=self.initial_stop_pct,
+            activate_tp_pct=self.activate_tp_pct,
+            trail_pct=self.trail_pct,
+        )
 
     def close_position(self) -> None:
         self.position = None
