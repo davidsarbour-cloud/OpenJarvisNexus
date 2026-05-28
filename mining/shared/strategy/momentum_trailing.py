@@ -19,14 +19,20 @@ from dataclasses import dataclass, field
 from .base import Action, Bar, Signal, Strategy
 from .indicators import ATR, ROC, Trend, VolumeRatio
 
-# ── Tunable parameters (strategy-ai service may suggest new values) ──────────
-INITIAL_STOP_PCT = 0.01   # -1% below entry
-ACTIVATE_TP_PCT  = 0.02   # +2% high-water → trailing activates
+# ── Tunable parameters ───────────────────────────────────────────────────────
+# Defaults moved from David's original 1%/2% spec to 1.5%/3% after walk-forward
+# validation (mining/services/backtester/multiwindow.py): the wider stop +
+# later trailing-activation is the most robust FIXED setting — net-positive on
+# 4/5 anchored chunks across ASML/INTC/AMD/NVDA/TSLA, and it beats both the
+# original 1%/2% and the per-fold re-optimized params. The original spec is
+# still exercised explicitly in tests/test_trailing_stop.py::spec_pos.
+INITIAL_STOP_PCT = 0.015  # -1.5% below entry  (was 0.01)
+ACTIVATE_TP_PCT  = 0.03   # +3% high-water → trailing activates  (was 0.02)
 TRAIL_PCT        = 0.01   # -1% below the high-water mark
 
 # Entry filters
 MIN_ROC          = 0.30   # min % rate-of-change to call it momentum
-MIN_VOLUME_RATIO = 1.30   # current vol vs avg → spike threshold
+MIN_VOLUME_RATIO = 1.50   # current vol vs avg → spike threshold  (was 1.30)
 MAX_ATR_PCT      = 5.0    # skip if ATR > 5% of price (too volatile)
 
 
