@@ -259,7 +259,11 @@ def agents_list():
     bruce_url = os.getenv("OPENHANDS_URL", "http://localhost:3000")
     try:
         import httpx
-        bruce_ok = httpx.get(f"{bruce_url}/api/options/models", timeout=2).status_code == 200
+        # Bruce (OpenHands) is an optional docker-profile agent, usually
+        # down when running native. Short 0.5s timeout so we don't burn
+        # 2s on a refused connection on every /v1/agents call (pushed
+        # every 8s via snapshot/agents).
+        bruce_ok = httpx.get(f"{bruce_url}/api/options/models", timeout=0.5).status_code == 200
     except Exception:
         bruce_ok = False
 

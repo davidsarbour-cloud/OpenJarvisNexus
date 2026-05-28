@@ -202,34 +202,41 @@ async def docker_containers():
 # ──────────────────────────────────────────────────────────
 @router.get("/chromadb/stats")
 async def chromadb_stats():
-    """Heartbeat + nombre de collections."""
-    try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as c:
-            # Heartbeat (v1 ou v2 selon image)
-            try:
-                hb = await c.get(f"{CHROMADB_URL}/api/v2/heartbeat")
-                if hb.status_code == 404:
-                    hb = await c.get(f"{CHROMADB_URL}/api/v1/heartbeat")
-            except Exception:
-                hb = await c.get(f"{CHROMADB_URL}/api/v1/heartbeat")
-            hb.raise_for_status()
-            heartbeat = hb.json()
+    """Stats de la mémoire vectorielle.
 
-            # Liste des collections — v2 préféré, fallback v1
-            try:
-                cols = await c.get(f"{CHROMADB_URL}/api/v2/collections", params={"tenant": "default_tenant", "database": "default_database"})
-                if cols.status_code in (404, 422):
-                    cols = await c.get(f"{CHROMADB_URL}/api/v1/collections")
-                cols.raise_for_status()
-                collections_count = len(cols.json())
-            except Exception:
-                collections_count = None
+    Lit le client ChromaDB EMBEDDED (vault_core.get_client → PersistentClient
+    sur disque) — c'est le store réellement utilisé par la vault/brain.
+    L'ancienne version pinguait un serveur HTTP CHROMADB_URL qui n'existe
+    qu'en mode docker : en natif elle reportait 'available: false' à tort
+    après ~4.5s de timeouts. La lecture embedded est instantanée et
+    reflète la vérité du système. Offloadé en thread car les appels
+    chromadb sont synchrones bloquants.
+    """
+    import asyncio
 
+    def _read_embedded() -> dict:
+        from vault.vault_core import get_client
+        client = get_client()
+        cols = client.list_collections()
+        per_collection = {}
+        total_docs = 0
+        for c in cols:
+            try:
+                n = c.count()
+            except Exception:
+                n = 0
+            per_collection[c.name] = n
+            total_docs += n
         return {
-            "available":   True,
-            "heartbeat":   heartbeat,
-            "collections": collections_count,
+            "available":    True,
+            "mode":         "embedded (PersistentClient)",
+            "collections":  len(cols),
+            "total_docs":   total_docs,
+            "per_collection": per_collection,
         }
+
+    try:
+        return await asyncio.to_thread(_read_embedded)
     except Exception as e:
         return {"available": False, "error": f"{type(e).__name__}: {e}", "collections": 0}
 

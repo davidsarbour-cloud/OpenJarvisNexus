@@ -26,12 +26,20 @@ log = logging.getLogger("snapshot_publisher")
 
 
 async def _safe_call(fn: Callable[[], Awaitable | object]) -> object:
-    """Call a sync/async function and return its result, or ``None`` on error."""
+    """Call a sync/async fetcher and return its result, or ``None`` on error.
+
+    Sync fetchers are offloaded to a worker thread via ``asyncio.to_thread``
+    so a slow/blocking one (an Ollama ping, a `docker ps` subprocess, a
+    ChromaDB query) can't freeze the shared event loop and starve the
+    OTHER publishers. Before this, a 4.6s blocking agents_list() froze
+    every publisher for 4.6s — system-metrics (2s cadence) only managed
+    3 frames in 14s instead of 7, and agents/health/chromadb dropped out
+    entirely. Offloading sync work fixes the starvation.
+    """
     try:
-        result = fn()
-        if asyncio.iscoroutine(result):
-            return await result
-        return result
+        if asyncio.iscoroutinefunction(fn):
+            return await fn()
+        return await asyncio.to_thread(fn)
     except Exception as e:                                # noqa: BLE001 - publishers must never crash
         log.warning(f"snapshot fetch failed: {e}")
         return None
