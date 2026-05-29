@@ -216,3 +216,19 @@ export interface SystemMetrics {
 
 export const fetchSystemMetrics = () =>
   getJSON<SystemMetrics>('/v1/system/metrics', 3000);
+
+// ─── Health aggregator (/v1/health/all) ────────────────
+export type HealthStatus = 'up' | 'down' | 'warn';
+
+export interface HealthService {
+  status: HealthStatus;
+  detail: unknown;
+}
+
+export interface HealthAll {
+  overall: 'healthy' | 'degraded' | 'down';
+  ts: string;
+  services: Record<string, HealthService>;
+}
+
+export const fetchHealthAll = () => getJSON<HealthAll>('/v1/health/all', 8000);

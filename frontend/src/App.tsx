@@ -33,6 +33,8 @@ const AgentsPage         = lazy(() => import('./pages/AgentsPage').then(m => ({ 
 const DataSourcesPage    = lazy(() => import('./pages/DataSourcesPage').then(m => ({ default: m.DataSourcesPage })));
 const LogsPage           = lazy(() => import('./pages/LogsPage').then(m => ({ default: m.LogsPage })));
 const AgentNetworkPage   = lazy(() => import('./pages/AgentNetworkPage'));
+const HealthPage         = lazy(() => import('./pages/HealthPage').then(m => ({ default: m.HealthPage })));
+const BenchmarkPage      = lazy(() => import('./pages/BenchmarkPage').then(m => ({ default: m.BenchmarkPage })));
 const PipelineHubPage    = lazy(() => import('./pages/PipelineHubPage'));
 
 function RouteFallback() {
@@ -213,6 +215,8 @@ export default function App() {
             <Route path="chat" element={<JarvisChatPage />} />
             <Route path="agent-network" element={<AgentNetworkPage />} />
             <Route path="pipeline-hub" element={<PipelineHubPage />} />
+            <Route path="diagnostics" element={<HealthPage />} />
+            <Route path="benchmark" element={<BenchmarkPage />} />
             {/* WORLD pages — empty canvases parameterised by ModuleKey. */}
             <Route path="world/jarvis"    element={<WorldJarvisPage />} />
             <Route path="world/forge"     element={<WorldForgePage />} />
