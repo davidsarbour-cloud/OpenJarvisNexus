@@ -342,16 +342,17 @@ export default function PipelineHubPage() {
       {/* LEFT overlay — pipeline cards sit ON the left side of the picture */}
       <div
         style={{
-          position: 'absolute', left: 0, top: 0, bottom: 0, zIndex: 2,
+          position: 'absolute', left: 16, top: 16, bottom: 16, zIndex: 2,
           width: DOCK_WIDTH,
           overflowY: 'auto',
-          padding: 12,
-          background: 'rgba(2,4,12,0.62)',
-          backdropFilter: 'blur(2px)',
-          borderRight: '1px solid var(--hud-border)',
+          padding: 16,
+          background: 'rgba(2,4,12,0.58)',
+          backdropFilter: 'blur(3px)',
+          border: '1px solid var(--hud-border)',
+          borderRadius: 8,
           display: 'flex',
           flexDirection: 'column',
-          gap: 16,
+          gap: 18,
         }}
       >
         <div

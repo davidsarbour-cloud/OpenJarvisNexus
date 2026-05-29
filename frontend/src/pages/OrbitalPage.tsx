@@ -45,7 +45,7 @@ export function OrbitalPage() {
           border: '1px solid var(--hud-border)',
         }}
       >
-        DRAG TO ROTATE · SCROLL TO ZOOM · CLICK A BODY
+        DRAG · SCROLL ZOOM · CLICK A PLANET → ITS WORLD
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import * as THREE from 'three';
 import { Starfield } from './Starfield';
 import { JarvisCore } from './JarvisCore';
@@ -17,7 +18,6 @@ import {
   type JarvisDef,
 } from './planets.config';
 import { useNexusStore } from '../../systems/nexusStore';
-import { VaultGraphOverlay } from '../VaultGraph';
 
 type Selection =
   | { kind: 'planet'; def: PlanetDef }
@@ -53,9 +53,9 @@ function CameraBreathing({
  */
 export function OrbitalScene() {
   const [selection, setSelection] = useState<Selection>(null);
-  const [vaultGraphOpen, setVaultGraphOpen] = useState(false);
   const setSelectedPlanet = useNexusStore((s) => s.setSelectedPlanet);
   const setFocusedService = useNexusStore((s) => s.setFocusedService);
+  const navigate = useNavigate();
 
   const [canvasKey, setCanvasKey] = useState(0);
   const [lost, setLost] = useState(false);
@@ -64,17 +64,11 @@ export function OrbitalScene() {
   const controlsRef = useRef<{ target: THREE.Vector3 } | null>(null);
 
   const onPlanetSelect = (d: PlanetDef) => {
-    // VAULT a un comportement special : on ouvre l'overlay graph plein-ecran
-    // au lieu de la ModulePanel laterale. Le store reste sync pour le reste
-    // de la UI (sidebar, focused service).
+    // Click a planet → jump to its world page (forge → /world/forge, etc.),
+    // like the sidebar hub icons. Keep the store in sync for the rest of the UI.
     setSelectedPlanet(d.id);
     setFocusedService(d.id);
-    if (d.id === 'vault') {
-      setVaultGraphOpen(true);
-      setSelection(null);
-      return;
-    }
-    setSelection({ kind: 'planet', def: d });
+    navigate(d.route ?? `/world/${d.id}`);
   };
 
   const onShipSelect = (d: SpaceshipDef) => {
@@ -106,7 +100,7 @@ export function OrbitalScene() {
     <div className="absolute inset-0">
       <Canvas
         key={canvasKey}
-        camera={{ position: [9, 6, 14], fov: 50, near: 0.1, far: 200 }}
+        camera={{ position: [20, 14, 31], fov: 50, near: 0.1, far: 200 }}
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
@@ -174,7 +168,7 @@ export function OrbitalScene() {
           enableDamping
           dampingFactor={0.06}
           minDistance={6}
-          maxDistance={34}
+          maxDistance={52}
           maxPolarAngle={Math.PI * 0.85}
           autoRotate
           autoRotateSpeed={0.18}
@@ -219,10 +213,6 @@ export function OrbitalScene() {
         />
       )}
 
-      <VaultGraphOverlay
-        open={vaultGraphOpen}
-        onClose={() => setVaultGraphOpen(false)}
-      />
     </div>
   );
 }
