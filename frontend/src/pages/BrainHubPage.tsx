@@ -15,64 +15,12 @@ const VAULT_GLOW   = 'rgba(168,85,247,0.6)';
  * Constellation centers are placed at radius 420 in graph coordinates.
  * Orphans get an outer ring far from the action so they don't pollute the view.
  */
-// Default constellation spread — overridable via the side slider (1..50).
-const SPREAD_DEFAULT = 12;
-const SPREAD_TO_RADIUS = (s: number) => 200 + (s / 50) * 1500; // 1→230, 25→950, 50→1700
-const GROUP_ORDER = [
-  '00_Core',
-  '01_Inbox',
-  '02_Daily',
-  '03_Projects',
-  '04_Areas',
-  '05_Resources',
-  '06_Agents',
-  '07_Schemas',
-  '08_Command-Center',
-  '09_Archives',
-] as const;
-
-// Meta buckets (tags, orphans) get their own slots on an OUTER ring so they
-// stay tidy clusters instead of scattering across the whole view by id-hash.
-const META_ORDER = ['_tag', '_orphan'] as const;
-const META_RADIUS_MULT = 1.9;
-
-/**
- * Collapse a node's raw group to its layout bucket: either a Johnny-Decimal
- * top group (00_Core…09_Archives) or a meta bucket. `topGroup` already maps
- * everything uncategorised to '_orphan', so we split tags back out here.
- */
-function layoutBucket(group: string | undefined): string {
-  const top = topGroup(group);
-  if (top !== '_orphan') return top;
-  if (group && group.startsWith('_tag')) return '_tag';
-  return '_orphan'; // true orphans + _root + imported + undefined
-}
-
-function constellationCenter(
-  group: string | undefined,
-  radius: number,
-): { x: number; y: number } | null {
-  const bucket = layoutBucket(group);
-
-  // Real categories → inner ring.
-  const idx = GROUP_ORDER.indexOf(bucket as typeof GROUP_ORDER[number]);
-  if (idx >= 0) {
-    const angle = (idx / GROUP_ORDER.length) * Math.PI * 2 - Math.PI / 2;
-    return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
-  }
-
-  // Meta buckets (tags, orphans) → dedicated slots on an outer ring, offset a
-  // half-step so they sit between the inner spokes rather than on top of them.
-  const midx = META_ORDER.indexOf(bucket as typeof META_ORDER[number]);
-  if (midx >= 0) {
-    const r = radius * META_RADIUS_MULT;
-    const angle =
-      (midx / META_ORDER.length) * Math.PI * 2 - Math.PI / 2 + Math.PI / META_ORDER.length;
-    return { x: Math.cos(angle) * r, y: Math.sin(angle) * r };
-  }
-
-  return null;
-}
+// Default spread — overridable via the +/- buttons (1..50). Spread maps to the
+// d3-force repulsion + link length, like Obsidian's force-graph: a plain
+// force-directed layout, no imposed ring/cluster anchors.
+const SPREAD_DEFAULT = 36;
+const spreadToCharge   = (s: number) => -(60 + s * 12);  // s=36 → -492, s=50 → -660
+const spreadToLinkDist = (s: number) => 30 + s * 3.5;    // s=36 → 156, s=50 → 205
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -80,16 +28,31 @@ interface DecoratedNode extends VaultGraphNode {
   degree: number;
 }
 
+// react-force-graph mutates link.source/target from an id string to the node
+// object after the first tick, so read the id either way.
+const linkEndId = (e: unknown): string =>
+  typeof e === 'object' && e !== null ? (e as { id: string }).id : (e as string);
+
 function decorateGraph(g: VaultGraphData | null) {
   if (!g) return { nodes: [] as DecoratedNode[], links: [] as { source: string; target: string }[] };
+  // Drop dangling links — the vault graph can emit links to something that
+  // isn't a node (a scheduled-job id like `skill-brain-stubs-check`, or a
+  // relative path). d3's link force throws "node not found" / "cannot set vx
+  // on string" on those, which crashes the whole graph. Obsidian does the same.
+  const ids = new Set(g.nodes.map((n) => n.id));
+  const links = g.links.filter(
+    (l) => ids.has(linkEndId(l.source)) && ids.has(linkEndId(l.target)),
+  );
   const degree = new Map<string, number>();
-  for (const l of g.links) {
-    degree.set(l.source, (degree.get(l.source) ?? 0) + 1);
-    degree.set(l.target, (degree.get(l.target) ?? 0) + 1);
+  for (const l of links) {
+    const s = linkEndId(l.source);
+    const t = linkEndId(l.target);
+    degree.set(s, (degree.get(s) ?? 0) + 1);
+    degree.set(t, (degree.get(t) ?? 0) + 1);
   }
   return {
     nodes: g.nodes.map((n) => ({ ...n, degree: degree.get(n.id) ?? 0 })),
-    links: g.links,
+    links,
   };
 }
 
@@ -184,7 +147,6 @@ export function BrainHubPage() {
   const [hoverId, setHoverId]   = useState<string | null>(null);
   const [size, setSize]         = useState({ width: 0, height: 0 });
   const [spread, setSpread]     = useState<number>(SPREAD_DEFAULT);
-  const radiusRef               = useRef<number>(SPREAD_TO_RADIUS(SPREAD_DEFAULT));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef        = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -206,104 +168,52 @@ export function BrainHubPage() {
 
   const decorated = useMemo(() => decorateGraph(graph), [graph]);
 
-  // ── Tune the d3-force simulation to spread notes into constellations ──────
-  // Configure after every new graph load so the forces apply to the fresh nodes.
+  // Plain force-directed layout (Obsidian Graph-view style): nodes repel,
+  // links pull, and the built-in centre force keeps everything on screen — no
+  // imposed ring/cluster anchors. The spread (+/- buttons) scales repulsion +
+  // link length; re-fit after each change so the graph stays framed.
   useEffect(() => {
-    if (!graph || !fgRef.current) return;
+    const fg = fgRef.current;
+    if (!graph || !fg) return;
+    const charge = fg.d3Force('charge');
+    if (charge) charge.strength(spreadToCharge(spread)).distanceMax(800);
+    const link = fg.d3Force('link');
+    if (link) link.distance(spreadToLinkDist(spread));
 
-    // 1. Local repulsion: push nodes apart but only at short range
-    //    (distanceMax 220) — prevents one constellation pushing the next.
-    const charge = fgRef.current.d3Force('charge');
-    if (charge) charge.strength(-160).distanceMax(220);
-
-    // 2. Link force = group-aware. Within-group links pull tight (form the
-    //    constellation pattern); cross-group links are nearly massless so
-    //    they don't drag two constellations into each other.
-    type LinkEnd = string | { group?: string };
-    const linkGroup = (end: LinkEnd): string => {
-      if (typeof end === 'object' && end && 'group' in end) return topGroup(end.group);
-      return '_orphan';
-    };
-    const linkForce = fgRef.current.d3Force('link');
-    if (linkForce) {
-      linkForce
-        .distance((l: { source: LinkEnd; target: LinkEnd }) => {
-          const same = linkGroup(l.source) === linkGroup(l.target);
-          return same ? 32 : 480;
-        })
-        .strength((l: { source: LinkEnd; target: LinkEnd }) => {
-          const same = linkGroup(l.source) === linkGroup(l.target);
-          return same ? 0.7 : 0.015;
-        });
-    }
-
-    // 3. Strong cluster force pulls each node toward its top-group anchor.
-    //    With weakened cross-group links, this is what wins: each group
-    //    becomes a distinct constellation around the ring.
+    // Gentle group cohesion: nudge each note toward the LIVE centroid of its
+    // 00/01/02… folder so same-folder notes cluster into visible groups, while
+    // charge keeps the whole map spread. Organic — no fixed anchors. Meta nodes
+    // (tags/orphans) are left free so they don't collapse into one giant blob.
     type SimNode = DecoratedNode & { x?: number; y?: number; vx?: number; vy?: number };
     let simNodes: SimNode[] = [];
-    const orphanAngle = (id: string) => {
-      let h = 0;
-      for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
-      return (h % 360) * (Math.PI / 180);
-    };
-    const clusterForce = (alpha: number) => {
-      const k = 0.55 * alpha;
-      // Read radius live from ref → slider changes reshape positions in real time.
-      const r = radiusRef.current;
-      const orphanR = r * 1.5;
-      for (const n of simNodes) {
-        if (n.x === undefined || n.y === undefined) continue;
-        let cx: number, cy: number;
-        const c = constellationCenter(n.group, r);
-        if (c) {
-          cx = c.x;
-          cy = c.y;
-        } else {
-          const a = orphanAngle(n.id);
-          cx = Math.cos(a) * orphanR;
-          cy = Math.sin(a) * orphanR;
-        }
-        n.vx = (n.vx ?? 0) + (cx - n.x) * k;
-        n.vy = (n.vy ?? 0) + (cy - n.y) * k;
+    const groupForce = (alpha: number) => {
+      const k = 0.12 * alpha;
+      const acc = new Map<string, { x: number; y: number; n: number }>();
+      for (const nd of simNodes) {
+        if (nd.x === undefined || nd.y === undefined) continue;
+        const g = topGroup(nd.group);
+        if (g === '_orphan') continue;
+        const e = acc.get(g) ?? { x: 0, y: 0, n: 0 };
+        e.x += nd.x; e.y += nd.y; e.n += 1;
+        acc.set(g, e);
+      }
+      for (const nd of simNodes) {
+        if (nd.x === undefined || nd.y === undefined) continue;
+        const e = acc.get(topGroup(nd.group));
+        if (!e) continue;
+        nd.vx = (nd.vx ?? 0) + (e.x / e.n - nd.x) * k;
+        nd.vy = (nd.vy ?? 0) + (e.y / e.n - nd.y) * k;
       }
     };
-    (clusterForce as unknown as { initialize: (n: SimNode[]) => void }).initialize = (n) => {
+    (groupForce as unknown as { initialize: (n: SimNode[]) => void }).initialize = (n) => {
       simNodes = n;
     };
-    fgRef.current.d3Force('cluster', clusterForce);
+    fg.d3Force('group', groupForce);
 
-    // 4. Kill the default center force — it would re-pull everything to (0,0)
-    //    and undo the constellation spread. Our cluster anchors are enough.
-    fgRef.current.d3Force('center', null);
-
-    // 5. Reheat so new forces actually shape the layout.
-    fgRef.current.d3ReheatSimulation?.();
-  }, [graph]);
-
-  // Live update when the spread slider moves: push new radius into ref + reheat.
-  useEffect(() => {
-    radiusRef.current = SPREAD_TO_RADIUS(spread);
-    if (fgRef.current && graph) {
-      fgRef.current.d3ReheatSimulation?.();
-    }
-  }, [spread, graph]);
-
-  // Auto-fit on the real constellations only (exclude the outer tag/orphan
-  // rings) so the useful clusters fill the screen instead of being squished
-  // by the far-flung meta nodes. The ⊹ FIT button still frames everything.
-  useEffect(() => {
-    if (!graph) return;
-    // Wait longer — the new spread takes more ticks to settle.
-    const t = window.setTimeout(
-      () =>
-        fgRef.current?.zoomToFit(800, 100, (n: object) =>
-          (GROUP_ORDER as readonly string[]).includes(topGroup((n as VaultGraphNode).group)),
-        ),
-      1500,
-    );
+    fg.d3ReheatSimulation?.();
+    const t = window.setTimeout(() => fg.zoomToFit(700, 60), 1400);
     return () => window.clearTimeout(t);
-  }, [graph]);
+  }, [graph, spread]);
 
   // ── Node painter (constellation style) ──────────────────────────────────────
   const paintNode = useCallback(
@@ -312,68 +222,34 @@ export function BrainHubPage() {
       if (n.x === undefined || n.y === undefined) return;
 
       const isHover  = hoverId === n.id;
-      const isHub    = n.degree >= 5;
       const isOrphan = n.group === '_orphan';
-      const color    = isOrphan ? 'rgba(255,255,255,0.25)' : groupColor(n.group);
+      const isTag    = typeof n.group === 'string' && n.group.startsWith('_tag');
+      const isMeta   = isOrphan || isTag;
+      const color    = isMeta ? 'rgba(200,210,235,0.55)' : groupColor(n.group);
 
-      // Node radius — bigger than before, scales with connections
-      const r = isOrphan
-        ? 2
-        : 3.5 + Math.sqrt(n.degree) * 2.2;
-
-      // ── Outer nebula halo for hub nodes ──
-      if (isHub || isHover) {
-        const haloR = r + (isHover ? 14 : 10);
-        const halo  = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, haloR);
-        // 88 hex alpha works for hex colors; orphan/rgba colors are used as-is.
-        const haloColor = color.startsWith('#') ? `${color}88` : color;
-        halo.addColorStop(0, isHover ? VAULT_GLOW : haloColor);
-        halo.addColorStop(1, 'transparent');
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, haloR, 0, 2 * Math.PI);
-        ctx.fillStyle = halo;
-        ctx.fill();
-      }
-
-      // ── Core glow ring ──
-      if (!isOrphan) {
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, r + 2, 0, 2 * Math.PI);
-        ctx.fillStyle = `${color}30`;
-        ctx.fill();
-      }
-
-      // ── Main dot ──
+      // Flat dot — Obsidian Graph-view style: no halo/glow. Size scales gently
+      // with the number of links; colour = folder group.
+      const r = isHover
+        ? 4
+        : isMeta
+          ? 1.6
+          : Math.min(7, 2.4 + Math.sqrt(n.degree) * 0.9);
       ctx.beginPath();
       ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
-      ctx.fillStyle = isOrphan ? 'rgba(255,255,255,0.2)' : color;
+      ctx.fillStyle = color;
       ctx.fill();
 
-      // ── Inner bright core ──
-      if (!isOrphan && r > 3) {
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, r * 0.4, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.fill();
-      }
-
-      // ── Label ── always visible for non-orphans, or on hover
-      const showLabel = isHover || (!isOrphan && globalScale > 0.5) || (isOrphan && isHover);
-      if (showLabel) {
-        const minFs  = isHover ? 3.5 : 2.8;
-        const fontSize = Math.max(11 / globalScale, minFs);
-        ctx.font = `${isHub ? 'bold ' : ''}${fontSize}px 'IBM Plex Mono', ui-monospace, monospace`;
+      // Label only on hover — otherwise it stays "just dots + links".
+      if (isHover) {
+        const fontSize = Math.max(10 / globalScale, 3);
+        ctx.font = `${fontSize}px 'IBM Plex Mono', ui-monospace, monospace`;
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'top';
-
-        const label  = n.id.length > 24 ? n.id.slice(0, 22) + '…' : n.id;
-        const labelY = n.y + r + 2.5;
-
-        // Shadow for readability on dark background
-        ctx.fillStyle = 'rgba(2,4,12,0.7)';
+        const label  = n.id.length > 28 ? n.id.slice(0, 26) + '…' : n.id;
+        const labelY = n.y + r + 2;
+        ctx.fillStyle = 'rgba(2,4,12,0.8)';
         ctx.fillText(label, n.x + 0.5, labelY + 0.5);
-
-        ctx.fillStyle = isHover ? '#ffffff' : isHub ? color : 'rgba(255,255,255,0.75)';
+        ctx.fillStyle = '#ffffff';
         ctx.fillText(label, n.x, labelY);
       }
     },
@@ -422,12 +298,8 @@ export function BrainHubPage() {
             backgroundColor={BG}
             graphData={decorated}
             nodeRelSize={5}
-            linkColor={() => 'rgba(168,85,247,0.35)'}
-            linkWidth={0.8}
-            linkDirectionalParticles={2}
-            linkDirectionalParticleWidth={1.5}
-            linkDirectionalParticleColor={() => VAULT_ACCENT}
-            linkDirectionalParticleSpeed={0.004}
+            linkColor={() => 'rgba(165,180,220,0.4)'}
+            linkWidth={1}
             cooldownTicks={600}
             warmupTicks={120}
             d3AlphaDecay={0.008}
@@ -438,7 +310,7 @@ export function BrainHubPage() {
             nodePointerAreaPaint={(raw, color, ctx) => {
               const n = raw as DecoratedNode & { x?: number; y?: number };
               if (n.x === undefined || n.y === undefined) return;
-              const r = 3.5 + Math.sqrt((n as DecoratedNode).degree) * 2.2 + 6;
+              const r = 7; // small uniform hit area for the mini dots
               ctx.beginPath();
               ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
               ctx.fillStyle = color;
@@ -528,72 +400,40 @@ export function BrainHubPage() {
         }}>
           {spread}
         </div>
-        <div style={{
-          width: 26, height: 200,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <input
-            type="range"
-            min={1}
-            max={50}
-            step={1}
-            value={spread}
-            onChange={(e) => setSpread(parseInt(e.target.value, 10))}
-            aria-label="Constellation spread"
-            className="brain-spread-slider"
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => setSpread((s) => Math.min(50, s + 3))}
+            aria-label="Increase spread"
             style={{
-              width: 200, // horizontal width; rotated into a vertical track
-              transform: 'rotate(-90deg)',
-              accentColor: VAULT_ACCENT,
-              cursor: 'pointer',
-              background: 'transparent',
+              width: 32, height: 32,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(168,85,247,0.14)',
+              border: `1px solid ${VAULT_ACCENT}`,
+              color: VAULT_ACCENT,
+              fontSize: 20, fontWeight: 700, lineHeight: 1,
+              cursor: 'pointer', borderRadius: 4, fontFamily: 'inherit',
             }}
-          />
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => setSpread((s) => Math.max(1, s - 3))}
+            aria-label="Decrease spread"
+            style={{
+              width: 32, height: 32,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(168,85,247,0.14)',
+              border: `1px solid ${VAULT_ACCENT}`,
+              color: VAULT_ACCENT,
+              fontSize: 20, fontWeight: 700, lineHeight: 1,
+              cursor: 'pointer', borderRadius: 4, fontFamily: 'inherit',
+            }}
+          >
+            −
+          </button>
         </div>
-        <style>{`
-          input.brain-spread-slider {
-            -webkit-appearance: none;
-            appearance: none;
-            background: transparent;
-            height: 6px;
-            outline: none;
-          }
-          input.brain-spread-slider::-webkit-slider-runnable-track {
-            background: linear-gradient(to right,
-              rgba(168,85,247,0.15) 0%,
-              rgba(168,85,247,0.45) 50%,
-              rgba(168,85,247,0.85) 100%);
-            height: 4px;
-            border-radius: 2px;
-          }
-          input.brain-spread-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            margin-top: -5px;
-            width: 14px; height: 14px;
-            background: #6b21a8;
-            border: 1px solid ${VAULT_ACCENT};
-            box-shadow: 0 0 8px ${VAULT_GLOW};
-            border-radius: 50%;
-            cursor: pointer;
-          }
-          input.brain-spread-slider::-moz-range-track {
-            background: linear-gradient(to right,
-              rgba(168,85,247,0.15) 0%,
-              rgba(168,85,247,0.45) 50%,
-              rgba(168,85,247,0.85) 100%);
-            height: 4px;
-            border-radius: 2px;
-            border: none;
-          }
-          input.brain-spread-slider::-moz-range-thumb {
-            width: 14px; height: 14px;
-            background: #6b21a8;
-            border: 1px solid ${VAULT_ACCENT};
-            box-shadow: 0 0 8px ${VAULT_GLOW};
-            border-radius: 50%;
-            cursor: pointer;
-          }
-        `}</style>
         <div style={{
           fontSize: 7, letterSpacing: '0.18em',
           color: 'rgba(168,85,247,0.45)',

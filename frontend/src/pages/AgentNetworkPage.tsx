@@ -44,6 +44,7 @@ const AGENT_COLOR: Record<string, ModuleKey> = {
   forge:   'forge',
   vault:   'vault',
   nova:    'cyberdeck',
+  mining:  'docker',   // flashy neon green (#00ff88) — placeholder, wired later
 };
 
 // Top-level agents only — the STL sub-agents (stl_blender, stl_concept,
@@ -64,6 +65,19 @@ const FALLBACK_AGENTS: AgentInfo[] = [
   { id: 'nova',    name: 'NOVA',    provider: 'ollama',  model: 'deepseek-r1:7b',     role: 'Complex code',        description: '', status: 'offline' },
   { id: 'forge',   name: 'FORGE',   provider: 'local',   model: 'Meshy AI + trimesh', role: 'STL pipeline',        description: '', status: 'online' },
 ];
+
+// Frontend-only placeholder — the Mining agent isn't wired to the backend
+// yet. Always appended to the constellation, rendered flashy green (docker
+// accent) with a pulsing link as a "coming soon / à compléter" slot.
+const MINING_PLACEHOLDER: AgentInfo = {
+  id:          'mining',
+  name:        'MINING',
+  provider:    'local',
+  model:       'à compléter — soon',
+  role:        'Trading & Crypto Mining',
+  description: '',
+  status:      'online',
+};
 
 function ringPosition(idx: number, total: number, radius = 320) {
   const angle = (idx / total) * Math.PI * 2 - Math.PI / 2;
@@ -86,7 +100,9 @@ export default function AgentNetworkPage() {
     const live = data?.agents ?? [];
     const source = live.length ? live : FALLBACK_AGENTS;
     // Keep only top-level agents — drop STL sub-agents + ETSY internals.
-    return source.filter((a) => MAIN_AGENT_IDS.has(a.id));
+    const mains = source.filter((a) => MAIN_AGENT_IDS.has(a.id));
+    // Append the MINING placeholder (frontend-only, flashy green).
+    return [...mains, MINING_PLACEHOLDER];
   }, [data]);
 
   const selectedAgent = useMemo(

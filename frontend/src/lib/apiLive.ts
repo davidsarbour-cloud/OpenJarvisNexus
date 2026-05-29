@@ -180,6 +180,14 @@ export interface WorldCardsSnapshotData {
 export const fetchWorldCardsSnapshot = () =>
   getJSON<WorldCardsSnapshotData>('/v1/world/cards/snapshot', 6000);
 
+// ─── Boot info (/v1/boot/info) — uptime since the backend process started ──
+export interface BootInfo {
+  boot_id:    string;
+  started_at: string; // ISO8601 UTC, e.g. "2026-05-28T18:40:00+00:00"
+}
+
+export const fetchBootInfo = () => getJSON<BootInfo>('/v1/boot/info', 5000);
+
 // ─── Scheduled Tasks (/v1/daily/status) ────────────────
 export interface ScheduledJob {
   id: string;

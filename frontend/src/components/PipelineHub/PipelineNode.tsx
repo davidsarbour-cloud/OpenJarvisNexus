@@ -179,7 +179,7 @@ export function PipelineNode({ data }: { data: PipelineNodeData }) {
           if (!isRunning) data.onActivate(data.id);
         }}
         disabled={isRunning}
-        className="nodrag w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] font-bold tracking-[0.18em] rounded-sm transition-colors"
+        className="nodrag w-1/2 mx-auto flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] font-bold tracking-[0.18em] rounded-sm transition-colors"
         style={{
           background: isRunning ? 'rgba(255,255,255,0.04)' : c,
           color: isRunning ? c : '#000',

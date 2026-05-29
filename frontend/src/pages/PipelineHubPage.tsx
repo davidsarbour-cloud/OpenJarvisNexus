@@ -166,6 +166,9 @@ const CATEGORIES: CategorySpec[] = [
   { id: 'infrastructure', label: 'INFRASTRUCTURE', accent: 'docker'   },
 ];
 
+const PIPELINE_IMAGE = '/world/pipeline.png';
+const DOCK_WIDTH = 360;
+
 function initialRunState(): PipelineRunState {
   return { status: 'idle', currentStep: 0 };
 }
@@ -191,6 +194,7 @@ export default function PipelineHubPage() {
     () => Object.fromEntries(PIPELINES.map((p) => [p.id, ''])),
   );
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [imgFailed, setImgFailed] = useState(false);
 
   const tickersRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
@@ -329,60 +333,130 @@ export default function PipelineHubPage() {
 
   return (
     <div
-      className="flex-1 overflow-y-auto p-4 flex flex-col gap-5"
+      className="flex-1 relative overflow-hidden min-h-0"
       style={{ background: 'var(--hud-bg)' }}
     >
-      <div
-        className="flex items-center gap-3 text-[10px] font-bold tracking-[0.3em]"
-        style={{ color: 'var(--hud-text-dim)' }}
-      >
-        <span style={{ color: 'var(--color-security)' }}>◆</span>
-        PIPELINE HUB
-        <span className="flex-1" style={{ height: 1, background: 'var(--hud-border)' }} />
-        <span>
-          {CATEGORIES.length} CATEGORIES · {PIPELINES.length} PIPELINES · {activeCount} RUNNING
-        </span>
-      </div>
+      {/* Background — pipeline image fills the whole frame */}
+      {imgFailed ? <PipelineImageNotFound /> : <PipelineImage onError={() => setImgFailed(true)} />}
 
-      {CATEGORIES.map((cat) => {
-        const cardsInCat = PIPELINES.filter((p) => p.category === cat.id);
-        if (cardsInCat.length === 0) return null;
-        return (
-          <section key={cat.id}>
-            <SectionTitle text={cat.label} accent={MODULE_COLORS[cat.accent].hex} />
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-10 gap-3">
+      {/* LEFT overlay — pipeline cards sit ON the left side of the picture */}
+      <div
+        style={{
+          position: 'absolute', left: 0, top: 0, bottom: 0, zIndex: 2,
+          width: DOCK_WIDTH,
+          overflowY: 'auto',
+          padding: 12,
+          background: 'rgba(2,4,12,0.62)',
+          backdropFilter: 'blur(2px)',
+          borderRight: '1px solid var(--hud-border)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 16,
+        }}
+      >
+        <div
+          className="flex items-center gap-2 text-[10px] font-bold tracking-[0.3em] shrink-0"
+          style={{ color: 'var(--hud-text-dim)' }}
+        >
+          <span style={{ color: 'var(--color-security)' }}>◆</span>
+          PIPELINE HUB
+          <span className="ml-auto text-[9px]">{PIPELINES.length} · {activeCount} RUNNING</span>
+        </div>
+
+        {CATEGORIES.map((cat) => {
+          const cardsInCat = PIPELINES.filter((p) => p.category === cat.id);
+          if (cardsInCat.length === 0) return null;
+          return (
+            <section key={cat.id} className="flex flex-col gap-2">
+              <SectionTitle text={cat.label} accent={MODULE_COLORS[cat.accent].hex} />
               {cardsInCat.map((p) => (
-                <div
+                <PipelineNode
                   key={p.id}
-                  className="col-span-2 sm:col-span-3 lg:col-span-5 xl:col-span-3 2xl:col-span-3"
-                >
-                  <PipelineNode
-                    data={{
-                      id: p.id,
-                      label: p.label,
-                      description: p.description,
-                      icon: p.icon,
-                      colorKey: p.colorKey,
-                      totalSteps: p.totalSteps,
-                      estimatedSecondsPerStep: p.estimatedSecondsPerStep,
-                      steps: p.steps,
-                      inputLabel: p.inputLabel,
-                      inputValue: inputs[p.id] ?? '',
-                      runState: runStates[p.id] ?? initialRunState(),
-                      isExpanded: expandedId === p.id,
-                      obsidianPath: p.obsidianPath,
-                      obsidianVault: OBSIDIAN_VAULT,
-                      onInputChange: handleInputChange,
-                      onActivate: handleActivate,
-                      onToggleExpand: handleToggleExpand,
-                    }}
-                  />
-                </div>
+                  data={{
+                    id: p.id,
+                    label: p.label,
+                    description: p.description,
+                    icon: p.icon,
+                    colorKey: p.colorKey,
+                    totalSteps: p.totalSteps,
+                    estimatedSecondsPerStep: p.estimatedSecondsPerStep,
+                    steps: p.steps,
+                    inputLabel: p.inputLabel,
+                    inputValue: inputs[p.id] ?? '',
+                    runState: runStates[p.id] ?? initialRunState(),
+                    isExpanded: expandedId === p.id,
+                    obsidianPath: p.obsidianPath,
+                    obsidianVault: OBSIDIAN_VAULT,
+                    onInputChange: handleInputChange,
+                    onActivate: handleActivate,
+                    onToggleExpand: handleToggleExpand,
+                  }}
+                />
               ))}
-            </div>
-          </section>
-        );
-      })}
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Image area (right column, edge-to-edge with subtle sci-fi overlays) ─────
+
+function PipelineImage({ onError }: { onError: () => void }) {
+  return (
+    <div
+      style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden', background: 'var(--hud-bg)' }}
+    >
+      <img
+        src={PIPELINE_IMAGE}
+        alt="Pipeline Hub"
+        onError={onError}
+        style={{
+          position: 'absolute', inset: 0, width: '100%', height: '100%',
+          objectFit: 'cover', objectPosition: 'center', display: 'block',
+        }}
+      />
+      {/* CRT scan lines — amber tint, faint */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute', inset: 0,
+          background:
+            'repeating-linear-gradient(0deg, transparent 0px, transparent 3px, rgba(245,158,11,0.025) 3px, rgba(245,158,11,0.025) 4px)',
+          pointerEvents: 'none', mixBlendMode: 'overlay',
+        }}
+      />
+      {/* Vignette breath */}
+      <div className="pipeline-vignette" aria-hidden="true" />
+      <style>{`
+        @keyframes pipeline-vignette {
+          0%, 100% { box-shadow: inset 0 0 90px -10px rgba(0,0,0,0.55); }
+          50%      { box-shadow: inset 0 0 130px -4px rgba(0,0,0,0.7);  }
+        }
+        .pipeline-vignette {
+          position: absolute; inset: 0; pointer-events: none;
+          animation: pipeline-vignette 11s ease-in-out infinite;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function PipelineImageNotFound() {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-3 text-center px-6"
+      style={{ position: 'absolute', inset: 0, zIndex: 0, color: 'var(--hud-text-dim)', fontFamily: "'IBM Plex Mono', ui-monospace, monospace" }}
+    >
+      <div className="text-[10px] tracking-[0.3em] font-bold" style={{ color: 'var(--color-security)' }}>
+        ◆ PIPELINE IMAGE NOT FOUND
+      </div>
+      <div className="text-[11px] tracking-wider max-w-md">Expected file:</div>
+      <pre
+        className="text-[10px] p-3"
+        style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.3)', color: 'var(--hud-text)' }}
+      >{`frontend/public${PIPELINE_IMAGE}`}</pre>
     </div>
   );
 }
