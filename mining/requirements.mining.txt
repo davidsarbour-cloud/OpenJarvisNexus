@@ -1,0 +1,7 @@
+# Mining cluster runtime deps. Strategy/backtester themselves are pure-python.
+fastapi>=0.115
+uvicorn[standard]>=0.32
+redis>=5.2
+alpaca-py>=0.33
+httpx>=0.27
+psycopg[binary]>=3.2

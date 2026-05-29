@@ -1,0 +1,60 @@
+# Nexus9 Mining cluster — SEPARATE from the core Nexus9 stack.
+# Paper-first. LIVE requires, in .env.mining:  ALPACA_MODE=live  AND  I_UNDERSTAND_LIVE_RISK=yes
+#   docker compose -f docker-compose.mining.yml up -d
+name: nexus9-mining
+
+x-svc: &svc
+  build: .
+  env_file: .env.mining
+  restart: unless-stopped
+  depends_on: [redis]
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mining
+      POSTGRES_PASSWORD: mining
+      POSTGRES_DB: mining
+    ports: ["5432:5432"]
+    volumes: ["mining_pg:/var/lib/postgresql/data"]
+    restart: unless-stopped
+
+  market-data:
+    <<: *svc
+    command: python -m services.market_data.main
+
+  risk-manager:
+    <<: *svc
+    command: python -m services.risk_manager.main
+    depends_on: [redis, postgres]
+
+  ai-gateway:
+    <<: *svc
+    command: python -m services.ai_gateway.main
+
+  orchestrator:
+    <<: *svc
+    command: uvicorn services.orchestrator.main:app --host 0.0.0.0 --port 8090
+    ports: ["8090:8090"]
+
+  # All tickers in ONE worker process — an asyncio task per ticker, each with
+  # its own strategy state (identical behaviour to 1-per-ticker, fewer
+  # containers). For per-ticker isolation later, duplicate this with TICKER=<SYM>.
+  workers:
+    <<: *svc
+    command: python -m services.bot_worker.main
+    environment: { TICKER: ALL }
+
+  # Monitoring is intentionally NOT a Prometheus/Grafana stack here: a solo
+  # 5-bot paper system is covered by Postgres (history) + the /world/mining HUD
+  # (live) + Telegram alerts (Phase 5). Add prom/grafana back only when scaling
+  # to many bots/strategies — it's a few lines of YAML.
+
+volumes:
+  mining_pg:
