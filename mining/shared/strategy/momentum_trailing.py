@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 
 from .base import Action, Bar, Signal, Strategy
 from .indicators import ATR, ROC, Trend, VolumeRatio
+from .regime import RegimeFilter
 
 # ── Tunable parameters ───────────────────────────────────────────────────────
 # Defaults moved from David's original 1%/2% spec to 1.5%/3% after walk-forward
@@ -112,11 +113,17 @@ class MomentumTrailing(Strategy):
     initial_stop_pct: float = INITIAL_STOP_PCT
     activate_tp_pct:  float = ACTIVATE_TP_PCT
     trail_pct:        float = TRAIL_PCT
+    # Optional regime gate: when True, entries require a confirmed up-trend
+    # regime (shared/strategy/regime.py). Off by default → existing behaviour
+    # and tests are unchanged. The backtester updates it every bar too, so
+    # backtest == live.
+    use_regime:       bool  = False
 
-    roc:   ROC         = field(init=False)
-    vol:   VolumeRatio = field(init=False)
-    atr:   ATR         = field(init=False)
-    trend: Trend       = field(init=False)
+    roc:    ROC         = field(init=False)
+    vol:    VolumeRatio = field(init=False)
+    atr:    ATR         = field(init=False)
+    trend:  Trend       = field(init=False)
+    regime: RegimeFilter | None = field(default=None, init=False)
     position: Position | None = field(default=None, init=False)
 
     def __post_init__(self):
@@ -124,11 +131,14 @@ class MomentumTrailing(Strategy):
         self.vol   = VolumeRatio(self.vol_period)
         self.atr   = ATR(self.atr_period)
         self.trend = Trend()
+        self.regime = RegimeFilter() if self.use_regime else None
 
     # ── Entry decision ──────────────────────────────────────────────────────
     def entry_signal(self, bar: Bar, roc, vol_ratio, atr) -> bool:
         if not self.sentiment_ok:
             return False
+        if self.regime is not None and not self.regime.allow_entry:
+            return False                                   # wrong regime → sit out
         if roc is None or vol_ratio is None or atr is None:
             return False                                   # not warmed up
         atr_pct = (atr / bar.close * 100.0) if bar.close else 999
@@ -145,6 +155,8 @@ class MomentumTrailing(Strategy):
         vol_ratio = self.vol.update(bar.volume)
         atr       = self.atr.update(bar.high, bar.low, bar.close)
         self.trend.update(bar.close)
+        if self.regime is not None:
+            self.regime.update(bar)
 
         if self.position is None:
             if self.entry_signal(bar, roc, vol_ratio, atr):

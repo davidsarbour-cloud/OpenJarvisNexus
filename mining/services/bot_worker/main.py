@@ -41,6 +41,7 @@ def _build_strategy(ticker: str) -> MomentumTrailing:
         initial_stop_pct=p.initial_stop_pct, activate_tp_pct=p.activate_tp_pct,
         trail_pct=p.trail_pct, min_roc=p.min_roc,
         min_volume_ratio=p.min_volume_ratio, max_atr_pct=p.max_atr_pct,
+        use_regime=p.use_regime,
     )
 
 

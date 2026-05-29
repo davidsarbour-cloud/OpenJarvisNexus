@@ -79,6 +79,63 @@ class ATR:
         return self._atr
 
 
+class ADX:
+    """Average Directional Index (Wilder) — trend STRENGTH, not direction.
+
+    ADX >= 25 ≈ a real trend, < 18 ≈ chop/range. Pure streaming, O(1)/bar.
+    None until warmed up (~2*period bars: period to seed DI, period to seed ADX).
+    Caller feeds (high, low, close) each bar.
+    """
+    def __init__(self, period: int = 14):
+        self.period = period
+        self._ph: float | None = None   # prev high / low / close
+        self._pl: float | None = None
+        self._pc: float | None = None
+        self._tr = self._pdm = self._ndm = 0.0   # Wilder-smoothed sums
+        self._seed = 0
+        self._smoothed = False
+        self._dx: deque[float] = deque(maxlen=period)
+        self._adx: float | None = None
+
+    def update(self, high: float, low: float, close: float) -> float | None:
+        if self._pc is None:
+            self._ph, self._pl, self._pc = high, low, close
+            return None
+        tr = max(high - low, abs(high - self._pc), abs(low - self._pc))
+        up_move = high - self._ph
+        dn_move = self._pl - low
+        pdm = up_move if (up_move > dn_move and up_move > 0) else 0.0
+        ndm = dn_move if (dn_move > up_move and dn_move > 0) else 0.0
+        self._ph, self._pl, self._pc = high, low, close
+
+        if not self._smoothed:
+            self._tr += tr
+            self._pdm += pdm
+            self._ndm += ndm
+            self._seed += 1
+            if self._seed < self.period:
+                return None
+            self._smoothed = True
+        else:
+            self._tr = self._tr - self._tr / self.period + tr
+            self._pdm = self._pdm - self._pdm / self.period + pdm
+            self._ndm = self._ndm - self._ndm / self.period + ndm
+
+        if self._tr == 0:
+            return self._adx
+        pdi = 100.0 * self._pdm / self._tr
+        ndi = 100.0 * self._ndm / self._tr
+        denom = pdi + ndi
+        dx = 100.0 * abs(pdi - ndi) / denom if denom else 0.0
+        self._dx.append(dx)
+        if self._adx is None:
+            if len(self._dx) == self.period:
+                self._adx = sum(self._dx) / self.period
+        else:
+            self._adx = (self._adx * (self.period - 1) + dx) / self.period
+        return self._adx
+
+
 class Trend:
     """Fast EMA vs slow EMA. up() True when fast > slow (uptrend)."""
     def __init__(self, fast: int = 9, slow: int = 21):

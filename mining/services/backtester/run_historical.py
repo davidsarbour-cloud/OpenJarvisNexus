@@ -57,6 +57,8 @@ def run_ohlc_backtest(
         vol_ratio = strat.vol.update(bar.volume)
         atr       = strat.atr.update(bar.high, bar.low, bar.close)
         strat.trend.update(bar.close)
+        if strat.regime is not None:
+            strat.regime.update(bar)              # keep regime warm every bar (backtest == live)
 
         if strat.position is None:
             if strat.entry_signal(bar, roc, vol_ratio, atr):

@@ -39,6 +39,7 @@ class StrategyParams:
     min_roc:          float = _f("MINING_MIN_ROC", "0.30")
     min_volume_ratio: float = _f("MINING_MIN_VOLUME_RATIO", "1.50")
     max_atr_pct:      float = _f("MINING_MAX_ATR_PCT", "5.0")
+    use_regime:       bool  = os.getenv("MINING_REGIME_FILTER", "false").lower() in ("1", "true", "yes")
 
 
 @dataclass(frozen=True)
