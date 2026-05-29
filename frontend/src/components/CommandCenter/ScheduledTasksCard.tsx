@@ -94,7 +94,20 @@ function openObsidian(path: string) {
 const FETCH_INTERVAL_MS = 30 * 60 * 1000;
 const TICK_INTERVAL_MS = 1000;
 
-export function ScheduledTasksCard() {
+export function ScheduledTasksCard({
+  buckets = ['daily', 'weekly', 'monthly'],
+  title = 'Automation Schedule',
+  columns,
+}: {
+  /** Which frequency buckets to display (default: all). Lets the card be
+   *  split across docks — e.g. daily on the left, weekly+monthly on the
+   *  right — each copy showing only its own buckets. */
+  buckets?: Bucket[];
+  title?: string;
+  /** Grid columns for the bucket sections. Defaults to one per bucket
+   *  (side by side); pass 1 to stack them vertically in a narrow dock. */
+  columns?: number;
+} = {}) {
   const { data, error, loading } = useLiveMetric(fetchScheduledTasks, { intervalMs: FETCH_INTERVAL_MS, wsTopic: 'snapshot/scheduled' });
   const [now, setNow] = useState(() => Date.now());
 
@@ -119,10 +132,20 @@ export function ScheduledTasksCard() {
     return out;
   }, [data]);
 
-  const jobCount = (data?.jobs ?? []).length;
+  // Headline + count are scoped to the buckets THIS card shows, so a split
+  // card reports its own next-fire / job total (not the global one).
+  const shownJobs = useMemo(
+    () =>
+      (data?.jobs ?? []).filter((j) => {
+        const b = bucketize(j.name);
+        return b !== null && buckets.includes(b);
+      }),
+    [data, buckets],
+  );
+  const jobCount = shownJobs.length;
   const nextOverall = useMemo<{ name: string; at: Date } | null>(() => {
     let best: { name: string; at: Date } | null = null;
-    for (const j of data?.jobs ?? []) {
+    for (const j of shownJobs) {
       const at = parseNextRun(j.next_run);
       if (!at) continue;
       if (best === null || at < best.at) {
@@ -130,7 +153,7 @@ export function ScheduledTasksCard() {
       }
     }
     return best;
-  }, [data]);
+  }, [shownJobs]);
 
   const status = error ? 'down' : loading ? 'loading' : 'live';
 
@@ -138,8 +161,8 @@ export function ScheduledTasksCard() {
 
   return (
     <HudCard
-      title="Automation Schedule"
-      subtitle="APScheduler jobs · countdown to next fire (/v1/daily/status)"
+      title={title}
+      subtitle="countdown to next fire"
       colorKey="jarvis"
       icon={CalendarClock}
       status={status}
@@ -170,9 +193,12 @@ export function ScheduledTasksCard() {
         </span>
       </div>
 
-      {/* 3-column grid: daily | weekly | monthly */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {(['daily', 'weekly', 'monthly'] as Bucket[]).map((bucket) => {
+      {/* One column per shown bucket (daily | weekly | monthly) */}
+      <div
+        className="grid gap-3"
+        style={{ gridTemplateColumns: `repeat(${columns ?? buckets.length}, minmax(0, 1fr))` }}
+      >
+        {buckets.map((bucket) => {
           const jobs = grouped[bucket];
           return (
             <div key={bucket}>

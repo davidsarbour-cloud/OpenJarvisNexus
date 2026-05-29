@@ -459,35 +459,6 @@ def _model_routing_snapshot() -> dict:
         }
 
 
-# ── DAILY DIGEST (Command Center / global) ─────────────────────────────────
-
-def _daily_digest_snapshot() -> dict:
-    """Aggregate counter from other snapshots into a single top-line view."""
-    try:
-        stl  = _stl_output_snapshot()["metrics"]
-        vlt  = _vault_growth_snapshot()["metrics"]
-        err  = _error_log_snapshot()["metrics"]
-        stl_today   = stl[0]["value"]    # TODAY
-        vault_today = vlt[0]["value"]    # TODAY
-        err_24h     = err[0]["value"]    # 24H
-        # Compact "STL · NOTES" left metric, "ERR" right metric
-        return {
-            "status": "active",
-            "metrics": [
-                {"label": "STL · NOTES", "value": f"{stl_today} · {vault_today}"},
-                {"label": "ERRORS 24H",  "value": err_24h},
-            ],
-        }
-    except Exception:
-        return {
-            "status": "standby",
-            "metrics": [
-                {"label": "STL · NOTES", "value": "—"},
-                {"label": "ERRORS 24H",  "value": "—"},
-            ],
-        }
-
-
 # ── Snapshot endpoint ───────────────────────────────────────────────────────
 
 @router.get("/v1/world/cards/snapshot")
@@ -512,7 +483,5 @@ def world_cards_snapshot() -> dict[str, Any]:
         # Cyberdeck (state-tracked)
         "telegram_activity": _telegram_activity_snapshot(),
         "model_routing":     _model_routing_snapshot(),
-        # Global
-        "daily_digest":      _daily_digest_snapshot(),
         "generated_at":      datetime.now().isoformat(),
     }

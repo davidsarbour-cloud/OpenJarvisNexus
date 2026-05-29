@@ -31,19 +31,47 @@ const GROUP_ORDER = [
   '09_Archives',
 ] as const;
 
+// Meta buckets (tags, orphans) get their own slots on an OUTER ring so they
+// stay tidy clusters instead of scattering across the whole view by id-hash.
+const META_ORDER = ['_tag', '_orphan'] as const;
+const META_RADIUS_MULT = 1.9;
+
+/**
+ * Collapse a node's raw group to its layout bucket: either a Johnny-Decimal
+ * top group (00_Core…09_Archives) or a meta bucket. `topGroup` already maps
+ * everything uncategorised to '_orphan', so we split tags back out here.
+ */
+function layoutBucket(group: string | undefined): string {
+  const top = topGroup(group);
+  if (top !== '_orphan') return top;
+  if (group && group.startsWith('_tag')) return '_tag';
+  return '_orphan'; // true orphans + _root + imported + undefined
+}
+
 function constellationCenter(
   group: string | undefined,
   radius: number,
 ): { x: number; y: number } | null {
-  const top = topGroup(group);
-  if (top === '_orphan') return null;
-  const idx = GROUP_ORDER.indexOf(top as typeof GROUP_ORDER[number]);
-  if (idx < 0) return null;
-  const angle = (idx / GROUP_ORDER.length) * Math.PI * 2 - Math.PI / 2;
-  return {
-    x: Math.cos(angle) * radius,
-    y: Math.sin(angle) * radius,
-  };
+  const bucket = layoutBucket(group);
+
+  // Real categories → inner ring.
+  const idx = GROUP_ORDER.indexOf(bucket as typeof GROUP_ORDER[number]);
+  if (idx >= 0) {
+    const angle = (idx / GROUP_ORDER.length) * Math.PI * 2 - Math.PI / 2;
+    return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+  }
+
+  // Meta buckets (tags, orphans) → dedicated slots on an outer ring, offset a
+  // half-step so they sit between the inner spokes rather than on top of them.
+  const midx = META_ORDER.indexOf(bucket as typeof META_ORDER[number]);
+  if (midx >= 0) {
+    const r = radius * META_RADIUS_MULT;
+    const angle =
+      (midx / META_ORDER.length) * Math.PI * 2 - Math.PI / 2 + Math.PI / META_ORDER.length;
+    return { x: Math.cos(angle) * r, y: Math.sin(angle) * r };
+  }
+
+  return null;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -261,11 +289,19 @@ export function BrainHubPage() {
     }
   }, [spread, graph]);
 
-  // Auto-fit with generous padding so full constellation is visible
+  // Auto-fit on the real constellations only (exclude the outer tag/orphan
+  // rings) so the useful clusters fill the screen instead of being squished
+  // by the far-flung meta nodes. The ⊹ FIT button still frames everything.
   useEffect(() => {
     if (!graph) return;
     // Wait longer — the new spread takes more ticks to settle.
-    const t = window.setTimeout(() => fgRef.current?.zoomToFit(800, 100), 1500);
+    const t = window.setTimeout(
+      () =>
+        fgRef.current?.zoomToFit(800, 100, (n: object) =>
+          (GROUP_ORDER as readonly string[]).includes(topGroup((n as VaultGraphNode).group)),
+        ),
+      1500,
+    );
     return () => window.clearTimeout(t);
   }, [graph]);
 

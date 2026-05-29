@@ -42,7 +42,10 @@ const SEED: Event[] = [
  *   3. Mock seed                (last resort if both empty)
  */
 export function RightPanel() {
-  const ws = useWsEvents(50);
+  // Exclude `snapshot/*` card-refresh broadcasts — they're plumbing for the
+  // live cards (via wsBus), not user-facing alerts/events. Without this they
+  // flood the feed (system-metrics alone fires every 2s) and bury real events.
+  const ws = useWsEvents(50, (e) => !String(e.source ?? '').startsWith('snapshot/'));
   const { data: logsData } = useLiveMetric(fetchLogs,    { intervalMs: 4000 });
   const { data: agentsData } = useLiveMetric(fetchAgents, { intervalMs: 8000, wsTopic: 'snapshot/agents' });
   const { data: jobsData } = useLiveMetric(fetchCrewJobs, { intervalMs: 6000, wsTopic: 'snapshot/jobs' });

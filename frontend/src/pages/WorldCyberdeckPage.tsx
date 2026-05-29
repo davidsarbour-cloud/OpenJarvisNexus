@@ -44,7 +44,7 @@ export function WorldCyberdeckPage() {
   return (
     <WorldShell
       colorKey="cyberdeck"
-      imageCandidates={['/world/cyberdeck.webp', '/world/cyberdeck.png', '/world/cyberdeck.jpg']}
+      imageCandidates={['/world/cyberdeck2.png', '/world/cyberdeck2.webp', '/world/cyberdeck2.jpg']}
       imageAlt="Cyberdeck — Security & Observability"
       storageKey="nexus9.world-cyberdeck.layout"
       cardRegistry={CARD_REGISTRY}

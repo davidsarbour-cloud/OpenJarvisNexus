@@ -69,7 +69,7 @@ curl $BASE/v1/agents | jq .
 ```bash
 curl $BASE/v1/world/cards/snapshot | jq 'keys'
 # [
-#   "approval_queue", "container_logs", "daily_digest", "disk_usage",
+#   "approval_queue", "container_logs", "disk_usage",
 #   "error_log", "generated_at", "gpu_temp", "model_routing",
 #   "morning_brief", "orphan_alert", "stl_output", "telegram_activity",
 #   "token_budget", "vault_growth"

@@ -160,3 +160,10 @@ backend/forge_missions_cache.json
 backend/error_logs/
 backend/vault/claude-mem
 session_logs/
+
+# Pre-commit / CI report artifacts (regenerated each run — never source)
+.gitleaks-report.json
+frontend/.eslint-report.cjs
+
+# Trend hunter runtime snapshots (dated JSON written each run)
+backend/trend_snapshots/

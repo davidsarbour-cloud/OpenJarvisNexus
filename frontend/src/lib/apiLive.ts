@@ -174,7 +174,6 @@ export interface WorldCardsSnapshotData {
   container_logs:     WorldCardSnapshot;
   telegram_activity:  WorldCardSnapshot;
   model_routing:      WorldCardSnapshot;
-  daily_digest:       WorldCardSnapshot;
   generated_at:       string;
 }
 
