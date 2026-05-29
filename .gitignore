@@ -164,6 +164,7 @@ session_logs/
 # Pre-commit / CI report artifacts (regenerated each run — never source)
 .gitleaks-report.json
 frontend/.eslint-report.cjs
+.jscpd-report/
 
 # Trend hunter runtime snapshots (dated JSON written each run)
 backend/trend_snapshots/
