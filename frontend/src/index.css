@@ -772,6 +772,8 @@
     --color-cortex-glow: rgba(139, 92, 246, 0.45);
     --color-security:  #f59e0b;
     --color-security-glow: rgba(245, 158, 11, 0.45);
+    --color-mining:    #ffd60a;
+    --color-mining-glow: rgba(255, 214, 10, 0.45);
 
     /* HUD chrome (used by HudLayout + TopBar) */
     --hud-bg:          rgba(2, 5, 11, 0.92);

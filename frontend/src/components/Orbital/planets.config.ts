@@ -131,6 +131,24 @@ export const PLANETS: PlanetDef[] = [
     orbit: 15.5, radius: 0.92, speed: 0.065, phase: 4.8,           tilt: 0.10,
     color: c('docker').hex, glow: c('docker').glow,
   },
+  {
+    id: 'mining',
+    label: 'MINING',
+    description: 'AI trading · Alpaca · momentum + trailing stop · paper-only (validated on backtest, not live)',
+    orbit: 18.5, radius: 0.60, speed: 0.05,  phase: 5.7,           tilt: -0.07,
+    route: '/world/mining',
+    color: c('mining').hex, glow: c('mining').glow,
+    ring: {
+      inner:      1.40,
+      innerOuter: 1.70,
+      outerInner: 1.82,
+      outer:      2.25,
+      color:      '#ffd60a',
+      tilt:       0.50,
+      roll:       0.12,
+      opacity:    0.50,
+    },
+  },
 ];
 
 export const SPACESHIPS: SpaceshipDef[] = [

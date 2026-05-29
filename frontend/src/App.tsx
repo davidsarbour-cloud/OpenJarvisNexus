@@ -25,6 +25,7 @@ const WorldCommercePage  = lazy(() => import('./pages/WorldCommercePage').then(m
 const WorldVaultPage     = lazy(() => import('./pages/WorldVaultPage').then(m => ({ default: m.WorldVaultPage })));
 const WorldCyberdeckPage = lazy(() => import('./pages/WorldCyberdeckPage').then(m => ({ default: m.WorldCyberdeckPage })));
 const WorldDockerPage    = lazy(() => import('./pages/WorldDockerPage').then(m => ({ default: m.WorldDockerPage })));
+const WorldMiningPage    = lazy(() => import('./pages/WorldMiningPage').then(m => ({ default: m.WorldMiningPage })));
 const DashboardPage      = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const SettingsPage       = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const GetStartedPage     = lazy(() => import('./pages/GetStartedPage').then(m => ({ default: m.GetStartedPage })));
@@ -219,6 +220,7 @@ export default function App() {
             <Route path="world/cyberdeck" element={<WorldCyberdeckPage />} />
             <Route path="world/vault"     element={<WorldVaultPage />} />
             <Route path="world/docker"    element={<WorldDockerPage />} />
+            <Route path="world/mining"    element={<WorldMiningPage />} />
           </Route>
           <Route element={<Layout />}>
             <Route path="dashboard" element={<DashboardPage />} />

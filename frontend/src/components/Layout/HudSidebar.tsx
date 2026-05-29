@@ -4,6 +4,7 @@ import {
   Database, Container,
   Workflow,
   Network, Share2, Waypoints, X,
+  CandlestickChart,
 } from 'lucide-react';
 import { cssVar, type ModuleKey } from '../../lib/colors';
 
@@ -41,6 +42,7 @@ const SECTIONS: Section[] = [
       { label: 'Cyberdeck', icon: Eye,         colorKey: 'cyberdeck', route: '/world/cyberdeck', status: 'on', escapable: true },
       { label: 'Vault',     icon: Lock,        colorKey: 'vault',     route: '/world/vault',     status: 'on', escapable: true },
       { label: 'Docker',    icon: Container,   colorKey: 'docker',    route: '/world/docker',    status: 'on', escapable: true },
+      { label: 'Mining',    icon: CandlestickChart, colorKey: 'mining', route: '/world/mining',  status: 'on', escapable: true },
     ],
   },
   {

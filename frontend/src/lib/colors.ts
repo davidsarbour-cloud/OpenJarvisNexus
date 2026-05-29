@@ -18,7 +18,8 @@ export type ModuleKey =
   | 'vault'
   | 'docker'
   | 'cortex'
-  | 'security';
+  | 'security'
+  | 'mining';
 
 export interface ModuleColor {
   /** Display name. */
@@ -89,6 +90,13 @@ export const MODULE_COLORS: Record<ModuleKey, ModuleColor> = {
     cssVar: 'color-security',
     subtle: 'rgba(245, 158, 11, 0.10)',
     glow: 'rgba(245, 158, 11, 0.45)',
+  },
+  mining: {
+    label: 'Mining',
+    hex: '#ffd60a',
+    cssVar: 'color-mining',
+    subtle: 'rgba(255, 214, 10, 0.10)',
+    glow: 'rgba(255, 214, 10, 0.45)',
   },
 };
 

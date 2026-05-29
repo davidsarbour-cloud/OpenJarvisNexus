@@ -6,6 +6,9 @@ import {
   Sparkles, Box, Printer, Package, CheckCircle, TrendingUp,
   Thermometer, AlertTriangle, Gauge, BookOpen, Unlink, Sun,
   HardDrive, Terminal, MessageSquare, GitFork, DollarSign,
+  // Mining-card icons
+  CandlestickChart, Coins, Wallet, ShieldAlert, LineChart,
+  TrendingDown, Newspaper, Bot,
 } from 'lucide-react';
 import { cssVar, MODULE_COLORS, type ModuleKey } from '../../lib/colors';
 
@@ -90,9 +93,30 @@ const SATELLITES: Satellite[] = [
   { title: 'CONTAINER LOGS', desc: 'Live tail — last N lines from selected container', colorKey: 'docker', icon: Terminal, status: 'active',
     metrics: [{ label: 'ACTIVE', value: '13' }, { label: 'ERRORS', value: '0' }] },
 
-  // ── Global digest (Command Center) ───────────────────────────────────────
-  { title: 'DAILY DIGEST', desc: 'Top-line cross-world summary — STL · Notes · Errors', colorKey: 'jarvis', icon: PieChart, status: 'active',
-    metrics: [{ label: 'STL · NOTES', value: '0 · 0' }, { label: 'ERRORS 24H', value: '0' }] },
+  // ── Mining extras (AI trading) ───────────────────────────────────────────
+  // status 'standby' = NOT live (paper-only, no Alpaca link wired yet);
+  // status 'active'   = real validated config / backtest numbers from
+  // backend/mining + the brain findings note. No live trading is running.
+  { title: 'TRADING BOTS', desc: '5 ticker bots: ASML · TSLA · INTC · NVDA · AMD', colorKey: 'mining', icon: Bot, status: 'standby',
+    metrics: [{ label: 'BOTS', value: '5' }, { label: 'MODE', value: 'PAPER' }] },
+  { title: 'OPEN POSITIONS', desc: 'Live positions per ticker + current exposure', colorKey: 'mining', icon: Wallet, status: 'standby',
+    metrics: [{ label: 'POSITIONS', value: '0' }, { label: 'EXPOSURE', value: '$0' }] },
+  { title: 'DAILY P&L', desc: 'Realized + unrealized profit/loss (paper account)', colorKey: 'mining', icon: LineChart, status: 'standby',
+    metrics: [{ label: 'TODAY', value: '—' }, { label: 'WEEK', value: '—' }] },
+  { title: 'TRAILING STOP', desc: 'Validated params: init -1.5% · activate +3% · trail -1%', colorKey: 'mining', icon: TrendingDown, status: 'active',
+    metrics: [{ label: 'INIT STOP', value: '-1.5%' }, { label: 'TRAIL', value: '-1%' }] },
+  { title: 'BACKTEST', desc: '1h full-year, slippage incl. — yfinance data only', colorKey: 'mining', icon: CandlestickChart, status: 'active',
+    metrics: [{ label: 'AVG/YR', value: '+2.8%' }, { label: 'BEST PF', value: '2.00' }] },
+  { title: 'ALPACA LINK', desc: 'Brokerage connection — paper/live double-gated', colorKey: 'mining', icon: Activity, status: 'standby',
+    metrics: [{ label: 'MODE', value: 'PAPER' }, { label: 'LINK', value: 'OFFLINE' }] },
+  { title: 'RISK GUARD', desc: 'Position sizing — pros risk 1-2%/trade to survive gaps', colorKey: 'mining', icon: ShieldAlert, status: 'active',
+    metrics: [{ label: 'PER TRADE', value: '1-2%' }, { label: 'SIZING', value: 'SAFE' }] },
+  { title: 'WATCHLIST', desc: 'Tracked instruments from setup config', colorKey: 'mining', icon: Coins, status: 'active',
+    metrics: [{ label: 'STOCKS', value: '6' }, { label: 'CRYPTO', value: '2' }] },
+  { title: 'WALK-FORWARD', desc: 'Out-of-sample robustness — edge is regime-dependent', colorKey: 'mining', icon: Gauge, status: 'active',
+    metrics: [{ label: 'OOS FOLDS', value: '2/4' }, { label: 'EDGE', value: 'REGIME' }] },
+  { title: 'SENTIMENT', desc: 'News / Reddit / X sentiment scoring (not wired yet)', colorKey: 'mining', icon: Newspaper, status: 'standby',
+    metrics: [{ label: 'SOURCES', value: '0' }, { label: 'SIGNAL', value: '—' }] },
 ];
 
 function hexA(hex: string, a: number): string {
