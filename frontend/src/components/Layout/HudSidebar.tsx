@@ -5,6 +5,8 @@ import {
   Workflow,
   Network, Share2, Waypoints, X,
   CandlestickChart,
+  Send, Sparkles, BookOpen, LineChart,
+  Store, ShoppingCart, Tag, Tv,
 } from 'lucide-react';
 import { cssVar, type ModuleKey } from '../../lib/colors';
 
@@ -48,8 +50,21 @@ const SECTIONS: Section[] = [
   {
     title: 'SYSTEM',
     entries: [
-      { label: 'ChromaDB',  icon: Database,  colorKey: 'vault',     status: 'on' },
+      { label: 'ChromaDB',  icon: Database,  colorKey: 'vault',     route: '/world/vault', status: 'on' },
       { label: 'OpenHands', icon: Workflow,  colorKey: 'commerce',  external: 'http://localhost:3000', status: 'on' },
+      { label: 'Telegram',  icon: Send,      colorKey: 'jarvis',    status: 'on' },
+      { label: 'Meshy AI',  icon: Sparkles,  colorKey: 'forge',     external: 'https://app.meshy.ai',         status: 'on' },
+      { label: 'Obsidian',  icon: BookOpen,  colorKey: 'vault',     external: 'obsidian://open?vault=BRAIN',  status: 'on' },
+    ],
+  },
+  {
+    title: 'SHOPS',
+    entries: [
+      { label: 'Alpaca',  icon: LineChart,    colorKey: 'mining',    external: 'https://app.alpaca.markets',           status: 'on' },
+      { label: 'Etsy',    icon: Store,        colorKey: 'commerce',  external: 'https://www.etsy.com/shop/D3Dprintix', status: 'on' },
+      { label: 'Shopify', icon: ShoppingCart, colorKey: 'forge',     external: 'https://admin.shopify.com',            status: 'on' },
+      { label: 'Gumroad', icon: Tag,          colorKey: 'vault',     external: 'https://app.gumroad.com',              status: 'on' },
+      { label: 'Elgato',  icon: Tv,           colorKey: 'cyberdeck', external: 'https://marketplace.elgato.com',       status: 'on' },
     ],
   },
 ];
