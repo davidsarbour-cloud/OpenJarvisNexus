@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from fastapi import FastAPI
 from shared.config import SETTINGS
+from shared.notify import send_telegram
 from shared.redis_bus import RedisBus
 
 _bus: RedisBus | None = None
@@ -58,4 +59,5 @@ async def sentiment() -> dict:
 async def halt(on: bool = True) -> dict:
     await _bus.set_halt(on)
     await _bus.publish("events", {"src": "orchestrator", "msg": f"HALT={'ON' if on else 'OFF'}"})
+    await send_telegram(f"{'🛑 MINING HALTED' if on else '✅ MINING RESUMED'} (manual)")
     return {"halted": on}

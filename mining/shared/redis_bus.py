@@ -95,3 +95,11 @@ class RedisBus:
 
     async def set_earnings_days(self, ticker: str, days: float) -> None:
         await self.r.set(f"earnings:{ticker}", days)
+
+    # ── tuning proposal (propose-only, human applies) ────────────────────────
+    async def set_proposal(self, payload: dict[str, Any]) -> None:
+        await self.r.set("tuning:proposal", json.dumps(payload, default=str))
+
+    async def get_proposal(self) -> dict | None:
+        v = await self.r.get("tuning:proposal")
+        return json.loads(v) if v else None

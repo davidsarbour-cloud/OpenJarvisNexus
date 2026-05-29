@@ -56,6 +56,8 @@ class Settings:
     alpaca_key:    str = os.getenv("ALPACA_API_KEY", "")
     alpaca_secret: str = os.getenv("ALPACA_API_SECRET", "")
     finnhub_key:   str = os.getenv("FINNHUB_API_KEY", "")
+    telegram_token:   str = os.getenv("TELEGRAM_BOT_TOKEN", "")          # reuse Nexus9's bot
+    telegram_chat_id: str = os.getenv("TELEGRAM_AUTHORIZED_USER_ID", "")  # David's chat
     risk:          RiskLimits = field(default_factory=RiskLimits)
     strategy:      StrategyParams = field(default_factory=StrategyParams)
 

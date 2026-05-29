@@ -67,3 +67,24 @@ class Store:
                 st.open_exposure[ticker] = 0.0
                 st.equity += pnl
         return st
+
+    async def recent_stats(self, days: int = 30) -> dict:
+        """Aggregate fills over the last N days — feeds the strategy tuner."""
+        since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)
+        async with self._conn.cursor() as cur:
+            await cur.execute(
+                "SELECT count(*) FILTER (WHERE side='sell'), "
+                "count(*) FILTER (WHERE side='sell' AND pnl > 0), "
+                "coalesce(sum(pnl), 0) "
+                "FROM fills WHERE ts >= %s",
+                (since,),
+            )
+            closed, wins, net = await cur.fetchone()
+        closed = closed or 0
+        return {
+            "days": days,
+            "closed_trades": closed,
+            "wins": wins or 0,
+            "win_rate": round((wins or 0) / closed * 100, 1) if closed else 0.0,
+            "net_pnl": round(float(net or 0), 2),
+        }

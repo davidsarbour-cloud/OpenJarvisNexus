@@ -51,6 +51,14 @@ services:
     command: python -m services.bot_worker.main
     environment: { TICKER: ALL }
 
+  # Propose-only strategy tuner. NOT started by default (profile: cron) — run on
+  # a schedule:  docker compose -f docker-compose.mining.yml run --rm strategy-ai
+  strategy-ai:
+    <<: *svc
+    command: python -m services.strategy_ai.main
+    profiles: ["cron"]
+    depends_on: [redis, postgres]
+
   # Monitoring is intentionally NOT a Prometheus/Grafana stack here: a solo
   # 5-bot paper system is covered by Postgres (history) + the /world/mining HUD
   # (live) + Telegram alerts (Phase 5). Add prom/grafana back only when scaling

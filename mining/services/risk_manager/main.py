@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from shared.alpaca_client import AlpacaBroker
 from shared.config import SETTINGS
+from shared.notify import send_telegram
 from shared.redis_bus import RedisBus
 from shared.risk import DayState, approve_buy, register_fill
 
@@ -64,6 +65,10 @@ async def _handle(bus: RedisBus, broker: AlpacaBroker, store, state: DayState, i
         d = approve_buy(ticker, price, state, SETTINGS.risk, halted, earnings_days=edays)
         if not d.ok:
             await bus.publish("events", {"src": "risk", "msg": f"BUY {ticker} rejected: {d.reason}"})
+            # Daily-loss breach → trip the global breaker once + alert David.
+            if "daily loss" in d.reason and not halted:
+                await bus.set_halt(True)
+                await send_telegram(f"🛑 MINING HALT — {d.reason}. All bots stopped.")
             return
         broker.submit(ticker, d.qty, "buy")
         register_fill(state, ticker, "buy", d.qty, price)
