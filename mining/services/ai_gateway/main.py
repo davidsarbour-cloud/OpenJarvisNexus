@@ -86,6 +86,32 @@ async def _fetch_headlines(ticker: str) -> list[str]:
         return [item.get("headline", "") for item in r.json()[:20] if item.get("headline")]
 
 
+async def _earnings_days(ticker: str) -> float:
+    """Days until the ticker's next earnings via Finnhub. -1 if unknown/no key.
+
+    Earnings are the #1 gap risk (findings §5) — the risk-manager uses this to
+    block new entries inside the blackout window.
+    """
+    if not SETTINGS.finnhub_key:
+        return -1.0
+    import datetime as dt
+
+    import httpx
+    today = dt.date.today()
+    to = today + dt.timedelta(days=30)
+    url = ("https://finnhub.io/api/v1/calendar/earnings"
+           f"?from={today}&to={to}&symbol={ticker}&token={SETTINGS.finnhub_key}")
+    async with httpx.AsyncClient(timeout=20) as c:
+        r = await c.get(url)
+        r.raise_for_status()
+        dates = sorted(e["date"] for e in r.json().get("earningsCalendar", []) if e.get("date"))
+    for d in dates:
+        days = (dt.date.fromisoformat(d) - today).days
+        if days >= 0:
+            return float(days)
+    return -1.0
+
+
 async def run() -> None:
     bus = await RedisBus(SETTINGS.redis_url).connect()
     gw = AIGateway(SETTINGS)
@@ -94,11 +120,14 @@ async def run() -> None:
         for t in SETTINGS.tickers:
             try:
                 score = await gw.sentiment(t, await _fetch_headlines(t))
+                await bus.set_sentiment(t, score)
+                edays = await _earnings_days(t)
+                await bus.set_earnings_days(t, edays)
+                await bus.publish("events", {"src": "ai",
+                                             "msg": f"{t} sentiment={score:+.2f} earnings_in={edays:.0f}d"})
             except Exception as e:
-                await bus.publish("events", {"src": "ai", "msg": f"sentiment {t} failed: {e}"})
+                await bus.publish("events", {"src": "ai", "msg": f"ai {t} failed: {e}"})
                 continue
-            await bus.set_sentiment(t, score)
-            await bus.publish("events", {"src": "ai", "msg": f"sentiment {t}={score:+.2f}"})
         await asyncio.sleep(300)  # every 5 min — off the hot path
 
 

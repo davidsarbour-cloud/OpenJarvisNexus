@@ -24,34 +24,51 @@ from shared.risk import DayState, approve_buy, register_fill
 GROUP, CONSUMER, STREAM = "risk", "risk-1", "order_intent"
 
 
+async def _open_store():
+    """Connect Postgres for fill persistence + state recovery. None if down."""
+    try:
+        from shared.db import Store
+        return await Store(SETTINGS).connect()
+    except Exception:
+        return None
+
+
 async def run() -> None:
     bus = await RedisBus(SETTINGS.redis_url).connect()
     broker = AlpacaBroker(SETTINGS).connect()
     eq = broker.equity()
-    state = DayState(start_equity=eq, equity=eq)
-    await bus.publish("events", {"src": "risk", "msg": f"risk-manager online, equity ${eq:.2f}"})
+    store = await _open_store()
+    # Rebuild today's limits from Postgres so a restart doesn't reset the trade
+    # cap / exposure / daily-loss (critical for live). Fall back to flat state.
+    state = await store.rebuild_day_state(eq) if store else DayState(start_equity=eq, equity=eq)
+    src = "postgres" if store else "memory-only (no PG)"
+    await bus.publish("events", {"src": "risk",
+                                 "msg": f"risk-manager online, equity ${eq:.2f}, state from {src}"})
 
     while True:
         for msg_id, intent in await bus.xreadgroup(GROUP, CONSUMER, STREAM):
             try:
-                await _handle(bus, broker, state, intent)
+                await _handle(bus, broker, store, state, intent)
             finally:
                 await bus.xack(STREAM, GROUP, msg_id)
 
 
-async def _handle(bus: RedisBus, broker: AlpacaBroker, state: DayState, intent: dict) -> None:
+async def _handle(bus: RedisBus, broker: AlpacaBroker, store, state: DayState, intent: dict) -> None:
     ticker = intent["ticker"]
     side = intent["side"]
     price = float(intent["price"])
 
     if side == "buy":
         halted = await bus.is_halted()
-        d = approve_buy(ticker, price, state, SETTINGS.risk, halted)
+        edays = await bus.get_earnings_days(ticker)
+        d = approve_buy(ticker, price, state, SETTINGS.risk, halted, earnings_days=edays)
         if not d.ok:
             await bus.publish("events", {"src": "risk", "msg": f"BUY {ticker} rejected: {d.reason}"})
             return
         broker.submit(ticker, d.qty, "buy")
         register_fill(state, ticker, "buy", d.qty, price)
+        if store:
+            await store.persist_fill(ticker, "buy", d.qty, price)
         await bus.xadd("fills", {"ticker": ticker, "side": "buy", "qty": d.qty, "price": price})
         await bus.publish("events", {"src": "risk", "msg": f"BUY {ticker} x{d.qty} @ {price}"})
     else:
@@ -60,6 +77,8 @@ async def _handle(bus: RedisBus, broker: AlpacaBroker, state: DayState, intent: 
         if qty > 0:
             broker.submit(ticker, round(qty, 4), "sell")
             register_fill(state, ticker, "sell", qty, price)
+            if store:
+                await store.persist_fill(ticker, "sell", qty, price)
             await bus.xadd("fills", {"ticker": ticker, "side": "sell", "qty": qty, "price": price})
             await bus.publish("events", {"src": "risk", "msg": f"SELL {ticker} x{qty:.4f} @ {price}"})
 

@@ -39,12 +39,21 @@ class Decision:
 
 
 def approve_buy(ticker: str, price: float, state: DayState, limits: RiskLimits,
-                halted: bool, now: float | None = None) -> Decision:
-    """The single gate every BUY passes through. Returns sized Decision."""
+                halted: bool, now: float | None = None,
+                earnings_days: float | None = None) -> Decision:
+    """The single gate every BUY passes through. Returns sized Decision.
+
+    `earnings_days` = days until the ticker's next earnings (None/<0 = unknown).
+    New entries are blocked inside the blackout window — earnings gaps are the
+    backtest's #1 account-killer (findings §5) and no stop protects against them.
+    """
     now = now if now is not None else time.time()
 
     if halted:
         return Decision(False, "global circuit breaker active")
+
+    if earnings_days is not None and 0 <= earnings_days <= limits.earnings_blackout_days:
+        return Decision(False, f"earnings blackout ({earnings_days:.0f}d to earnings)")
 
     dd = (state.equity / state.start_equity - 1) * 100 if state.start_equity else 0.0
     if dd <= -limits.max_daily_loss_pct:

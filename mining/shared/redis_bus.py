@@ -87,3 +87,11 @@ class RedisBus:
 
     async def set_sentiment(self, ticker: str, score: float) -> None:
         await self.r.set(f"sentiment:{ticker}", score)
+
+    # ── earnings gate (days until next earnings; -1 = unknown) ───────────────
+    async def get_earnings_days(self, ticker: str) -> float:
+        v = await self.r.get(f"earnings:{ticker}")
+        return float(v) if v is not None else -1.0
+
+    async def set_earnings_days(self, ticker: str, days: float) -> None:
+        await self.r.set(f"earnings:{ticker}", days)

@@ -27,6 +27,7 @@ class RiskLimits:
     max_total_exposure_pct:  float = _f("MINING_MAX_EXPOSURE_PCT", "80.0")    # % across all tickers
     cooldown_min_after_loss: int   = _i("MINING_COOLDOWN_MIN", "15")          # no re-entry for N min after a loss
     risk_per_trade_pct:      float = _f("MINING_RISK_PER_TRADE_PCT", "2.0")   # sizing — NEVER 100% (findings §8)
+    earnings_blackout_days:  int   = _i("MINING_EARNINGS_BLACKOUT_DAYS", "2") # no NEW entry within N days of earnings (anti-gap §5)
 
 
 @dataclass(frozen=True)
