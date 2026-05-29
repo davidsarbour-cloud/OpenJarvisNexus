@@ -216,6 +216,7 @@ from forge_room.forge_engine import router as forge_router
 from health_router import router as health_router
 from jarvis_files import router as files_router
 from memory_router import router as memory_router
+from mining_router import router as mining_router
 from monitoring_router import router as monitoring_router
 from orchestrate_router import router as orchestrate_router
 from reports_router import router as reports_router
@@ -236,6 +237,7 @@ app.include_router(files_router)
 app.include_router(commerce_router)
 app.include_router(etsy_oauth_router)
 app.include_router(monitoring_router)
+app.include_router(mining_router)
 app.include_router(ws_router)
 app.include_router(briefing_router)
 app.include_router(trends_router)

@@ -15,7 +15,9 @@ import {
   Activity, Bot, CandlestickChart, Coins, Gauge, LineChart,
   Newspaper, ShieldAlert, TrendingDown, Wallet,
 } from 'lucide-react';
+import { Power } from 'lucide-react';
 import { NamedSatellite } from '../components/CommandCenter/FunctionalSatellites';
+import { MiningControlCard } from '../components/CommandCenter/MiningControlCard';
 import { WorldShell, type CardDef, type PlacedCard } from '../components/WorldShell/WorldShell';
 
 const TradingBots   = () => <NamedSatellite title="TRADING BOTS"   colorKey="mining" />;
@@ -30,10 +32,11 @@ const WalkForward   = () => <NamedSatellite title="WALK-FORWARD"   colorKey="min
 const Sentiment     = () => <NamedSatellite title="SENTIMENT"      colorKey="mining" />;
 
 type CardType =
-  | 'bots' | 'positions' | 'pnl' | 'trailingstop' | 'backtest'
+  | 'control' | 'bots' | 'positions' | 'pnl' | 'trailingstop' | 'backtest'
   | 'alpaca' | 'risk' | 'watchlist' | 'walkforward' | 'sentiment';
 
 const CARD_REGISTRY: Record<CardType, CardDef> = {
+  control:      { label: 'MINING CONTROL', sub: 'Live status + HALT',        icon: Power,            Card: MiningControlCard },
   bots:         { label: 'TRADING BOTS',  sub: '5 ticker bots',              icon: Bot,              Card: TradingBots   },
   positions:    { label: 'OPEN POSITIONS',sub: 'Live positions + exposure',  icon: Wallet,           Card: OpenPositions },
   pnl:          { label: 'DAILY P&L',     sub: 'Realized + unrealized',      icon: LineChart,        Card: DailyPnl      },
@@ -49,6 +52,7 @@ const CARD_REGISTRY: Record<CardType, CardDef> = {
 // First-visit layout: backtest + config on the left, live/paper telemetry
 // on the right. User can rearrange; persisted to localStorage afterwards.
 const DEFAULT_SEEDS: PlacedCard<CardType>[] = [
+  { id: 'seed-control',   type: 'control',      side: 'left',  height: 240 },
   { id: 'seed-backtest',  type: 'backtest',     side: 'left',  height: 240 },
   { id: 'seed-trail',     type: 'trailingstop', side: 'left',  height: 240 },
   { id: 'seed-watchlist', type: 'watchlist',    side: 'left',  height: 200 },

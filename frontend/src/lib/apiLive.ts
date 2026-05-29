@@ -39,6 +39,18 @@ async function getJSON<T>(path: string, timeoutMs = 4000): Promise<T> {
   }
 }
 
+async function postJSON<T>(path: string, timeoutMs = 5000): Promise<T> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url(path), { method: 'POST', signal: ctrl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status} on ${path}`);
+    return (await r.json()) as T;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ─── Health ────────────────────────────────────────────
 export type ServiceStatus = string; // "ok" | "offline" | "timeout" | "not_configured" | "error: ..."
 
@@ -52,6 +64,28 @@ export interface HealthDeep {
 }
 
 export const fetchHealthDeep = () => getJSON<HealthDeep>('/v1/health/deep', 6000);
+
+// ─── Mining (Phase 3 — proxy to the mining orchestrator :8090) ──
+// Every endpoint is enveloped: {cluster:'online'|'offline', data}. The cluster
+// is normally OFFLINE (docker-compose.mining not running) — the UI degrades.
+export interface MiningEnvelope<T = unknown> {
+  cluster: 'online' | 'offline';
+  data: T | null;
+  error?: string;
+}
+export interface MiningHealth {
+  ok: boolean;
+  mode: string;            // "paper" | "live"
+  live_enabled: boolean;
+  tickers: string[];
+  halted: boolean | null;
+}
+export const fetchMiningHealth = () =>
+  getJSON<MiningEnvelope<MiningHealth>>('/v1/mining/health', 4000);
+export const fetchMiningPositions = () =>
+  getJSON<MiningEnvelope<Record<string, unknown>>>('/v1/mining/positions', 4000);
+export const haltMining = (on: boolean) =>
+  postJSON<MiningEnvelope>(`/v1/mining/halt?on=${on}`);
 
 // ─── Agents ────────────────────────────────────────────
 export type AgentStatus = 'online' | 'idle' | 'offline' | string;
