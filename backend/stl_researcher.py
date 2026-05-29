@@ -21,21 +21,106 @@ router = APIRouter()
 RESEARCH_DIR = Path(__file__).parent / "research_logs"
 RESEARCH_DIR.mkdir(exist_ok=True)
 
-# Optional API keys (free tier is fine)
+# Optional API keys. Etsy uses the SAME key as the rest of the app
+# (commerce/etsy_client reads ETSY_API_KEY); fall back to the legacy
+# ETSYPUBLIC_KEY name so either works.
 THINGIVERSE_TOKEN = os.getenv("THINGIVERSE_TOKEN", "")
-ETSY_API_KEY      = os.getenv("ETSYPUBLIC_KEY", "")
+ETSY_API_KEY      = os.getenv("ETSY_API_KEY", "") or os.getenv("ETSYPUBLIC_KEY", "")
+# Reddit blocks the anonymous .json endpoints from datacenter IPs (HTTP 403).
+# A free "script" app (reddit.com/prefs/apps) gives client id/secret → OAuth,
+# which works from any IP. Without creds we still try the keyless endpoint
+# (usually fine from a home/residential IP).
+REDDIT_CLIENT_ID     = os.getenv("REDDIT_CLIENT_ID", "")
+REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", "")
 
 USER_AGENT = "JARVIS-NexusX9-Researcher/0.1 (+D3Dprintix research bot)"
+
+# Reddit is the keyless workhorse — these communities surface what's actually
+# trending / printing well right now.
+STL_SUBREDDITS = ["3Dprinting", "functionalprint", "3Dmodeling", "BambuLab", "ender3", "prusa3d"]
+
+
+# ── Reddit (primary source — OAuth if creds, else keyless) ────────────────────
+
+async def _reddit_token(c: httpx.AsyncClient) -> str | None:
+    """App-only OAuth token (client_credentials). None if no creds / failure."""
+    if not (REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET):
+        return None
+    try:
+        r = await c.post(
+            "https://www.reddit.com/api/v1/access_token",
+            data={"grant_type": "client_credentials"},
+            auth=(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET),
+            headers={"User-Agent": USER_AGENT},
+            timeout=15,
+        )
+        return r.json().get("access_token") if r.status_code == 200 else None
+    except Exception:
+        return None
+
+
+async def fetch_reddit_3d_trends(limit: int = 20) -> list[dict]:
+    """Top 3D-printing posts this week across key subreddits.
+
+    Uses Reddit OAuth when REDDIT_CLIENT_ID/SECRET are set (robust, any IP),
+    otherwise the keyless .json endpoint (works from residential IPs; 403 from
+    datacenter IPs)."""
+    out: list[dict] = []
+    last_status = None
+    try:
+        async with httpx.AsyncClient(follow_redirects=True) as c:
+            token = await _reddit_token(c)
+            base = "https://oauth.reddit.com" if token else "https://www.reddit.com"
+            headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            for sub in STL_SUBREDDITS:
+                try:
+                    r = await c.get(
+                        f"{base}/r/{sub}/top.json",
+                        headers=headers,
+                        params={"t": "week", "limit": 15, "raw_json": 1},
+                        timeout=15,
+                    )
+                    last_status = r.status_code
+                    if r.status_code != 200:
+                        continue
+                    for child in r.json().get("data", {}).get("children", []):
+                        d = child.get("data", {})
+                        thumb = d.get("thumbnail", "")
+                        out.append({
+                            "source":    "reddit",
+                            "subreddit": sub,
+                            "title":     d.get("title", ""),
+                            "url":       "https://www.reddit.com" + d.get("permalink", ""),
+                            "score":     d.get("score", 0),
+                            "comments":  d.get("num_comments", 0),
+                            "thumbnail": thumb if isinstance(thumb, str) and thumb.startswith("http") else "",
+                        })
+                except Exception:
+                    continue
+        if not out:
+            hint = (f"HTTP {last_status}" if last_status else "network error")
+            if last_status == 403 and not token:
+                hint += " — datacenter IP blocked; set REDDIT_CLIENT_ID/SECRET (free app) for OAuth"
+            return [{"source": "reddit", "error": f"no posts ({hint})"}]
+        out.sort(key=lambda x: x.get("score", 0), reverse=True)
+        return out[:limit]
+    except Exception as e:
+        return [{"source": "reddit", "error": str(e)}]
 
 # ── Thingiverse ──────────────────────────────────────────
 
 async def fetch_thingiverse_popular(limit: int = 20) -> list[dict]:
-    """Thingiverse popular this week. Uses public API (no key needed for public data)."""
+    """Thingiverse popular. REQUIRES a free app token (THINGIVERSE_TOKEN) —
+    the API rejects anonymous calls with 401. Get one at
+    thingiverse.com/apps/create (an app token, free)."""
+    if not THINGIVERSE_TOKEN:
+        return [{"source": "thingiverse",
+                 "error": "THINGIVERSE_TOKEN not set — create a free app at thingiverse.com/apps/create"}]
     url = "https://api.thingiverse.com/popular"
-    headers = {"User-Agent": USER_AGENT}
+    headers = {"User-Agent": USER_AGENT, "Authorization": f"Bearer {THINGIVERSE_TOKEN}"}
     params = {"per_page": limit, "page": 1}
-    if THINGIVERSE_TOKEN:
-        headers["Authorization"] = f"Bearer {THINGIVERSE_TOKEN}"
     try:
         async with httpx.AsyncClient() as c:
             r = await c.get(url, headers=headers, params=params, timeout=20)
@@ -94,7 +179,7 @@ async def fetch_cults3d_bestsellers(limit: int = 20) -> list[dict]:
 async def fetch_etsy_top_stl(limit: int = 20) -> list[dict]:
     """Etsy top STL listings — keyword search sorted by relevance."""
     if not ETSY_API_KEY:
-        return [{"source": "etsy", "error": "ETSYPUBLIC_KEY not set"}]
+        return [{"source": "etsy", "error": "ETSY_API_KEY not set (same key as Etsy OAuth in .env)"}]
     url = "https://openapi.etsy.com/v3/application/listings/active"
     headers = {"x-api-key": ETSY_API_KEY, "User-Agent": USER_AGENT}
     params = {"keywords": "stl 3d printing", "limit": limit, "sort_on": "score"}
@@ -124,17 +209,20 @@ async def fetch_etsy_top_stl(limit: int = 20) -> list[dict]:
 async def generate_daily_report() -> dict:
     """Fetch all sources in parallel + save snapshot."""
     print("[RESEARCHER] Generating daily STL trends report...")
-    thingiverse, cults3d, etsy = await asyncio.gather(
+    reddit, thingiverse, cults3d, etsy = await asyncio.gather(
+        fetch_reddit_3d_trends(20),
         fetch_thingiverse_popular(20),
         fetch_cults3d_bestsellers(20),
         fetch_etsy_top_stl(20),
     )
     report = {
         "generated_at": datetime.now().isoformat(),
+        "reddit":       reddit,
         "thingiverse":  thingiverse,
         "cults3d":      cults3d,
         "etsy":         etsy,
         "summary": {
+            "reddit_count":      sum(1 for x in reddit if "error" not in x),
             "thingiverse_count": sum(1 for x in thingiverse if "error" not in x),
             "cults3d_count":     sum(1 for x in cults3d if "error" not in x),
             "etsy_count":        sum(1 for x in etsy if "error" not in x),
