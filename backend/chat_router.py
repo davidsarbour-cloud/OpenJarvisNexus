@@ -62,6 +62,11 @@ router = APIRouter(tags=["chat"])
 class ChatMessage(BaseModel):
     role:    str
     content: str
+    # Optional base64-encoded images attached to THIS message (vision).
+    # Each entry may be a raw base64 string OR a data URL (`data:image/png;base64,…`).
+    # Only Claude can see them — when ANY message carries images, routing is
+    # forced to Claude (qwen3/deepseek are text-only).
+    images:  Optional[list[str]] = None
 
 class ChatRequest(BaseModel):
     message:     Optional[str]               = None
@@ -82,6 +87,60 @@ def _get_session_id(req: ChatRequest, request: Request) -> str:
         return req.session_id
     ip = request.client.host if request.client else "local"
     return f"ip:{ip}"
+
+
+# ── Vision helpers ──────────────────────────────────────────────────────────
+# Claude content can be a string (text-only) OR a list of blocks (multimodal).
+# When the frontend attaches images we build the list-of-blocks form; otherwise
+# we keep the historical string form so nothing else has to change.
+
+def _text_of(content) -> str:
+    """Plain-text view of a Claude content (str OR list of blocks)."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return " ".join(
+            b.get("text", "") for b in content
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
+    return ""
+
+
+def _image_blocks(images: Optional[list[str]]) -> list[dict]:
+    """base64 strings or data URLs → Anthropic image content blocks."""
+    out: list[dict] = []
+    for raw in images or []:
+        if not isinstance(raw, str):
+            continue
+        media_type, data = "image/png", raw
+        if raw.startswith("data:"):
+            try:
+                header, data = raw.split(",", 1)
+                media_type = header[5:].split(";")[0] or "image/png"
+            except ValueError:
+                continue
+        if not data:
+            continue
+        out.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": media_type, "data": data},
+        })
+    return out
+
+
+def _build_chat_msg(m: ChatMessage) -> dict:
+    """Build the dict that goes into anthropic_messages. Images → list content."""
+    if m.images:
+        parts: list[dict] = _image_blocks(m.images)
+        if m.content and m.content.strip():
+            parts.append({"type": "text", "text": m.content})
+        if parts:
+            return {"role": m.role, "content": parts}
+    return {"role": m.role, "content": m.content}
+
+
+def _has_images(msgs: list[dict]) -> bool:
+    return any(isinstance(m.get("content"), list) for m in msgs)
 
 def _stream_text(text: str, model_used: str, req_id: str, memory: dict | None = None):
     yield _sse({
@@ -204,12 +263,13 @@ def chat_completion(req: ChatRequest, request: Request):
 
     if req.messages:
         new_msgs = [
-            {"role": m.role, "content": m.content}
+            _build_chat_msg(m)
             for m in req.messages
-            if m.role in ("user", "assistant") and m.content.strip()  # skip empty-content (aborted stream placeholders)
+            # Keep messages with text OR with images (images alone = "what is this?")
+            if m.role in ("user", "assistant") and (m.content.strip() or m.images)
         ]
         last_user = next(
-            (m["content"] for m in reversed(new_msgs) if m["role"] == "user"),
+            (_text_of(m["content"]) for m in reversed(new_msgs) if m["role"] == "user"),
             None
         )
         if last_user:
@@ -224,7 +284,7 @@ def chat_completion(req: ChatRequest, request: Request):
         raise HTTPException(422, "Fournir 'message' ou 'messages'")
 
     last_user_msg = next(
-        (m["content"] for m in reversed(anthropic_messages) if m["role"] == "user"),
+        (_text_of(m["content"]) for m in reversed(anthropic_messages) if m["role"] == "user"),
         ""
     )
 
@@ -396,6 +456,11 @@ def chat_completion(req: ChatRequest, request: Request):
         use_claude = True
     else:
         use_claude = should_use_claude(last_user_msg) or not ollama_available
+
+    # Vision override — only Claude (haiku 4.5 / sonnet 4.6) can SEE images.
+    # qwen3 / deepseek are text-only, so a multimodal message MUST go to Claude.
+    if _has_images(anthropic_messages):
+        use_claude = True
 
     facts      = load_facts()
     system     = build_system_prompt(req.system or _build_base_system(), facts)  # relit config.json à chaque requête (TTL 30s)

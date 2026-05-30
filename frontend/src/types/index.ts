@@ -70,6 +70,8 @@ export interface ChatMessage {
   usage?: TokenUsage;
   telemetry?: MessageTelemetry;
   audio?: { url: string };
+  /** Optional base64 / data-URL images attached by the user (vision input). */
+  images?: string[];
 }
 
 export interface Conversation {

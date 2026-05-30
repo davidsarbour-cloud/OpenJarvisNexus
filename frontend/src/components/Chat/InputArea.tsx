@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square } from 'lucide-react';
+import { Send, Square, Paperclip, X } from 'lucide-react';
 import { useAppStore, generateId } from '../../lib/store';
 import { streamChat } from '../../lib/sse';
 import { fetchSavings, getBase } from '../../lib/api';
@@ -9,9 +9,45 @@ import type { ChatMessage, ToolCallInfo, TokenUsage, MessageTelemetry } from '..
 
 export function InputArea() {
   const [input, setInput] = useState('');
+  // Vision: base64 data-URLs queued for the next send. Cleared on send.
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Image upload helpers (paste / drop / file picker) ────────────────────
+  const addImageFile = useCallback((file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setPendingImages((prev) => [...prev, reader.result as string]);
+      }
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const onPaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        const f = item.getAsFile();
+        if (f) addImageFile(f);
+      }
+    }
+  }, [addImageFile]);
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    for (const f of Array.from(e.dataTransfer?.files ?? [])) addImageFile(f);
+  }, [addImageFile]);
+  const onDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); }, []);
+
+  const removeImage = useCallback((i: number) => {
+    setPendingImages((prev) => prev.filter((_, j) => j !== i));
+  }, []);
 
   const activeId = useAppStore((s) => s.activeId);
   const selectedModel = useAppStore((s) => s.selectedModel);
@@ -87,9 +123,12 @@ export function InputArea() {
 
   const sendMessage = useCallback(async () => {
     const content = input.trim();
-    if (!content || streamState.isStreaming) return;
+    // Allow send when there is text OR at least one pending image (image-only "what is this?")
+    if ((!content && pendingImages.length === 0) || streamState.isStreaming) return;
 
+    const imagesToSend = pendingImages;
     setInput('');
+    setPendingImages([]);
 
     let convId = activeId;
     if (!convId) {
@@ -101,6 +140,7 @@ export function InputArea() {
       role: 'user',
       content,
       timestamp: Date.now(),
+      ...(imagesToSend.length > 0 ? { images: imagesToSend } : {}),
     };
     addMessage(convId, userMsg);
 
@@ -109,6 +149,7 @@ export function InputArea() {
     const apiMessages = currentMessages.map((m) => ({
       role: m.role,
       content: m.content,
+      ...(m.images && m.images.length > 0 ? { images: m.images } : {}),
     }));
 
     const assistantMsg: ChatMessage = {
@@ -299,6 +340,7 @@ export function InputArea() {
     }
   }, [
     input,
+    pendingImages,
     activeId,
     selectedModel,
     streamState.isStreaming,
@@ -319,7 +361,46 @@ export function InputArea() {
   };
 
   return (
-    <div className="px-4 pb-4 pt-2" style={{ maxWidth: 'var(--chat-max-width)', margin: '0 auto', width: '100%' }}>
+    <div
+      className="px-4 pb-4 pt-2"
+      style={{ maxWidth: 'var(--chat-max-width)', margin: '0 auto', width: '100%' }}
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+    >
+      {pendingImages.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {pendingImages.map((src, i) => (
+            <div key={i} className="relative inline-block">
+              <img
+                src={src}
+                alt={`pending ${i + 1}`}
+                className="h-16 w-16 rounded-lg object-cover"
+                style={{ border: '1px solid var(--color-border)' }}
+              />
+              <button
+                type="button"
+                onClick={() => removeImage(i)}
+                aria-label="remove image"
+                className="absolute -top-1.5 -right-1.5 rounded-full p-0.5 cursor-pointer"
+                style={{ background: 'rgba(0,0,0,0.7)', color: 'white' }}
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          for (const f of Array.from(e.target.files ?? [])) addImageFile(f);
+          e.target.value = '';
+        }}
+      />
       <div
         className="flex items-center gap-2 rounded-2xl px-4 py-3 transition-shadow"
         style={{
@@ -333,7 +414,8 @@ export function InputArea() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Message to Jarvis..."
+          onPaste={onPaste}
+          placeholder="Message to Jarvis... (paste or drop an image to attach)"
           rows={1}
           className="flex-1 bg-transparent outline-none resize-none text-sm leading-relaxed"
           style={{ color: 'var(--color-text)', maxHeight: '200px' }}
@@ -350,6 +432,16 @@ export function InputArea() {
           </button>
         ) : (
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={modelLoading}
+              className="p-2 rounded-xl transition-colors shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-default"
+              style={{ color: 'var(--color-text-secondary)' }}
+              title="Attach image (or paste / drop)"
+            >
+              <Paperclip size={16} />
+            </button>
             <MicButton
               state={speechState}
               onClick={handleMicClick}
@@ -359,11 +451,11 @@ export function InputArea() {
             />
             <button
               onClick={sendMessage}
-              disabled={!input.trim() || modelLoading}
+              disabled={(!input.trim() && pendingImages.length === 0) || modelLoading}
               className="p-2 rounded-xl transition-colors shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-default"
               style={{
-                background: input.trim() ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
-                color: input.trim() ? 'white' : 'var(--color-text-tertiary)',
+                background: (input.trim() || pendingImages.length > 0) ? 'var(--color-accent)' : 'var(--color-bg-tertiary)',
+                color: (input.trim() || pendingImages.length > 0) ? 'white' : 'var(--color-text-tertiary)',
               }}
               title="Send message"
             >

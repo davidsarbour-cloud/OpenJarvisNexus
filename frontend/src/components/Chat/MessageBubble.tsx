@@ -191,19 +191,34 @@ export function MessageBubble({ message }: Props) {
 
   if (isUser) {
     return (
-      <div className="flex justify-end mb-4">
-        <div
-          className="max-w-[85%] px-4 py-2.5 text-sm leading-relaxed"
-          style={{
-            background: 'var(--color-user-bubble)',
-            color: 'var(--color-user-bubble-text)',
-            borderRadius: 'var(--radius-xl) var(--radius-xl) var(--radius-sm) var(--radius-xl)',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-          }}
-        >
-          {message.content}
-        </div>
+      <div className="flex flex-col items-end mb-4">
+        {message.images && message.images.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-1.5 max-w-[85%] justify-end">
+            {message.images.map((src, i) => (
+              <img
+                key={i}
+                src={src}
+                alt={`attachment ${i + 1}`}
+                className="max-h-48 max-w-[12rem] rounded-lg object-cover"
+                style={{ border: '1px solid var(--color-border)' }}
+              />
+            ))}
+          </div>
+        )}
+        {(message.content || !(message.images && message.images.length)) && (
+          <div
+            className="max-w-[85%] px-4 py-2.5 text-sm leading-relaxed"
+            style={{
+              background: 'var(--color-user-bubble)',
+              color: 'var(--color-user-bubble-text)',
+              borderRadius: 'var(--radius-xl) var(--radius-xl) var(--radius-sm) var(--radius-xl)',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+          >
+            {message.content}
+          </div>
+        )}
       </div>
     );
   }
