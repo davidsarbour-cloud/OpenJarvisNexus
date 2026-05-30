@@ -41,6 +41,19 @@ class ForgeValidateRequest(BaseModel):
     stl_path: str
 
 
+class EngineeringPassRequest(BaseModel):
+    """Cut a sculpted STL into print-ready pieces (Blender headless).
+
+    Example specs:
+        { "plate_mm": [256, 256],
+          "cuts": [{"axis": "Z", "value_mm": 80}, {"axis": "Z", "value_mm": 160}],
+          "hollow": {"enabled": true, "wall_mm": 2.0} }
+    """
+    input_stl: str
+    specs: dict
+    timeout: int = 240
+
+
 @router.post("/mission")
 async def create_forge_mission(req: ForgeMissionRequest, background_tasks: BackgroundTasks):
     """Lance une mission de fabrication The Forge Room."""
@@ -167,6 +180,22 @@ async def list_forge_missions():
             for mid, m in _forge_missions.items()
         ],
     }
+
+
+@router.post("/engineering-pass")
+async def forge_engineering_pass(req: EngineeringPassRequest):
+    """Sculpt → multi-piece print-ready (Blender headless + per-piece validation).
+    See backend/forge_room/engineering_pass.py + the brain playbook
+    03_Projects/STL/sculpt-3d-playbook.md §4."""
+    from datetime import datetime as _dt
+
+    from forge_room.engineering_pass import report_to_dict, run_engineering_pass
+
+    in_stl = Path(req.input_stl)
+    if not in_stl.exists():
+        raise HTTPException(status_code=400, detail=f"input_stl not found: {in_stl}")
+    out_dir = FORGE_OUTPUT / f"engpass_{in_stl.stem}_{_dt.now():%Y%m%d_%H%M%S}"
+    return report_to_dict(run_engineering_pass(in_stl, req.specs, out_dir, req.timeout))
 
 
 @router.post("/validate")
