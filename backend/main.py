@@ -214,6 +214,7 @@ from daily_tasks import create_scheduler
 from docker_router import router as docker_router
 from forge_room.forge_engine import router as forge_router
 from health_router import router as health_router
+from iconforge.router import router as iconforge_router
 from jarvis_files import router as files_router
 from memory_router import router as memory_router
 from mining_router import router as mining_router
@@ -238,6 +239,7 @@ app.include_router(commerce_router)
 app.include_router(etsy_oauth_router)
 app.include_router(monitoring_router)
 app.include_router(mining_router)
+app.include_router(iconforge_router)
 app.include_router(ws_router)
 app.include_router(briefing_router)
 app.include_router(trends_router)

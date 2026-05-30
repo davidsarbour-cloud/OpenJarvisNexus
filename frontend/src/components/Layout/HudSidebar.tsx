@@ -8,6 +8,7 @@ import {
   Send, Sparkles, BookOpen, LineChart,
   Store, ShoppingCart, Tag, Tv,
   HeartPulse, Gauge,
+  Boxes,
 } from 'lucide-react';
 import { cssVar, type ModuleKey } from '../../lib/colors';
 
@@ -62,6 +63,7 @@ const SECTIONS: Section[] = [
       { label: 'OpenHands', icon: Workflow,  colorKey: 'commerce',  external: 'http://localhost:3000', status: 'on' },
       { label: 'Telegram',  icon: Send,      colorKey: 'jarvis',    status: 'on' },
       { label: 'Meshy AI',  icon: Sparkles,  colorKey: 'forge',     external: 'https://app.meshy.ai',         status: 'on' },
+      { label: 'ComfyUI',   icon: Boxes,     colorKey: 'cortex',    external: 'http://localhost:8188',        status: 'on' },
       { label: 'Obsidian',  icon: BookOpen,  colorKey: 'vault',     external: 'obsidian://open?vault=BRAIN',  status: 'on' },
     ],
   },
