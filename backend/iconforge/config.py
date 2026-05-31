@@ -15,6 +15,14 @@ class Settings:
     # ComfyUI server (artistic packs only — Minimal pilot is procedural).
     # Default :8188 is ComfyUI's standard port. Module degrades gracefully when down.
     comfyui_url: str = os.getenv("COMFYUI_URL", "http://localhost:8188")
+    # API-format workflow that generate() injects prompt/seed/size into.
+    comfyui_workflow: str = os.getenv(
+        "ICONFORGE_COMFYUI_WORKFLOW",
+        str(Path(__file__).parent / "comfyui" / "workflows" / "flux_schnell.json"),
+    )
+    # Ollama server — its model is evicted before a ComfyUI batch so FLUX fits
+    # in 12 GB VRAM (FLUX FP8 ~11 GB + qwen3:14b ~10 GB don't co-reside).
+    ollama_url: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
     # Gumroad personal access token (sales channel #1 — set when you create one
     # at gumroad.com/settings/advanced). Empty = listing draft only, no auto-upload.
     gumroad_token: str = os.getenv("GUMROAD_ACCESS_TOKEN", "")

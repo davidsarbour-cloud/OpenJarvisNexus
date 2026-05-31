@@ -1,0 +1,30 @@
+# IconForge ComfyUI service — FLUX Schnell FP8, GPU via WSL2 passthrough.
+#
+#   docker compose up -d --build      # build + start on :8188
+#   docker compose logs -f comfyui    # watch startup / generation
+#   docker compose down               # stop (models persist in ./models)
+#
+# The backend talks to this over HTTP at COMFYUI_URL (default http://localhost:8188).
+services:
+  comfyui:
+    build:
+      context: .
+      args:
+        COMFYUI_REF: master
+    image: iconforge-comfyui:latest
+    container_name: iconforge-comfyui
+    ports:
+      - "8188:8188"
+    volumes:
+      # Models persist on the host (gitignored). The 17 GB checkpoint lives here.
+      - ./models:/opt/ComfyUI/models
+      - ./output:/opt/ComfyUI/output
+      - ./input:/opt/ComfyUI/input
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped

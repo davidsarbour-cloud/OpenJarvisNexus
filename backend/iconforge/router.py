@@ -61,7 +61,7 @@ def download_pack(pack_id: str):
 
 
 @router.get("/comfyui")
-async def comfyui_status() -> dict:
+def comfyui_status() -> dict:
     """Probe — Phase 2 / artistic packs need this. Returns offline gracefully."""
     client = ComfyUIClient()
-    return {"url": client.base_url, "available": await client.is_available()}
+    return {"url": client.base_url, "available": client.is_available()}

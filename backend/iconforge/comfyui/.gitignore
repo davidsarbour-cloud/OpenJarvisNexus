@@ -1,0 +1,4 @@
+# Model weights (17 GB+) and generated artifacts — never commit these.
+models/
+output/
+input/

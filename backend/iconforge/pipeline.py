@@ -13,7 +13,7 @@ from pathlib import Path
 from iconforge.brief import PackBrief
 from iconforge.config import SETTINGS
 from iconforge.exports.packager import build_zip
-from iconforge.generators.procedural import render_pack
+from iconforge.generators import artistic, procedural
 from iconforge.installer.readme_builder import build_readme
 from iconforge.manifest import _slug, build_manifest
 from iconforge.postprocess import PLATFORM_SIZES, export_for_platform
@@ -33,20 +33,16 @@ class PackResult:
 def run_pack(brief: PackBrief) -> PackResult:
     """Generate every icon, apply platform masks/sizes, write manifest +
     recipe + README, zip the lot. Returns paths so callers can stream/download."""
-    if brief.generator != "procedural":
-        # Phase 2 → ComfyUI client. Probe is in router; here we just guard.
-        raise NotImplementedError(
-            "Phase 2 generator (ComfyUI/FLUX) — Phase 1 ships procedural only."
-        )
-
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     pack_id = f"{_slug(brief.name)}_{ts}"
     pack_dir = SETTINGS.storage_dir / pack_id
     pack_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Render once at the largest target size, then downscale per platform.
+    #    Dispatch on the brief's generator: Pillow (procedural) or FLUX (comfyui).
     src_size = max(PLATFORM_SIZES[p] for p in brief.targets)
-    sources = render_pack(brief, size=src_size)
+    render = artistic.render_pack if brief.generator == "comfyui" else procedural.render_pack
+    sources = render(brief, size=src_size)
 
     # 2. Export per-platform PNGs + accumulate a delivery tree.
     for platform in brief.targets:
