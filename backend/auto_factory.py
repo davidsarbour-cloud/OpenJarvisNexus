@@ -48,6 +48,21 @@ def _seed(s: str) -> int:
     """Stable non-negative seed from a string (process-independent)."""
     return zlib.crc32(s.encode("utf-8")) & 0x7FFFFFFF
 
+
+def _remove_bg(png: bytes) -> bytes:
+    """Detour a POD design onto a transparent background (best-effort).
+
+    FLUX renders on white; this strips it so the design prints on any shirt
+    colour. Returns the original bytes unchanged if rembg isn't installed or
+    fails — the pipeline never breaks on a missing optional dependency.
+    """
+    try:
+        from rembg import remove
+        return remove(png)
+    except Exception as e:
+        print(f"[auto_factory] rembg unavailable — keeping white bg: {e}")
+        return png
+
 DEFAULTS: dict = {
     "enabled":            True,
     "schedule_hour":      8,
@@ -259,6 +274,8 @@ async def _produce_pod(design: dict) -> dict:
                                       _seed(design["key"]), size)
     except Exception as e:
         return {"status": "error", "error": f"FLUX: {e}"}
+
+    png = await asyncio.to_thread(_remove_bg, png)   # -> transparent background
 
     # Listing draft (Etsy allows 13 tags). No slogans baked into the art — FLUX
     # text is unreliable; the design is illustrative, the text lives in metadata.
