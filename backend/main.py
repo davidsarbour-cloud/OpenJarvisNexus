@@ -203,6 +203,7 @@ print(f"[CORS] {len(_CORS_ORIGINS)} allowed origins"
       f"{' (+' + str(len(_extra_origins)) + ' from env)' if _extra_origins else ''}")
 
 from agents_router import router as agents_router
+from auto_factory import router as factory_router
 from brain_router import router as brain_router
 from chat_router import router as chat_router
 from commerce.commerce_router import router as commerce_router
@@ -240,6 +241,7 @@ app.include_router(etsy_oauth_router)
 app.include_router(monitoring_router)
 app.include_router(mining_router)
 app.include_router(iconforge_router)
+app.include_router(factory_router)
 app.include_router(ws_router)
 app.include_router(briefing_router)
 app.include_router(trends_router)

@@ -1106,6 +1106,40 @@ def create_scheduler():
     else:
         logger.info("Morning briefing: désactivé (config.json)")
 
+    # Auto-Factory — two independent daily lines (config.auto_factory).
+    # STL line and Icon line are SEPARATE Command Center tasks; staggered 15 min
+    # apart so they don't race on the shared state file or contend for the GPU.
+    _af_cfg = _cfg.get("auto_factory", {})
+    if _af_cfg.get("enabled", False):
+        from auto_factory import task_auto_factory_icons, task_auto_factory_stl
+        _af_products = _af_cfg.get("products", ["stl", "icons"])
+        _af_h = int(_af_cfg.get("schedule_hour",   8))
+        _af_m = int(_af_cfg.get("schedule_minute", 0))
+        _ic_m = (_af_m + 15) % 60
+        _ic_h = (_af_h + (1 if _af_m + 15 >= 60 else 0)) % 24
+        if "stl" in _af_products:
+            scheduler.add_job(
+                task_auto_factory_stl,
+                trigger=CronTrigger(hour=_af_h, minute=_af_m),
+                id="auto_factory_stl",
+                name=f"Daily: STL Factory ({_af_h:02d}:{_af_m:02d})",
+                replace_existing=True,
+                misfire_grace_time=3600,
+            )
+            logger.info(f"Scheduled: auto_factory_stl at {_af_h:02d}:{_af_m:02d}")
+        if "icons" in _af_products:
+            scheduler.add_job(
+                task_auto_factory_icons,
+                trigger=CronTrigger(hour=_ic_h, minute=_ic_m),
+                id="auto_factory_icons",
+                name=f"Daily: Icon Factory ({_ic_h:02d}:{_ic_m:02d})",
+                replace_existing=True,
+                misfire_grace_time=3600,
+            )
+            logger.info(f"Scheduled: auto_factory_icons at {_ic_h:02d}:{_ic_m:02d}")
+    else:
+        logger.info("Auto-Factory: désactivé (config.json)")
+
     # Tâche hebdomadaire — dimanche 02:30
     scheduler.add_job(
         task_brain_autolink,

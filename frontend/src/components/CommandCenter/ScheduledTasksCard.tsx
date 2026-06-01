@@ -81,6 +81,11 @@ const JOB_OBSIDIAN_PATHS: Record<string, string> = {
   monthly_brain_snapshot:    '02_Daily/index.md',
 };
 
+// Auto-Factory lines (STL + icon pack) get a gold treatment so they stand out
+// from the system/maintenance jobs in the schedule.
+const GOLD_JOB_IDS = new Set(['auto_factory_stl', 'auto_factory_icons']);
+const GOLD = '#F5C542';
+
 function openObsidian(path: string) {
   const url = `obsidian://open?vault=${encodeURIComponent(OBSIDIAN_VAULT)}&file=${encodeURIComponent(path)}`;
   window.open(url, '_self');
@@ -221,15 +226,20 @@ export function ScheduledTasksCard({
                     const at = parseNextRun(j.next_run);
                     const delta = at ? at.getTime() - now : null;
                     const obsidianPath = JOB_OBSIDIAN_PATHS[j.id];
+                    const gold = GOLD_JOB_IDS.has(j.id);
                     return (
                       <div
                         key={j.id}
                         className="flex items-center gap-2 text-[10px] py-0.5 px-1"
-                        style={{ borderRadius: 1 }}
+                        style={{
+                          borderRadius: 1,
+                          borderLeft: gold ? `2px solid ${GOLD}` : '2px solid transparent',
+                          background: gold ? 'rgba(245,197,66,0.08)' : undefined,
+                        }}
                       >
                         <span
                           className="truncate"
-                          style={{ color: '#ffffff', flex: 1 }}
+                          style={{ color: gold ? GOLD : '#ffffff', flex: 1, fontWeight: gold ? 700 : undefined }}
                           title={j.id}
                         >
                           {stripPrefix(j.name)}
@@ -259,7 +269,7 @@ export function ScheduledTasksCard({
                             <BookOpen size={10} />
                           </button>
                         )}
-                        <span className="tabular-nums shrink-0" style={{ color: '#ffffff' }}>
+                        <span className="tabular-nums shrink-0" style={{ color: gold ? GOLD : '#ffffff' }}>
                           {delta === null
                             ? '—'
                             : delta < 0
