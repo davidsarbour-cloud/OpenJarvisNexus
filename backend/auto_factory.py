@@ -30,7 +30,14 @@ from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
-from factory_niches import GAME_ASSETS_2D, ICON_THEMES, NICHES, POD_DESIGNS, TIER_RANK
+from factory_niches import (
+    GAME_ASSETS_2D,
+    ICON_THEMES,
+    NICHES,
+    POD_DESIGNS,
+    TIER_RANK,
+    UI_KITS,
+)
 from fastapi import APIRouter
 
 load_dotenv()  # so TELEGRAM_* creds resolve in standalone runs (backend also loads them)
@@ -45,6 +52,7 @@ JARVIS_STL_DIR   = Path(os.getenv("JARVIS_STL_DIR", r"C:\Users\bobby\OneDrive\Bu
 JARVIS_ICONS_DIR = Path(os.getenv("JARVIS_ICONS_DIR", str(JARVIS_STL_DIR.parent / "IconPacks")))
 JARVIS_POD_DIR   = Path(os.getenv("JARVIS_POD_DIR",   str(JARVIS_STL_DIR.parent / "POD")))
 JARVIS_GAME2D_DIR = Path(os.getenv("JARVIS_GAME2D_DIR", str(JARVIS_STL_DIR.parent / "GameAssets2D")))
+JARVIS_UIKIT_DIR  = Path(os.getenv("JARVIS_UIKIT_DIR",  str(JARVIS_STL_DIR.parent / "UIKits")))
 
 
 def _seed(s: str) -> int:
@@ -73,11 +81,11 @@ DEFAULTS: dict = {
     "selection_mode":     "tier_rotation",  # tier_rotation | buzz_rerank | weighted_random
     "spike_check":        False,            # STL line: a buzz spike jumps the queue
     "spike_threshold":    60,               # score (0-100) that counts as "spiking"
-    "products":           ["stl", "icons", "pod", "game2d"],
+    "products":           ["stl", "icons", "pod", "game2d", "uikit"],
     "icon_count":         12,               # subset of the 30-app catalog per pack
     "stl_target_size_mm": 150.0,
     "pod_art_size":       1024,             # FLUX render size for POD designs
-    "game2d_item_size":   768,              # FLUX render size per game asset
+    "game2d_item_size":   768,              # FLUX render size per game/UI asset
     "game2d_max_items":   8,                # items rendered per pack (cost/time cap)
 }
 
@@ -133,6 +141,7 @@ def _load_state() -> dict:
     state.setdefault("icons",  {"done": [], "cycle": 1})
     state.setdefault("pod",    {"done": [], "cycle": 1})
     state.setdefault("game2d", {"done": [], "cycle": 1})
+    state.setdefault("uikit",  {"done": [], "cycle": 1})
     return state
 
 
@@ -317,13 +326,15 @@ async def _produce_pod(design: dict) -> dict:
             "listing": str(out_dir / "listing.json"), "printify": pf}
 
 
-async def _produce_game2d(pack: dict) -> dict:
-    """Game-asset line: render each item in `pack` via FLUX (transparent),
-    bundle into a ZIP, save local + Jarvis/GameAssets2D."""
+async def _produce_pack(pack: dict, *, out_subdir: str, jarvis_dir: Path,
+                        price: float, title_suffix: str) -> dict:
+    """Generic FLUX asset-pack producer (shared by the game-asset and UI-kit
+    lines): render each item in `pack["items"]` with the shared `pack["style"]`,
+    strip the bg (transparent), bundle into a ZIP + listing.json, copy to Jarvis."""
     from iconforge.generators.comfyui_client import ComfyUIClient
     client = ComfyUIClient()
     if not client.is_available():
-        return {"status": "error", "error": "ComfyUI indisponible (game assets)"}
+        return {"status": "error", "error": "ComfyUI indisponible"}
     client.unload_ollama()
 
     cfg  = factory_cfg()
@@ -331,7 +342,7 @@ async def _produce_game2d(pack: dict) -> dict:
     cap  = int(cfg.get("game2d_max_items", 8))
     ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
     base = f"{pack['key']}_{ts}"
-    out_dir = BACKEND_DIR / "game2d_output" / base
+    out_dir = BACKEND_DIR / out_subdir / base
     out_dir.mkdir(parents=True, exist_ok=True)
 
     made: list[str] = []
@@ -341,7 +352,7 @@ async def _produce_game2d(pack: dict) -> dict:
                                           _seed(pack["key"] + item), size)
             png = await asyncio.to_thread(_remove_bg, png)
         except Exception as e:
-            print(f"[auto_factory] game2d item '{item}' failed: {e}")
+            print(f"[auto_factory] {out_subdir} item '{item}' failed: {e}")
             continue
         slug = re.sub(r"[^a-z0-9]+", "_", item.lower()).strip("_")
         (out_dir / f"{slug}.png").write_bytes(png)
@@ -354,21 +365,33 @@ async def _produce_game2d(pack: dict) -> dict:
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         for p in sorted(out_dir.glob("*.png")):
             z.write(p, p.name)
-    listing = {"title": f"{pack['label']} - 2D Game Asset Pack",
-               "items": made, "count": len(made), "price_usd": 14.99}
+    listing = {"title": f"{pack['label']} - {title_suffix}",
+               "items": made, "count": len(made), "price_usd": price}
     (out_dir / "listing.json").write_text(
         json.dumps(listing, indent=2, ensure_ascii=False), encoding="utf-8")
 
     jarvis_zip = None
     try:
-        JARVIS_GAME2D_DIR.mkdir(parents=True, exist_ok=True)
-        jarvis_zip = str(JARVIS_GAME2D_DIR / f"{base}.zip")
+        jarvis_dir.mkdir(parents=True, exist_ok=True)
+        jarvis_zip = str(jarvis_dir / f"{base}.zip")
         shutil.copy2(str(zip_path), jarvis_zip)
     except Exception as e:
-        print(f"[auto_factory] Jarvis game2d copy failed: {e}")
+        print(f"[auto_factory] Jarvis {out_subdir} copy failed: {e}")
 
     return {"status": "complete", "pack": pack["key"], "assets": len(made),
             "zip": jarvis_zip or str(zip_path)}
+
+
+async def _produce_game2d(pack: dict) -> dict:
+    return await _produce_pack(pack, out_subdir="game2d_output",
+                               jarvis_dir=JARVIS_GAME2D_DIR, price=14.99,
+                               title_suffix="2D Game Asset Pack")
+
+
+async def _produce_uikit(kit: dict) -> dict:
+    return await _produce_pack(kit, out_subdir="uikit_output",
+                               jarvis_dir=JARVIS_UIKIT_DIR, price=19.99,
+                               title_suffix="Game UI Kit")
 
 
 # ── Orchestrator ────────────────────────────────────────────────────────────
@@ -426,6 +449,14 @@ def _format_alert(chosen: dict, results: dict) -> str:
             lines.append(f"   {ga['assets']} assets: {ga['zip']}")
         else:
             lines.append(f"   échec — {ga.get('error', '?')}")
+    if "uikit" in chosen:
+        kit, reason = chosen["uikit"]
+        uk = results.get("uikit", {})
+        lines.append(f"🕹️ UIKit — {kit['label']} [{kit['tier']}-tier] ({reason})")
+        if uk.get("status") == "complete":
+            lines.append(f"   {uk['assets']} éléments: {uk['zip']}")
+        else:
+            lines.append(f"   échec — {uk.get('error', '?')}")
     lines += ["", f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M')}"]
     return "\n".join(lines)
 
@@ -454,6 +485,8 @@ async def run_auto_factory(*, dry: bool = False, force: bool = False,
         chosen["pod"] = await _select(POD_DESIGNS, state["pod"], cfg, allow_buzz=False)
     if "game2d" in products:
         chosen["game2d"] = await _select(GAME_ASSETS_2D, state["game2d"], cfg, allow_buzz=False)
+    if "uikit" in products:
+        chosen["uikit"] = await _select(UI_KITS, state["uikit"], cfg, allow_buzz=False)
 
     if dry:
         bits = []
@@ -469,6 +502,9 @@ async def run_auto_factory(*, dry: bool = False, force: bool = False,
         if "game2d" in chosen:
             g, r = chosen["game2d"]
             bits.append(f"Game2D: {g['label']} [{g['tier']}] ({r})")
+        if "uikit" in chosen:
+            u, r = chosen["uikit"]
+            bits.append(f"UIKit: {u['label']} [{u['tier']}] ({r})")
         send_telegram("🏭 Auto-Factory (DRY) — choisirait:\n" + "\n".join(bits) + "\nAucune production.")
         return {"dry": True, "chosen": {k: v[0]["key"] for k, v in chosen.items()},
                 "detail": {k: {"label": v[0]["label"], "reason": v[1]} for k, v in chosen.items()}}
@@ -499,6 +535,12 @@ async def run_auto_factory(*, dry: bool = False, force: bool = False,
         if pack["key"] not in state["game2d"]["done"]:
             state["game2d"]["done"].append(pack["key"])
         touched["game2d"] = state["game2d"]
+    if "uikit" in chosen:
+        kit, _ = chosen["uikit"]
+        results["uikit"] = await _produce_uikit(kit)
+        if kit["key"] not in state["uikit"]["done"]:
+            state["uikit"]["done"].append(kit["key"])
+        touched["uikit"] = state["uikit"]
 
     _save_lines(touched)               # atomic, per-line merge — overlap-safe
     send_telegram(_format_alert(chosen, results))
@@ -537,9 +579,14 @@ async def task_auto_factory_game2d():
     return await _safe_run(["game2d"], "Game2D")
 
 
+async def task_auto_factory_uikit():
+    """APScheduler entry — game UI-kit line only (its own Command Center task)."""
+    return await _safe_run(["uikit"], "UIKit")
+
+
 async def task_auto_factory():
     """Manual/combined entry — runs all lines per config."""
-    return await _safe_run(["stl", "icons", "pod", "game2d"], "all")
+    return await _safe_run(["stl", "icons", "pod", "game2d", "uikit"], "all")
 
 
 router = APIRouter(prefix="/v1/factory", tags=["auto_factory"])
@@ -549,7 +596,8 @@ router = APIRouter(prefix="/v1/factory", tags=["auto_factory"])
 def get_config() -> dict:
     return {"config": factory_cfg(), "state": _load_state(),
             "stl_niches": len(NICHES), "icon_themes": len(ICON_THEMES),
-            "pod_designs": len(POD_DESIGNS), "game2d_packs": len(GAME_ASSETS_2D)}
+            "pod_designs": len(POD_DESIGNS), "game2d_packs": len(GAME_ASSETS_2D),
+            "uikit_kits": len(UI_KITS)}
 
 
 @router.get("/catalog")
@@ -561,6 +609,7 @@ def list_catalog() -> dict:
         "icon_themes": _slim(ICON_THEMES),
         "pod_designs": _slim(POD_DESIGNS),
         "game2d_packs": _slim(GAME_ASSETS_2D),
+        "uikit_kits": _slim(UI_KITS),
     }
 
 

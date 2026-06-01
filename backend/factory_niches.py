@@ -207,5 +207,34 @@ GAME_ASSETS_2D: list[dict] = [
 ]
 
 
+_UI_ELEMENTS = ["button", "health bar", "mana bar", "menu panel frame",
+                "dialog box", "inventory slot", "progress bar", "banner header"]
+
+UI_KITS: list[dict] = [
+    # Game UI kits (sets of interface elements) for the ui-kit line. Same pack
+    # mechanic as GAME_ASSETS_2D: FLUX renders each element with a shared `style`
+    # -> rembg transparent -> ZIP. A strong shared style keeps the set coherent.
+    # Each: key, tier, label, style, items (the UI elements).
+    {"key": "fantasy_ui", "tier": "S", "label": "Fantasy RPG UI Kit",
+     "style": "fantasy game UI element, ornate carved wood and gold frame, medieval RPG, bold clean, isolated on plain white background, high detail, game asset",
+     "items": _UI_ELEMENTS},
+    {"key": "scifi_ui", "tier": "S", "label": "Sci-Fi HUD UI Kit",
+     "style": "sci-fi game UI element, sleek dark panel with neon cyan glow, holographic HUD, bold clean, isolated on plain white background, game asset",
+     "items": _UI_ELEMENTS},
+    {"key": "minimal_ui", "tier": "A", "label": "Minimal Flat UI Kit",
+     "style": "minimal flat game UI element, clean modern, soft shadows, neutral palette, rounded corners, isolated on plain white background, game asset",
+     "items": _UI_ELEMENTS},
+    {"key": "cute_ui", "tier": "A", "label": "Cute Cartoon UI Kit",
+     "style": "cute cartoon game UI element, rounded, pastel candy colors, playful, bold outline, isolated on plain white background, game asset",
+     "items": _UI_ELEMENTS},
+    {"key": "neon_arcade_ui", "tier": "B", "label": "Neon Arcade UI Kit",
+     "style": "retro neon arcade game UI element, 80s synthwave, glowing grid, bold, isolated on plain white background, game asset",
+     "items": _UI_ELEMENTS},
+    {"key": "horror_ui", "tier": "B", "label": "Dark Horror UI Kit",
+     "style": "dark horror game UI element, grungy metal with subtle blood accents, eerie, isolated on plain white background, game asset",
+     "items": _UI_ELEMENTS},
+]
+
+
 # Tier -> sort rank (S first). Used by the rotation selector.
 TIER_RANK = {"S": 0, "A": 1, "B": 2}

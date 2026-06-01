@@ -283,12 +283,14 @@ export interface FactoryConfigResponse {
     icons:  FactoryLineState;
     pod:    FactoryLineState;
     game2d: FactoryLineState;
+    uikit:  FactoryLineState;
     last?:  string;
   };
   stl_niches:   number;
   icon_themes:  number;
   pod_designs:  number;
   game2d_packs: number;
+  uikit_kits:   number;
 }
 export const fetchFactoryConfig = () =>
   getJSON<FactoryConfigResponse>('/v1/factory/config', 5000);
@@ -299,6 +301,7 @@ export interface FactoryCatalogResponse {
   icon_themes:  FactoryCatalogItem[];
   pod_designs:  FactoryCatalogItem[];
   game2d_packs: FactoryCatalogItem[];
+  uikit_kits:   FactoryCatalogItem[];
 }
 export const fetchFactoryCatalog = () =>
   getJSON<FactoryCatalogResponse>('/v1/factory/catalog', 5000);
