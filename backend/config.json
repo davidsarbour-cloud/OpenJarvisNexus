@@ -125,9 +125,11 @@
     "selection_mode": "tier_rotation",
     "spike_check": false,
     "spike_threshold": 60,
-    "products": ["stl", "icons", "pod"],
+    "products": ["stl", "icons", "pod", "game2d"],
     "icon_count": 12,
     "stl_target_size_mm": 150.0,
-    "pod_art_size": 1024
+    "pod_art_size": 1024,
+    "game2d_item_size": 768,
+    "game2d_max_items": 8
   }
 }

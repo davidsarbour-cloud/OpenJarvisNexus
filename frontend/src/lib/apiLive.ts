@@ -279,23 +279,26 @@ export interface FactoryConfigResponse {
     [k: string]: unknown;
   };
   state: {
-    stl:   FactoryLineState;
-    icons: FactoryLineState;
-    pod:   FactoryLineState;
-    last?: string;
+    stl:    FactoryLineState;
+    icons:  FactoryLineState;
+    pod:    FactoryLineState;
+    game2d: FactoryLineState;
+    last?:  string;
   };
-  stl_niches:  number;
-  icon_themes: number;
-  pod_designs: number;
+  stl_niches:   number;
+  icon_themes:  number;
+  pod_designs:  number;
+  game2d_packs: number;
 }
 export const fetchFactoryConfig = () =>
   getJSON<FactoryConfigResponse>('/v1/factory/config', 5000);
 
 export interface FactoryCatalogItem { key: string; tier: string; label: string; }
 export interface FactoryCatalogResponse {
-  stl_niches:  FactoryCatalogItem[];
-  icon_themes: FactoryCatalogItem[];
-  pod_designs: FactoryCatalogItem[];
+  stl_niches:   FactoryCatalogItem[];
+  icon_themes:  FactoryCatalogItem[];
+  pod_designs:  FactoryCatalogItem[];
+  game2d_packs: FactoryCatalogItem[];
 }
 export const fetchFactoryCatalog = () =>
   getJSON<FactoryCatalogResponse>('/v1/factory/catalog', 5000);

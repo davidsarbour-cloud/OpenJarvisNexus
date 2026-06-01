@@ -9,7 +9,7 @@
  * no order execution lives here.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Boxes, CandlestickChart, Hammer, Play, Shirt } from 'lucide-react';
+import { Boxes, CandlestickChart, Gamepad2, Hammer, Play, Shirt } from 'lucide-react';
 import { toast } from 'sonner';
 import { HudCard, type CardStatus } from '../components/CommandCenter/HudCard';
 import { cssVar, type ModuleKey } from '../lib/colors';
@@ -194,6 +194,11 @@ export function FactoryHubPage() {
           title="PoD textile automated" sub="designs apparel → Printify" icon={Shirt}
           colorKey="commerce" enabled={on('pod')} time={t(30)}
           total={cfg?.pod_designs ?? 0} state={cfg?.state.pod} catalog={cat?.pod_designs ?? []}
+        />
+        <ProductionLineCard
+          title="Game Assets 2D automated" sub="packs d'assets jeu → itch.io" icon={Gamepad2}
+          colorKey="security" enabled={on('game2d')} time={t(45)}
+          total={cfg?.game2d_packs ?? 0} state={cfg?.state.game2d} catalog={cat?.game2d_packs ?? []}
         />
         <DaytradingCard health={mHealth} positions={mPos} />
       </div>

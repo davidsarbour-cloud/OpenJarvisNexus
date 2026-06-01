@@ -159,6 +159,7 @@ backend/budget_logs.json
 backend/forge_missions_cache.json
 backend/auto_factory_state.json
 backend/pod_output/
+backend/game2d_output/
 backend/error_logs/
 backend/vault/claude-mem
 session_logs/

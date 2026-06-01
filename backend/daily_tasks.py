@@ -1112,17 +1112,20 @@ def create_scheduler():
     _af_cfg = _cfg.get("auto_factory", {})
     if _af_cfg.get("enabled", False):
         from auto_factory import (
+            task_auto_factory_game2d,
             task_auto_factory_icons,
             task_auto_factory_pod,
             task_auto_factory_stl,
         )
-        _af_products = _af_cfg.get("products", ["stl", "icons", "pod"])
+        _af_products = _af_cfg.get("products", ["stl", "icons", "pod", "game2d"])
         _af_h = int(_af_cfg.get("schedule_hour",   8))
         _af_m = int(_af_cfg.get("schedule_minute", 0))
         _ic_m = (_af_m + 15) % 60
         _ic_h = (_af_h + (1 if _af_m + 15 >= 60 else 0)) % 24
         _pd_m = (_af_m + 30) % 60
         _pd_h = (_af_h + (1 if _af_m + 30 >= 60 else 0)) % 24
+        _g2_m = (_af_m + 45) % 60
+        _g2_h = (_af_h + (1 if _af_m + 45 >= 60 else 0)) % 24
         if "stl" in _af_products:
             scheduler.add_job(
                 task_auto_factory_stl,
@@ -1153,6 +1156,16 @@ def create_scheduler():
                 misfire_grace_time=3600,
             )
             logger.info(f"Scheduled: auto_factory_pod at {_pd_h:02d}:{_pd_m:02d}")
+        if "game2d" in _af_products:
+            scheduler.add_job(
+                task_auto_factory_game2d,
+                trigger=CronTrigger(hour=_g2_h, minute=_g2_m),
+                id="auto_factory_game2d",
+                name=f"Daily: Game2D Factory ({_g2_h:02d}:{_g2_m:02d})",
+                replace_existing=True,
+                misfire_grace_time=3600,
+            )
+            logger.info(f"Scheduled: auto_factory_game2d at {_g2_h:02d}:{_g2_m:02d}")
     else:
         logger.info("Auto-Factory: désactivé (config.json)")
 

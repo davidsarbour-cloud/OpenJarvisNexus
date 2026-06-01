@@ -167,5 +167,45 @@ POD_DESIGNS: list[dict] = [
 ]
 
 
+GAME_ASSETS_2D: list[dict] = [
+    # 2D game asset PACKS (sets of item icons) for the game-asset line. Each pack
+    # = one theme; FLUX renders each item with a shared `style` suffix (bold,
+    # clean, isolated on white -> rembg -> transparent), bundled into a ZIP for
+    # itch.io / Unity Asset Store. Each: key, tier, label, style, items (subjects).
+    # ── S-Tier — top-selling game asset themes ───────────────────────────────
+    {"key": "fantasy_weapons", "tier": "S", "label": "Fantasy Weapons",
+     "style": "hand-painted 2D RPG game item icon, fantasy, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
+     "items": ["sword", "battle axe", "longbow", "dagger", "magic staff", "war hammer", "spear", "round shield"]},
+    {"key": "potions_consumables", "tier": "S", "label": "Potions & Consumables",
+     "style": "hand-painted 2D RPG game item icon, glass potion bottle style, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
+     "items": ["red health potion", "blue mana potion", "green elixir", "golden elixir", "magic scroll", "healing herb", "antidote vial", "stamina potion"]},
+    {"key": "rpg_item_icons", "tier": "S", "label": "RPG Item Icons",
+     "style": "hand-painted 2D RPG inventory item icon, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
+     "items": ["treasure chest", "iron key", "rolled map", "gold ring", "amulet", "leather pouch", "spell book", "torch"]},
+    {"key": "coins_currency", "tier": "S", "label": "Coins & Currency",
+     "style": "hand-painted 2D game currency icon, shiny, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
+     "items": ["gold coin", "silver coin", "stack of coins", "gem coin", "ruby", "emerald", "diamond", "coin pouch"]},
+
+    # ── A-Tier ───────────────────────────────────────────────────────────────
+    {"key": "scifi_weapons", "tier": "A", "label": "Sci-Fi Weapons",
+     "style": "2D sci-fi game item icon, sleek glowing tech, bold clean outline, neon accents, centered, isolated on plain white background, high detail",
+     "items": ["laser pistol", "plasma rifle", "energy sword", "frag grenade", "rail gun", "shock baton", "rocket launcher", "energy shield"]},
+    {"key": "food_items", "tier": "A", "label": "Food & Cooking",
+     "style": "hand-painted 2D game food item icon, cute, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
+     "items": ["roast meat", "loaf of bread", "red apple", "fish", "cheese wheel", "mug of ale", "bowl of soup", "cooked egg"]},
+    {"key": "gems_crystals", "tier": "A", "label": "Gems & Crystals",
+     "style": "2D game gem icon, faceted glowing crystal, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
+     "items": ["blue crystal", "red ruby", "green emerald", "purple amethyst", "yellow topaz", "clear diamond", "raw ore chunk", "magic shard"]},
+    {"key": "magic_spells", "tier": "A", "label": "Magic & Spell FX",
+     "style": "2D game spell effect icon, glowing magic, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
+     "items": ["fireball", "ice shard", "lightning bolt", "poison cloud", "holy light", "shadow orb", "wind slash", "earth spike"]},
+
+    # ── B-Tier ───────────────────────────────────────────────────────────────
+    {"key": "tools_crafting", "tier": "B", "label": "Tools & Crafting",
+     "style": "hand-painted 2D game crafting tool icon, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
+     "items": ["pickaxe", "hammer", "saw", "fishing rod", "shovel", "anvil", "needle and thread", "wood log"]},
+]
+
+
 # Tier -> sort rank (S first). Used by the rotation selector.
 TIER_RANK = {"S": 0, "A": 1, "B": 2}
