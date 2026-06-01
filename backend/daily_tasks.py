@@ -1111,12 +1111,18 @@ def create_scheduler():
     # apart so they don't race on the shared state file or contend for the GPU.
     _af_cfg = _cfg.get("auto_factory", {})
     if _af_cfg.get("enabled", False):
-        from auto_factory import task_auto_factory_icons, task_auto_factory_stl
-        _af_products = _af_cfg.get("products", ["stl", "icons"])
+        from auto_factory import (
+            task_auto_factory_icons,
+            task_auto_factory_pod,
+            task_auto_factory_stl,
+        )
+        _af_products = _af_cfg.get("products", ["stl", "icons", "pod"])
         _af_h = int(_af_cfg.get("schedule_hour",   8))
         _af_m = int(_af_cfg.get("schedule_minute", 0))
         _ic_m = (_af_m + 15) % 60
         _ic_h = (_af_h + (1 if _af_m + 15 >= 60 else 0)) % 24
+        _pd_m = (_af_m + 30) % 60
+        _pd_h = (_af_h + (1 if _af_m + 30 >= 60 else 0)) % 24
         if "stl" in _af_products:
             scheduler.add_job(
                 task_auto_factory_stl,
@@ -1137,6 +1143,16 @@ def create_scheduler():
                 misfire_grace_time=3600,
             )
             logger.info(f"Scheduled: auto_factory_icons at {_ic_h:02d}:{_ic_m:02d}")
+        if "pod" in _af_products:
+            scheduler.add_job(
+                task_auto_factory_pod,
+                trigger=CronTrigger(hour=_pd_h, minute=_pd_m),
+                id="auto_factory_pod",
+                name=f"Daily: POD Factory ({_pd_h:02d}:{_pd_m:02d})",
+                replace_existing=True,
+                misfire_grace_time=3600,
+            )
+            logger.info(f"Scheduled: auto_factory_pod at {_pd_h:02d}:{_pd_m:02d}")
     else:
         logger.info("Auto-Factory: désactivé (config.json)")
 

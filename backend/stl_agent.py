@@ -39,8 +39,12 @@ MISSION_LOG_DIR.mkdir(exist_ok=True)
 # Default design profile — David's preference for D3Dprintix
 DEFAULT_STYLE = (
     "low-poly fantasy, support-free, optimized for FDM 3D printing, "
-    "single-piece printable mesh, 15cm scale, minimal overhangs (<45°), "
-    "flat base, wall thickness >=1.2mm"
+    "single-piece printable mesh, 15cm scale, minimal overhangs (<45deg), "
+    "flat base, wall thickness >=2mm. "
+    # Anti-overhang silhouette rules — kill the spaghetti at the source:
+    "Wings FOLDED against the body, ears FLAT against the head, limbs and tail "
+    "tucked close to the body, NO thin parts jutting out horizontally, compact "
+    "self-supporting silhouette, every feature at least 2-3mm thick"
 )
 
 _missions: dict[str, dict] = {}
@@ -100,10 +104,14 @@ Rules:
 - Output ONLY the Meshy AI prompt, nothing else
 - 60-100 words maximum
 - Specify: object type, style (low-poly fantasy), key visual features
-- Include FDM constraints: support-free, flat base, wall thickness >=1.2mm
+- Include FDM constraints: support-free, flat base, wall thickness >=2mm
 - Target scale: 15cm longest dimension
 - No overhangs >45 degrees
 - Mention: single solid piece, no loose parts
+- CRITICAL anti-overhang shaping (this is what makes prints fail otherwise):
+  wings folded against the body, ears flat against the head, arms/legs/tail
+  tucked close to the body, NO thin features jutting out horizontally, compact
+  self-supporting pose, every protruding detail at least 2-3mm thick
 - Style keywords: low-poly, faceted, geometric, fantasy"""
 
 async def _get_concept(prompt: str) -> str:
@@ -550,48 +558,36 @@ def _validate_and_repair(mission: dict, src_path: Path, target_size_mm: float = 
         if repairs:
             _log(mission, "Repairs: " + ", ".join(repairs), "success")
 
-        # ── 7. Final overhang analysis ──
-        normals = mesh.face_normals
-        areas = mesh.area_faces
-        total_area = float(areas.sum()) or 1.0
-        overhang_area = float(areas[normals[:, 2] < -0.5].sum())
-        overhang_pct = round(overhang_area / total_area * 100, 1)
-
-        # ── 8. Build warnings list (visible in Hub) ──
-        warnings = []
-        if not mesh.is_watertight:
-            warnings.append("Mesh not fully watertight after repair — slicer may struggle")
-        if overhang_pct > 30:
-            warnings.append(f"Critical overhang area: {overhang_pct}% — supports likely needed")
-        elif overhang_pct > 15:
-            warnings.append(f"High overhang area: {overhang_pct}% — supports recommended")
-        if len(mesh.faces) > 200000:
-            warnings.append(f"High face count ({len(mesh.faces)}) — slicing may be slow")
-        if not mesh.is_winding_consistent:
-            warnings.append("Inconsistent face winding remains")
+        # ── 7-9. Printability analysis + 0-100 score + verdict (printability.py) ──
+        import printability as _pa
+        pa = _pa.analyze(mesh, min_wall_mm=2.0)
         bbox_final = mesh.bounding_box.extents
-        if min(bbox_final) < 5:
-            warnings.append(f"Smallest dimension {min(bbox_final):.1f}mm — may be fragile")
-
-        # ── 9. Build full report ──
         report = {
-            "watertight":      bool(mesh.is_watertight),
-            "winding_ok":      bool(mesh.is_winding_consistent),
-            "is_volume":       bool(mesh.is_volume),
-            "faces":           int(len(mesh.faces)),
-            "vertices":        int(len(mesh.vertices)),
-            "bbox_mm":         [round(float(x), 2) for x in bbox_final],
-            "longest_mm":      round(float(max(bbox_final)), 2),
-            "volume_mm3":      round(float(mesh.volume), 2) if mesh.is_volume else None,
-            "overhang_pct":    overhang_pct,
-            "warnings":        warnings,
-            "repairs_applied": repairs,
+            "watertight":         pa["watertight"],
+            "winding_ok":         pa["winding_ok"],
+            "is_volume":          bool(mesh.is_volume),
+            "faces":              pa["faces"],
+            "vertices":           int(len(mesh.vertices)),
+            "bbox_mm":            pa["bbox_mm"],
+            "longest_mm":         round(float(max(bbox_final)), 2),
+            "volume_mm3":         round(float(mesh.volume), 2) if mesh.is_volume else None,
+            "overhang_pct":       pa["overhang_pct"],
+            "printability_score": pa["printability_score"],   # 0-100
+            "verdict":            pa["verdict"],               # ready | supports_required | risky
+            "supports_required":  pa["supports_required"],
+            "support_type":       pa["support_type"],
+            "min_dimension_mm":   pa["min_dimension_mm"],
+            "thin_features":      pa["thin_features"],
+            "warnings":           pa["warnings"],
+            "repairs_applied":    repairs,
         }
         mission["validation"] = report
 
-        level = "success" if overhang_pct < 15 else "warn"
-        _log(mission, f"Overhang final: {overhang_pct}% (>45°)", level)
-        for w in warnings:
+        level = "success" if pa["printability_score"] >= 70 else "warn"
+        _log(mission, f"Printability {pa['printability_score']}/100 ({pa['verdict']}) | "
+                      f"overhang {pa['overhang_pct']}% | supports="
+                      f"{'OUI' if pa['supports_required'] else 'non'}", level)
+        for w in pa["warnings"]:
             _log(mission, "⚠ " + w, "warn")
 
         # ── 10. Export final STL ──
@@ -700,10 +696,18 @@ async def _run_pipeline(mission_id: str):
             m["steps"]["optimization"] = "error"
             _log(m, "[BRUCE] No file to repair — KAIZEN step failed", "error")
 
-        # 5 — Preview (placeholder — Blender render when desktop available)
+        # 5 — Preview render (Blender headless → PNG next to the STL)
         _step(m, "preview", "running")
-        _log(m, "[KAIZEN] Preview pass (skipped — requires Blender desktop)", "info")
-        await asyncio.sleep(0.5)
+        if final_stl:
+            import printability as _pa
+            preview_png = final_stl.with_suffix(".png")
+            ok = await asyncio.to_thread(_pa.render_preview, str(final_stl),
+                                         str(preview_png), BLENDER_PATH)
+            if ok:
+                m["files"]["preview"] = str(preview_png)
+                _log(m, f"[Preview] rendu Blender: {preview_png.name}", "ok")
+            else:
+                _log(m, "[Preview] render Blender indisponible — sauté", "warn")
         m["steps"]["preview"] = "done"
 
         # 6 — Packaging + Bambu Studio handoff

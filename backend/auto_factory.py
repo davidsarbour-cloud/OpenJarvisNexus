@@ -21,18 +21,32 @@ import asyncio
 import json
 import os
 import random
+import shutil
+import zlib
 from datetime import datetime
 from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
-from factory_niches import ICON_THEMES, NICHES, TIER_RANK
+from factory_niches import ICON_THEMES, NICHES, POD_DESIGNS, TIER_RANK
 from fastapi import APIRouter
 
 load_dotenv()  # so TELEGRAM_* creds resolve in standalone runs (backend also loads them)
 
 BACKEND_DIR = Path(__file__).resolve().parent
 STATE_FILE  = BACKEND_DIR / "auto_factory_state.json"
+
+# Mirror the STL pipeline's "copy to Jarvis folder" behavior for icon packs:
+# each finished pack ZIP is also dropped into a sibling IconPacks folder under
+# the same Jarvis directory the STL agent uses (override with JARVIS_ICONS_DIR).
+JARVIS_STL_DIR   = Path(os.getenv("JARVIS_STL_DIR", r"C:\Users\bobby\OneDrive\Bureau\Jarvis\STL"))
+JARVIS_ICONS_DIR = Path(os.getenv("JARVIS_ICONS_DIR", str(JARVIS_STL_DIR.parent / "IconPacks")))
+JARVIS_POD_DIR   = Path(os.getenv("JARVIS_POD_DIR",   str(JARVIS_STL_DIR.parent / "POD")))
+
+
+def _seed(s: str) -> int:
+    """Stable non-negative seed from a string (process-independent)."""
+    return zlib.crc32(s.encode("utf-8")) & 0x7FFFFFFF
 
 DEFAULTS: dict = {
     "enabled":            True,
@@ -41,9 +55,10 @@ DEFAULTS: dict = {
     "selection_mode":     "tier_rotation",  # tier_rotation | buzz_rerank | weighted_random
     "spike_check":        False,            # STL line: a buzz spike jumps the queue
     "spike_threshold":    60,               # score (0-100) that counts as "spiking"
-    "products":           ["stl", "icons"],
+    "products":           ["stl", "icons", "pod"],
     "icon_count":         12,               # subset of the 30-app catalog per pack
     "stl_target_size_mm": 150.0,
+    "pod_art_size":       1024,             # FLUX render size for POD designs
 }
 
 _TIER_WEIGHT = {"S": 3, "A": 2, "B": 1}
@@ -96,6 +111,7 @@ def _load_state() -> dict:
         state = {}
     state.setdefault("stl",   {"done": [], "cycle": 1})
     state.setdefault("icons", {"done": [], "cycle": 1})
+    state.setdefault("pod",   {"done": [], "cycle": 1})
     return state
 
 
@@ -183,10 +199,17 @@ async def _produce_stl(niche: dict, size_mm: float) -> dict:
     m = _new_mission(req)
     _missions[m["id"]] = m
     await _run_pipeline(m["id"])
+    val = m.get("validation", {})
     return {
-        "mission_id": m["id"],
-        "status":     m["status"],
-        "file":       m["files"].get("model") or m["files"].get("raw"),
+        "mission_id":   m["id"],
+        "status":       m["status"],
+        "file":         m["files"].get("jarvis_stl") or m["files"].get("model") or m["files"].get("raw"),
+        "preview":      m["files"].get("preview"),
+        "score":        val.get("printability_score"),
+        "verdict":      val.get("verdict"),
+        "supports":     val.get("supports_required"),
+        "support_type": val.get("support_type"),
+        "overhang_pct": val.get("overhang_pct"),
     }
 
 
@@ -206,10 +229,69 @@ async def _produce_icons(theme_item: dict, count: int) -> dict:
     )
     try:
         r = await asyncio.to_thread(run_pack, brief)
-        return {"status": "complete", "pack_id": r.pack_id,
-                "zip": str(r.zip_path), "icons": r.icon_count}
+        out = {"status": "complete", "pack_id": r.pack_id,
+               "zip": str(r.zip_path), "icons": r.icon_count}
+        # Copy the pack ZIP into the Jarvis IconPacks folder (mirrors the STL copy).
+        try:
+            JARVIS_ICONS_DIR.mkdir(parents=True, exist_ok=True)
+            dest = JARVIS_ICONS_DIR / Path(r.zip_path).name
+            shutil.copy2(str(r.zip_path), str(dest))
+            out["jarvis_zip"] = str(dest)
+        except Exception as e:
+            print(f"[auto_factory] Jarvis icon copy failed: {e}")
+        return out
     except Exception as e:
         return {"status": "error", "error": str(e)}
+
+
+async def _produce_pod(design: dict) -> dict:
+    """POD line: FLUX art -> listing draft -> save (local + Jarvis/POD) ->
+    Printify sync (gated on PRINTIFY_API_KEY)."""
+    from iconforge.generators.comfyui_client import ComfyUIClient
+    client = ComfyUIClient()
+    if not client.is_available():
+        return {"status": "error", "error": "ComfyUI indisponible (design POD)"}
+    client.unload_ollama()                       # free VRAM for FLUX
+
+    size = int(factory_cfg().get("pod_art_size", 1024))
+    try:
+        png = await asyncio.to_thread(client.generate, design["art_prompt"],
+                                      _seed(design["key"]), size)
+    except Exception as e:
+        return {"status": "error", "error": f"FLUX: {e}"}
+
+    # Listing draft (Etsy allows 13 tags). No slogans baked into the art — FLUX
+    # text is unreliable; the design is illustrative, the text lives in metadata.
+    tags  = design["tags"][:13]
+    title = f"{design['label']} {design['product'].title()} - Aesthetic Graphic Tee Gift"
+    desc  = (f"{design['label']} — design original, imprimé à la demande.\n\n"
+             f"Produit: {design['product']}. Impression haute qualité, "
+             f"plusieurs tailles et couleurs.\nMots-clés: {', '.join(tags)}")
+    listing = {"title": title, "tags": tags, "description": desc,
+               "price_usd": 24.99, "product": design["product"], "design": design["key"]}
+
+    ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base = f"{design['key']}_{ts}"
+    out_dir = BACKEND_DIR / "pod_output" / base
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"{base}.png").write_bytes(png)
+    (out_dir / "listing.json").write_text(
+        json.dumps(listing, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    jarvis_art = None
+    try:
+        JARVIS_POD_DIR.mkdir(parents=True, exist_ok=True)
+        jarvis_art = str(JARVIS_POD_DIR / f"{base}.png")
+        shutil.copy2(str(out_dir / f"{base}.png"), jarvis_art)
+        shutil.copy2(str(out_dir / "listing.json"), str(JARVIS_POD_DIR / f"{base}.listing.json"))
+    except Exception as e:
+        print(f"[auto_factory] Jarvis POD copy failed: {e}")
+
+    import printify_client
+    pf = printify_client.sync(f"{base}.png", png, title, desc, tags)
+    return {"status": "complete", "design": design["key"],
+            "art": jarvis_art or str(out_dir / f"{base}.png"),
+            "listing": str(out_dir / "listing.json"), "printify": pf}
 
 
 # ── Orchestrator ────────────────────────────────────────────────────────────
@@ -220,18 +302,45 @@ def _format_alert(chosen: dict, results: dict) -> str:
         niche, reason = chosen["stl"]
         stl = results.get("stl", {})
         lines.append(f"🧊 STL — {niche['label']} [{niche['tier']}-tier] ({reason})")
-        if stl.get("status") == "complete" and stl.get("file"):
-            lines.append(f"   prêt: {stl['file']}")
+        if stl.get("status") in ("complete", "partial") and stl.get("file"):
+            badge = {"ready": "✅ PRÊT", "supports_required": "🔧 SUPPORTS REQUIS",
+                     "risky": "⛔ RISQUÉ"}.get(stl.get("verdict"), stl.get("verdict") or "?")
+            oh = f", overhang {stl['overhang_pct']}%" if stl.get("overhang_pct") is not None else ""
+            lines.append(f"   {badge} — imprimabilité {stl.get('score')}/100{oh}")
+            if stl.get("supports"):
+                lines.append(f"   ⚠️ imprime AVEC supports ({stl.get('support_type') or 'tree'})")
+            lines.append(f"   fichier: {stl['file']}")
+            if stl.get("preview"):
+                lines.append(f"   aperçu: {stl['preview']}")
         else:
-            lines.append(f"   échec ({stl.get('status')}) — vérifie Meshy/Blender")
+            lines.append(f"   échec ({stl.get('status')}) — vérifie Meshy/Blender/crédit Claude")
     if "icons" in chosen:
         theme, reason = chosen["icons"]
         pk = results.get("icons", {})
         lines.append(f"📦 Icônes — {theme['label']} [{theme['tier']}-tier] ({reason})")
         if pk.get("status") == "complete":
-            lines.append(f"   {pk['icons']} icônes: {pk['zip']}")
+            lines.append(f"   {pk['icons']} icônes: {pk.get('jarvis_zip') or pk['zip']}")
         else:
             lines.append(f"   échec — {pk.get('error', '?')}")
+    if "pod" in chosen:
+        design, reason = chosen["pod"]
+        pod = results.get("pod", {})
+        lines.append(f"👕 POD — {design['label']} [{design['tier']}-tier] ({reason})")
+        if pod.get("status") == "complete":
+            lines.append(f"   design: {pod.get('art')}")
+            pf = pod.get("printify", {})
+            st = pf.get("status")
+            if st == "product_created":
+                lines.append(f"   Printify: produit créé {pf.get('product_id')}"
+                             + (" + PUBLIÉ" if pf.get("published") else " (brouillon)"))
+            elif st == "uploaded":
+                lines.append("   Printify: image uploadée (config produit incomplète)")
+            elif st == "skipped":
+                lines.append("   Printify: local seulement (pas de clé) — prêt à uploader")
+            else:
+                lines.append(f"   Printify: {pf.get('reason', st)}")
+        else:
+            lines.append(f"   échec — {pod.get('error', '?')}")
     lines += ["", f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M')}"]
     return "\n".join(lines)
 
@@ -256,6 +365,8 @@ async def run_auto_factory(*, dry: bool = False, force: bool = False,
         chosen["stl"] = await _select(NICHES, state["stl"], cfg, allow_buzz=True)
     if "icons" in products:
         chosen["icons"] = await _select(ICON_THEMES, state["icons"], cfg, allow_buzz=False)
+    if "pod" in products:
+        chosen["pod"] = await _select(POD_DESIGNS, state["pod"], cfg, allow_buzz=False)
 
     if dry:
         bits = []
@@ -265,6 +376,9 @@ async def run_auto_factory(*, dry: bool = False, force: bool = False,
         if "icons" in chosen:
             t, r = chosen["icons"]
             bits.append(f"Icônes: {t['label']} [{t['tier']}] ({r})")
+        if "pod" in chosen:
+            p, r = chosen["pod"]
+            bits.append(f"POD: {p['label']} [{p['tier']}] ({r})")
         send_telegram("🏭 Auto-Factory (DRY) — choisirait:\n" + "\n".join(bits) + "\nAucune production.")
         return {"dry": True, "chosen": {k: v[0]["key"] for k, v in chosen.items()},
                 "detail": {k: {"label": v[0]["label"], "reason": v[1]} for k, v in chosen.items()}}
@@ -283,6 +397,12 @@ async def run_auto_factory(*, dry: bool = False, force: bool = False,
         if theme["key"] not in state["icons"]["done"]:
             state["icons"]["done"].append(theme["key"])
         touched["icons"] = state["icons"]
+    if "pod" in chosen:
+        design, _ = chosen["pod"]
+        results["pod"] = await _produce_pod(design)
+        if design["key"] not in state["pod"]["done"]:
+            state["pod"]["done"].append(design["key"])
+        touched["pod"] = state["pod"]
 
     _save_lines(touched)               # atomic, per-line merge — overlap-safe
     send_telegram(_format_alert(chosen, results))
@@ -311,9 +431,14 @@ async def task_auto_factory_icons():
     return await _safe_run(["icons"], "Icons")
 
 
+async def task_auto_factory_pod():
+    """APScheduler entry — POD textile line only (its own Command Center task)."""
+    return await _safe_run(["pod"], "POD")
+
+
 async def task_auto_factory():
-    """Manual/combined entry — runs both lines per config."""
-    return await _safe_run(["stl", "icons"], "STL+Icons")
+    """Manual/combined entry — runs all lines per config."""
+    return await _safe_run(["stl", "icons", "pod"], "STL+Icons+POD")
 
 
 router = APIRouter(prefix="/v1/factory", tags=["auto_factory"])
