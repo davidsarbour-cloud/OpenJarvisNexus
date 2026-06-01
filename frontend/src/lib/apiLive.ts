@@ -266,3 +266,43 @@ export interface HealthAll {
 }
 
 export const fetchHealthAll = () => getJSON<HealthAll>('/v1/health/all', 8000);
+
+// ─── Auto-Factory (/v1/factory) — 3 production lines ───────
+export interface FactoryLineState { done: string[]; cycle: number; }
+export interface FactoryConfigResponse {
+  config: {
+    enabled: boolean;
+    schedule_hour: number;
+    schedule_minute: number;
+    selection_mode: string;
+    products: string[];
+    [k: string]: unknown;
+  };
+  state: {
+    stl:   FactoryLineState;
+    icons: FactoryLineState;
+    pod:   FactoryLineState;
+    last?: string;
+  };
+  stl_niches:  number;
+  icon_themes: number;
+  pod_designs: number;
+}
+export const fetchFactoryConfig = () =>
+  getJSON<FactoryConfigResponse>('/v1/factory/config', 5000);
+
+export interface FactoryCatalogItem { key: string; tier: string; label: string; }
+export interface FactoryCatalogResponse {
+  stl_niches:  FactoryCatalogItem[];
+  icon_themes: FactoryCatalogItem[];
+  pod_designs: FactoryCatalogItem[];
+}
+export const fetchFactoryCatalog = () =>
+  getJSON<FactoryCatalogResponse>('/v1/factory/catalog', 5000);
+
+export interface FactoryDryRunResponse {
+  dry?: boolean;
+  detail?: Record<string, { label: string; reason: string }>;
+}
+export const postFactoryDryRun = () =>
+  postJSON<FactoryDryRunResponse>('/v1/factory/run?dry=true', 20000);

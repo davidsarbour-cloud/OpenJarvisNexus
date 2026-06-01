@@ -19,7 +19,8 @@ export type ModuleKey =
   | 'docker'
   | 'cortex'
   | 'security'
-  | 'mining';
+  | 'mining'
+  | 'factory';
 
 export interface ModuleColor {
   /** Display name. */
@@ -97,6 +98,13 @@ export const MODULE_COLORS: Record<ModuleKey, ModuleColor> = {
     cssVar: 'color-mining',
     subtle: 'rgba(255, 214, 10, 0.10)',
     glow: 'rgba(255, 214, 10, 0.45)',
+  },
+  factory: {
+    label: 'Factory',
+    hex: '#f5c542',
+    cssVar: 'color-factory',
+    subtle: 'rgba(245, 197, 66, 0.10)',
+    glow: 'rgba(245, 197, 66, 0.45)',
   },
 };
 

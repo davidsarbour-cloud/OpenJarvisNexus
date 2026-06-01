@@ -447,14 +447,18 @@ router = APIRouter(prefix="/v1/factory", tags=["auto_factory"])
 @router.get("/config")
 def get_config() -> dict:
     return {"config": factory_cfg(), "state": _load_state(),
-            "stl_niches": len(NICHES), "icon_themes": len(ICON_THEMES)}
+            "stl_niches": len(NICHES), "icon_themes": len(ICON_THEMES),
+            "pod_designs": len(POD_DESIGNS)}
 
 
 @router.get("/catalog")
 def list_catalog() -> dict:
+    def _slim(items):
+        return [{"key": i["key"], "tier": i["tier"], "label": i["label"]} for i in items]
     return {
-        "stl_niches":  [{"key": n["key"], "tier": n["tier"], "label": n["label"]} for n in NICHES],
-        "icon_themes": [{"key": t["key"], "tier": t["tier"], "label": t["label"]} for t in ICON_THEMES],
+        "stl_niches":  _slim(NICHES),
+        "icon_themes": _slim(ICON_THEMES),
+        "pod_designs": _slim(POD_DESIGNS),
     }
 
 

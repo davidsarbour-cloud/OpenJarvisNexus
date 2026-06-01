@@ -9,6 +9,7 @@ import {
   Store, ShoppingCart, Tag, Tv,
   HeartPulse, Gauge,
   Boxes,
+  Factory,
 } from 'lucide-react';
 import { cssVar, type ModuleKey } from '../../lib/colors';
 
@@ -35,6 +36,7 @@ const SECTIONS: Section[] = [
       { label: 'Agent Network',  icon: Network,        colorKey: 'cortex',   route: '/agent-network', status: 'on', escapable: true },
       { label: 'Brain Hub',      icon: Share2,         colorKey: 'vault',    route: '/brain',         status: 'on' },
       { label: 'Pipeline Hub',   icon: Waypoints,      colorKey: 'security', route: '/pipeline-hub',  status: 'on' },
+      { label: 'Factory',        icon: Factory,        colorKey: 'factory',  route: '/factory',       status: 'on', escapable: true },
     ],
   },
   {
