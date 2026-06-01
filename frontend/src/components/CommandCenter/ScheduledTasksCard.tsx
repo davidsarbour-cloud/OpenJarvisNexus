@@ -81,10 +81,9 @@ const JOB_OBSIDIAN_PATHS: Record<string, string> = {
   monthly_brain_snapshot:    '02_Daily/index.md',
 };
 
-// Auto-Factory lines (STL + icon pack) get a gold treatment so they stand out
-// from the system/maintenance jobs in the schedule.
-const GOLD_JOB_IDS = new Set(['auto_factory_stl', 'auto_factory_icons']);
-const GOLD = '#F5C542';
+// Auto-Factory lines live in their own dedicated Factory hub (/factory), so
+// they're excluded from this general automation schedule to avoid duplication.
+const isFactoryJob = (id: string) => id.startsWith('auto_factory');
 
 function openObsidian(path: string) {
   const url = `obsidian://open?vault=${encodeURIComponent(OBSIDIAN_VAULT)}&file=${encodeURIComponent(path)}`;
@@ -124,6 +123,7 @@ export function ScheduledTasksCard({
   const grouped = useMemo(() => {
     const out: Record<Bucket, ScheduledJob[]> = { daily: [], weekly: [], monthly: [] };
     (data?.jobs ?? []).forEach((j) => {
+      if (isFactoryJob(j.id)) return;
       const b = bucketize(j.name);
       if (b) out[b].push(j);
     });
@@ -142,6 +142,7 @@ export function ScheduledTasksCard({
   const shownJobs = useMemo(
     () =>
       (data?.jobs ?? []).filter((j) => {
+        if (isFactoryJob(j.id)) return false;
         const b = bucketize(j.name);
         return b !== null && buckets.includes(b);
       }),
@@ -226,20 +227,15 @@ export function ScheduledTasksCard({
                     const at = parseNextRun(j.next_run);
                     const delta = at ? at.getTime() - now : null;
                     const obsidianPath = JOB_OBSIDIAN_PATHS[j.id];
-                    const gold = GOLD_JOB_IDS.has(j.id);
                     return (
                       <div
                         key={j.id}
                         className="flex items-center gap-2 text-[10px] py-0.5 px-1"
-                        style={{
-                          borderRadius: 1,
-                          borderLeft: gold ? `2px solid ${GOLD}` : '2px solid transparent',
-                          background: gold ? 'rgba(245,197,66,0.08)' : undefined,
-                        }}
+                        style={{ borderRadius: 1 }}
                       >
                         <span
                           className="truncate"
-                          style={{ color: gold ? GOLD : '#ffffff', flex: 1, fontWeight: gold ? 700 : undefined }}
+                          style={{ color: '#ffffff', flex: 1 }}
                           title={j.id}
                         >
                           {stripPrefix(j.name)}
@@ -269,7 +265,7 @@ export function ScheduledTasksCard({
                             <BookOpen size={10} />
                           </button>
                         )}
-                        <span className="tabular-nums shrink-0" style={{ color: gold ? GOLD : '#ffffff' }}>
+                        <span className="tabular-nums shrink-0" style={{ color: '#ffffff' }}>
                           {delta === null
                             ? '—'
                             : delta < 0
