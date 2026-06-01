@@ -9,7 +9,7 @@
  * no order execution lives here.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Boxes, CandlestickChart, Gamepad2, Hammer, LayoutDashboard, Play, Shirt } from 'lucide-react';
+import { Bot, Boxes, CandlestickChart, Gamepad2, Hammer, LayoutDashboard, Play, Shirt } from 'lucide-react';
 import { toast } from 'sonner';
 import { HudCard, type CardStatus } from '../components/CommandCenter/HudCard';
 import { cssVar, type ModuleKey } from '../lib/colors';
@@ -204,6 +204,11 @@ export function FactoryHubPage() {
           title="UI Kits jeux automated" sub="kits d'interface jeu → itch.io" icon={LayoutDashboard}
           colorKey="vault" enabled={on('uikit')} time={t(60)}
           total={cfg?.uikit_kits ?? 0} state={cfg?.state.uikit} catalog={cat?.uikit_kits ?? []}
+        />
+        <ProductionLineCard
+          title="AI Packs automated" sub="prompts/workflows (Ollama, brouillon)" icon={Bot}
+          colorKey="jarvis" enabled={on('aipack')} time={t(75)}
+          total={cfg?.aipack_packs ?? 0} state={cfg?.state.aipack} catalog={cat?.aipack_packs ?? []}
         />
         <DaytradingCard health={mHealth} positions={mPos} />
       </div>

@@ -31,6 +31,7 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 from factory_niches import (
+    AI_PACKS,
     GAME_ASSETS_2D,
     ICON_THEMES,
     NICHES,
@@ -53,6 +54,7 @@ JARVIS_ICONS_DIR = Path(os.getenv("JARVIS_ICONS_DIR", str(JARVIS_STL_DIR.parent 
 JARVIS_POD_DIR   = Path(os.getenv("JARVIS_POD_DIR",   str(JARVIS_STL_DIR.parent / "POD")))
 JARVIS_GAME2D_DIR = Path(os.getenv("JARVIS_GAME2D_DIR", str(JARVIS_STL_DIR.parent / "GameAssets2D")))
 JARVIS_UIKIT_DIR  = Path(os.getenv("JARVIS_UIKIT_DIR",  str(JARVIS_STL_DIR.parent / "UIKits")))
+JARVIS_AIPACK_DIR = Path(os.getenv("JARVIS_AIPACK_DIR", str(JARVIS_STL_DIR.parent / "AIPacks")))
 
 
 def _seed(s: str) -> int:
@@ -81,7 +83,7 @@ DEFAULTS: dict = {
     "selection_mode":     "tier_rotation",  # tier_rotation | buzz_rerank | weighted_random
     "spike_check":        False,            # STL line: a buzz spike jumps the queue
     "spike_threshold":    60,               # score (0-100) that counts as "spiking"
-    "products":           ["stl", "icons", "pod", "game2d", "uikit"],
+    "products":           ["stl", "icons", "pod", "game2d", "uikit", "aipack"],
     "icon_count":         12,               # subset of the 30-app catalog per pack
     "stl_target_size_mm": 150.0,
     "pod_art_size":       1024,             # FLUX render size for POD designs
@@ -142,6 +144,7 @@ def _load_state() -> dict:
     state.setdefault("pod",    {"done": [], "cycle": 1})
     state.setdefault("game2d", {"done": [], "cycle": 1})
     state.setdefault("uikit",  {"done": [], "cycle": 1})
+    state.setdefault("aipack", {"done": [], "cycle": 1})
     return state
 
 
@@ -394,6 +397,39 @@ async def _produce_uikit(kit: dict) -> dict:
                                title_suffix="Game UI Kit")
 
 
+async def _produce_aipack(item: dict) -> dict:
+    """AI / automation pack line: Ollama (local LLM, free) writes a Markdown
+    pack. HONEST: DRAFT output meant to be curated, not a finished product."""
+    from ollama_client import ask_ollama, strip_think_tags
+    system = ("You create sellable digital AI/automation packs. Output clean, "
+              "ready-to-use Markdown ONLY — no preamble, no commentary.")
+    content = await asyncio.to_thread(ask_ollama, f"{system}\n\n{item['brief']}")
+    if not content:
+        return {"status": "error", "error": "Ollama indisponible / timeout"}
+    content = strip_think_tags(content)
+
+    ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base = f"{item['key']}_{ts}"
+    out_dir = BACKEND_DIR / "aipack_output" / base
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"{item['key']}.md").write_text(content, encoding="utf-8")
+    listing = {"title": f"{item['label']} - AI Automation Pack",
+               "price_usd": 12.99, "draft": True, "pack": item["key"]}
+    (out_dir / "listing.json").write_text(
+        json.dumps(listing, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    jarvis_file = None
+    try:
+        JARVIS_AIPACK_DIR.mkdir(parents=True, exist_ok=True)
+        jarvis_file = str(JARVIS_AIPACK_DIR / f"{base}.md")
+        shutil.copy2(str(out_dir / f"{item['key']}.md"), jarvis_file)
+    except Exception as e:
+        print(f"[auto_factory] Jarvis aipack copy failed: {e}")
+
+    return {"status": "complete", "pack": item["key"], "chars": len(content),
+            "file": jarvis_file or str(out_dir / f"{item['key']}.md")}
+
+
 # ── Orchestrator ────────────────────────────────────────────────────────────
 
 def _format_alert(chosen: dict, results: dict) -> str:
@@ -457,6 +493,14 @@ def _format_alert(chosen: dict, results: dict) -> str:
             lines.append(f"   {uk['assets']} éléments: {uk['zip']}")
         else:
             lines.append(f"   échec — {uk.get('error', '?')}")
+    if "aipack" in chosen:
+        item, reason = chosen["aipack"]
+        ap = results.get("aipack", {})
+        lines.append(f"🤖 AIPack — {item['label']} [{item['tier']}-tier] ({reason})")
+        if ap.get("status") == "complete":
+            lines.append(f"   brouillon {ap['chars']} car.: {ap['file']}")
+        else:
+            lines.append(f"   échec — {ap.get('error', '?')}")
     lines += ["", f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M')}"]
     return "\n".join(lines)
 
@@ -487,6 +531,8 @@ async def run_auto_factory(*, dry: bool = False, force: bool = False,
         chosen["game2d"] = await _select(GAME_ASSETS_2D, state["game2d"], cfg, allow_buzz=False)
     if "uikit" in products:
         chosen["uikit"] = await _select(UI_KITS, state["uikit"], cfg, allow_buzz=False)
+    if "aipack" in products:
+        chosen["aipack"] = await _select(AI_PACKS, state["aipack"], cfg, allow_buzz=False)
 
     if dry:
         bits = []
@@ -505,6 +551,9 @@ async def run_auto_factory(*, dry: bool = False, force: bool = False,
         if "uikit" in chosen:
             u, r = chosen["uikit"]
             bits.append(f"UIKit: {u['label']} [{u['tier']}] ({r})")
+        if "aipack" in chosen:
+            a, r = chosen["aipack"]
+            bits.append(f"AIPack: {a['label']} [{a['tier']}] ({r})")
         send_telegram("🏭 Auto-Factory (DRY) — choisirait:\n" + "\n".join(bits) + "\nAucune production.")
         return {"dry": True, "chosen": {k: v[0]["key"] for k, v in chosen.items()},
                 "detail": {k: {"label": v[0]["label"], "reason": v[1]} for k, v in chosen.items()}}
@@ -541,6 +590,12 @@ async def run_auto_factory(*, dry: bool = False, force: bool = False,
         if kit["key"] not in state["uikit"]["done"]:
             state["uikit"]["done"].append(kit["key"])
         touched["uikit"] = state["uikit"]
+    if "aipack" in chosen:
+        item, _ = chosen["aipack"]
+        results["aipack"] = await _produce_aipack(item)
+        if item["key"] not in state["aipack"]["done"]:
+            state["aipack"]["done"].append(item["key"])
+        touched["aipack"] = state["aipack"]
 
     _save_lines(touched)               # atomic, per-line merge — overlap-safe
     send_telegram(_format_alert(chosen, results))
@@ -584,9 +639,14 @@ async def task_auto_factory_uikit():
     return await _safe_run(["uikit"], "UIKit")
 
 
+async def task_auto_factory_aipack():
+    """APScheduler entry — AI/automation pack line only (Ollama, draft output)."""
+    return await _safe_run(["aipack"], "AIPack")
+
+
 async def task_auto_factory():
     """Manual/combined entry — runs all lines per config."""
-    return await _safe_run(["stl", "icons", "pod", "game2d", "uikit"], "all")
+    return await _safe_run(["stl", "icons", "pod", "game2d", "uikit", "aipack"], "all")
 
 
 router = APIRouter(prefix="/v1/factory", tags=["auto_factory"])
@@ -597,7 +657,7 @@ def get_config() -> dict:
     return {"config": factory_cfg(), "state": _load_state(),
             "stl_niches": len(NICHES), "icon_themes": len(ICON_THEMES),
             "pod_designs": len(POD_DESIGNS), "game2d_packs": len(GAME_ASSETS_2D),
-            "uikit_kits": len(UI_KITS)}
+            "uikit_kits": len(UI_KITS), "aipack_packs": len(AI_PACKS)}
 
 
 @router.get("/catalog")
@@ -610,6 +670,7 @@ def list_catalog() -> dict:
         "pod_designs": _slim(POD_DESIGNS),
         "game2d_packs": _slim(GAME_ASSETS_2D),
         "uikit_kits": _slim(UI_KITS),
+        "aipack_packs": _slim(AI_PACKS),
     }
 
 
