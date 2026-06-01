@@ -1116,10 +1116,12 @@ def create_scheduler():
             task_auto_factory_game2d,
             task_auto_factory_icons,
             task_auto_factory_pod,
+            task_auto_factory_shopify,
             task_auto_factory_stl,
             task_auto_factory_uikit,
         )
-        _af_products = _af_cfg.get("products", ["stl", "icons", "pod", "game2d", "uikit", "aipack"])
+        _af_products = _af_cfg.get(
+            "products", ["stl", "icons", "pod", "game2d", "uikit", "aipack", "shopify"])
         _af_h = int(_af_cfg.get("schedule_hour",   8))
         _af_m = int(_af_cfg.get("schedule_minute", 0))
         _ic_m = (_af_m + 15) % 60
@@ -1132,6 +1134,8 @@ def create_scheduler():
         _uk_h = (_af_h + (_af_m + 60) // 60) % 24
         _ap_m = (_af_m + 75) % 60
         _ap_h = (_af_h + (_af_m + 75) // 60) % 24
+        _sh_m = (_af_m + 90) % 60
+        _sh_h = (_af_h + (_af_m + 90) // 60) % 24
         if "stl" in _af_products:
             scheduler.add_job(
                 task_auto_factory_stl,
@@ -1192,6 +1196,16 @@ def create_scheduler():
                 misfire_grace_time=3600,
             )
             logger.info(f"Scheduled: auto_factory_aipack at {_ap_h:02d}:{_ap_m:02d}")
+        if "shopify" in _af_products:
+            scheduler.add_job(
+                task_auto_factory_shopify,
+                trigger=CronTrigger(hour=_sh_h, minute=_sh_m),
+                id="auto_factory_shopify",
+                name=f"Daily: Shopify Factory ({_sh_h:02d}:{_sh_m:02d})",
+                replace_existing=True,
+                misfire_grace_time=3600,
+            )
+            logger.info(f"Scheduled: auto_factory_shopify at {_sh_h:02d}:{_sh_m:02d}")
     else:
         logger.info("Auto-Factory: désactivé (config.json)")
 

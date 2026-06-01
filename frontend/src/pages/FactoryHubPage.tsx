@@ -9,7 +9,7 @@
  * no order execution lives here.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Bot, Boxes, CandlestickChart, Gamepad2, Hammer, LayoutDashboard, Play, Shirt } from 'lucide-react';
+import { Bot, Boxes, CandlestickChart, Gamepad2, Hammer, LayoutDashboard, Play, Shirt, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 import { HudCard, type CardStatus } from '../components/CommandCenter/HudCard';
 import { cssVar, type ModuleKey } from '../lib/colors';
@@ -209,6 +209,11 @@ export function FactoryHubPage() {
           title="AI Packs automated" sub="prompts/workflows (Ollama, brouillon)" icon={Bot}
           colorKey="jarvis" enabled={on('aipack')} time={t(75)}
           total={cfg?.aipack_packs ?? 0} state={cfg?.state.aipack} catalog={cat?.aipack_packs ?? []}
+        />
+        <ProductionLineCard
+          title="Shopify templates automated" sub="sections Liquid (Ollama, brouillon)" icon={ShoppingCart}
+          colorKey="docker" enabled={on('shopify')} time={t(90)}
+          total={cfg?.shopify_templates ?? 0} state={cfg?.state.shopify} catalog={cat?.shopify_templates ?? []}
         />
         <DaytradingCard health={mHealth} positions={mPos} />
       </div>

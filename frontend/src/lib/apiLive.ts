@@ -283,16 +283,18 @@ export interface FactoryConfigResponse {
     icons:  FactoryLineState;
     pod:    FactoryLineState;
     game2d: FactoryLineState;
-    uikit:  FactoryLineState;
-    aipack: FactoryLineState;
-    last?:  string;
+    uikit:   FactoryLineState;
+    aipack:  FactoryLineState;
+    shopify: FactoryLineState;
+    last?:   string;
   };
-  stl_niches:   number;
-  icon_themes:  number;
-  pod_designs:  number;
-  game2d_packs: number;
-  uikit_kits:   number;
-  aipack_packs: number;
+  stl_niches:        number;
+  icon_themes:       number;
+  pod_designs:       number;
+  game2d_packs:      number;
+  uikit_kits:        number;
+  aipack_packs:      number;
+  shopify_templates: number;
 }
 export const fetchFactoryConfig = () =>
   getJSON<FactoryConfigResponse>('/v1/factory/config', 5000);
@@ -303,8 +305,9 @@ export interface FactoryCatalogResponse {
   icon_themes:  FactoryCatalogItem[];
   pod_designs:  FactoryCatalogItem[];
   game2d_packs: FactoryCatalogItem[];
-  uikit_kits:   FactoryCatalogItem[];
-  aipack_packs: FactoryCatalogItem[];
+  uikit_kits:        FactoryCatalogItem[];
+  aipack_packs:      FactoryCatalogItem[];
+  shopify_templates: FactoryCatalogItem[];
 }
 export const fetchFactoryCatalog = () =>
   getJSON<FactoryCatalogResponse>('/v1/factory/catalog', 5000);
