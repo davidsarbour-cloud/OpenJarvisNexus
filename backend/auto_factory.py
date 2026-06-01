@@ -83,6 +83,7 @@ DEFAULTS: dict = {
     "schedule_hour":      8,
     "schedule_minute":    0,
     "selection_mode":     "tier_rotation",  # tier_rotation | buzz_rerank | weighted_random
+    "stagger_minutes":    20,               # gap between each line's daily job
     "spike_check":        False,            # STL line: a buzz spike jumps the queue
     "spike_threshold":    60,               # score (0-100) that counts as "spiking"
     "products":           ["stl", "icons", "pod", "game2d", "uikit", "aipack", "shopify"],

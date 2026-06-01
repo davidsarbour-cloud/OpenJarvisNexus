@@ -123,6 +123,7 @@
     "schedule_hour": 8,
     "schedule_minute": 0,
     "selection_mode": "tier_rotation",
+    "stagger_minutes": 20,
     "spike_check": false,
     "spike_threshold": 60,
     "products": ["stl", "icons", "pod", "game2d", "uikit", "aipack", "shopify"],

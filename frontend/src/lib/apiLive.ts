@@ -275,6 +275,7 @@ export interface FactoryConfigResponse {
     schedule_hour: number;
     schedule_minute: number;
     selection_mode: string;
+    stagger_minutes?: number;
     products: string[];
     [k: string]: unknown;
   };

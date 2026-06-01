@@ -1124,18 +1124,20 @@ def create_scheduler():
             "products", ["stl", "icons", "pod", "game2d", "uikit", "aipack", "shopify"])
         _af_h = int(_af_cfg.get("schedule_hour",   8))
         _af_m = int(_af_cfg.get("schedule_minute", 0))
-        _ic_m = (_af_m + 15) % 60
-        _ic_h = (_af_h + (1 if _af_m + 15 >= 60 else 0)) % 24
-        _pd_m = (_af_m + 30) % 60
-        _pd_h = (_af_h + (1 if _af_m + 30 >= 60 else 0)) % 24
-        _g2_m = (_af_m + 45) % 60
-        _g2_h = (_af_h + (1 if _af_m + 45 >= 60 else 0)) % 24
-        _uk_m = (_af_m + 60) % 60
-        _uk_h = (_af_h + (_af_m + 60) // 60) % 24
-        _ap_m = (_af_m + 75) % 60
-        _ap_h = (_af_h + (_af_m + 75) // 60) % 24
-        _sh_m = (_af_m + 90) % 60
-        _sh_h = (_af_h + (_af_m + 90) // 60) % 24
+        # Each line's job is staggered N minutes after the previous one.
+        _stag = int(_af_cfg.get("stagger_minutes", 20))
+        _ic_m = (_af_m + 1 * _stag) % 60
+        _ic_h = (_af_h + (_af_m + 1 * _stag) // 60) % 24
+        _pd_m = (_af_m + 2 * _stag) % 60
+        _pd_h = (_af_h + (_af_m + 2 * _stag) // 60) % 24
+        _g2_m = (_af_m + 3 * _stag) % 60
+        _g2_h = (_af_h + (_af_m + 3 * _stag) // 60) % 24
+        _uk_m = (_af_m + 4 * _stag) % 60
+        _uk_h = (_af_h + (_af_m + 4 * _stag) // 60) % 24
+        _ap_m = (_af_m + 5 * _stag) % 60
+        _ap_h = (_af_h + (_af_m + 5 * _stag) // 60) % 24
+        _sh_m = (_af_m + 6 * _stag) % 60
+        _sh_h = (_af_h + (_af_m + 6 * _stag) // 60) % 24
         if "stl" in _af_products:
             scheduler.add_job(
                 task_auto_factory_stl,

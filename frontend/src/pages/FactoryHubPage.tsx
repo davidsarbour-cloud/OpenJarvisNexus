@@ -150,6 +150,7 @@ export function FactoryHubPage() {
   const h = c?.schedule_hour ?? 8;
   const m = c?.schedule_minute ?? 0;
   const products = c?.products ?? [];
+  const stag = c?.stagger_minutes ?? 20;
   const on = (k: string) => !!c?.enabled && products.includes(k);
   const t = (addMin: number) => `${pad((h + Math.floor((m + addMin) / 60)) % 24)}:${pad((m + addMin) % 60)}`;
 
@@ -187,32 +188,32 @@ export function FactoryHubPage() {
         />
         <ProductionLineCard
           title="Icon pack automated" sub="packs d'icônes iOS → FLUX" icon={Boxes}
-          colorKey="cortex" enabled={on('icons')} time={t(15)}
+          colorKey="cortex" enabled={on('icons')} time={t(stag)}
           total={cfg?.icon_themes ?? 0} state={cfg?.state.icons} catalog={cat?.icon_themes ?? []}
         />
         <ProductionLineCard
           title="PoD textile automated" sub="designs apparel → Printify" icon={Shirt}
-          colorKey="commerce" enabled={on('pod')} time={t(30)}
+          colorKey="commerce" enabled={on('pod')} time={t(stag * 2)}
           total={cfg?.pod_designs ?? 0} state={cfg?.state.pod} catalog={cat?.pod_designs ?? []}
         />
         <ProductionLineCard
           title="Game Assets 2D automated" sub="packs d'assets jeu → itch.io" icon={Gamepad2}
-          colorKey="security" enabled={on('game2d')} time={t(45)}
+          colorKey="security" enabled={on('game2d')} time={t(stag * 3)}
           total={cfg?.game2d_packs ?? 0} state={cfg?.state.game2d} catalog={cat?.game2d_packs ?? []}
         />
         <ProductionLineCard
           title="UI Kits jeux automated" sub="kits d'interface jeu → itch.io" icon={LayoutDashboard}
-          colorKey="vault" enabled={on('uikit')} time={t(60)}
+          colorKey="vault" enabled={on('uikit')} time={t(stag * 4)}
           total={cfg?.uikit_kits ?? 0} state={cfg?.state.uikit} catalog={cat?.uikit_kits ?? []}
         />
         <ProductionLineCard
           title="AI Packs automated" sub="prompts/workflows (Ollama, brouillon)" icon={Bot}
-          colorKey="jarvis" enabled={on('aipack')} time={t(75)}
+          colorKey="jarvis" enabled={on('aipack')} time={t(stag * 5)}
           total={cfg?.aipack_packs ?? 0} state={cfg?.state.aipack} catalog={cat?.aipack_packs ?? []}
         />
         <ProductionLineCard
           title="Shopify templates automated" sub="sections Liquid (Ollama, brouillon)" icon={ShoppingCart}
-          colorKey="docker" enabled={on('shopify')} time={t(90)}
+          colorKey="docker" enabled={on('shopify')} time={t(stag * 6)}
           total={cfg?.shopify_templates ?? 0} state={cfg?.state.shopify} catalog={cat?.shopify_templates ?? []}
         />
         <DaytradingCard health={mHealth} positions={mPos} />
