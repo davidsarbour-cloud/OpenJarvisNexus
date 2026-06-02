@@ -77,16 +77,20 @@ async def text_to_speech(
     if not text:
         raise HTTPException(400, "Texte vide")
 
-    # Auto language→voice: if no manual override and the text is English, read it
-    # with an English voice (Kokoro bm_george if installed, else Edge en-GB) so
-    # JARVIS doesn't read English with a French voice. French stays as configured.
-    if not engine and not voice and _detect_lang(text) == "en":
-        try:
-            import kokoro  # noqa: F401
-            tts_engine = "kokoro"
-        except ImportError:
-            tts_engine = "edge"
-            voice = "en-GB-RyanNeural"
+    # Auto language→voice (no manual override): English → Kokoro bm_george
+    # (the default JARVIS voice), French → native Edge French voice. This is
+    # bidirectional so French is never read with the English Kokoro voice even
+    # though Kokoro is the configured default engine.
+    if not engine and not voice:
+        if _detect_lang(text) == "en":
+            try:
+                import kokoro  # noqa: F401
+                tts_engine = "kokoro"
+            except ImportError:
+                tts_engine = "edge"
+                voice = "en-GB-RyanNeural"
+        else:
+            tts_engine = "edge"   # French → Edge French (never the English bm_george)
 
     # ── Kokoro (local, offline) ──────────────────────────────────────────────
     if tts_engine == "kokoro":
