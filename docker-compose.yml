@@ -70,6 +70,8 @@ services:
     volumes:
       - ./backend/memory.json:/app/memory.json
       - ./backend/sessions.json:/app/sessions.json
+      # Mount the bot source so edits apply on `up -d` without an image rebuild.
+      - ./backend/telegram_bot.py:/app/telegram_bot.py
     env_file:
       - ./backend/.env
     environment:

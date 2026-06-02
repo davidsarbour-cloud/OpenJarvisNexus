@@ -9,7 +9,6 @@ Jarvis Telegram Bot v2.0
 import asyncio
 import logging
 import os
-import tempfile
 from datetime import datetime
 
 import requests
@@ -110,28 +109,27 @@ def ask_jarvis(message: str, session: str = "telegram") -> str:
 
 
 async def send_voice_message(update: Update, text: str) -> None:
-    """Génère un message vocal via TTS et l'envoie sur Telegram."""
+    """Voice reply via the BACKEND TTS so Telegram matches JARVIS's main voice
+    (Kokoro bm_george for English, Edge French for French) instead of a separate
+    local Edge voice. Falls back to reply_audio if Telegram rejects the format."""
+    import io
     clean = text[:800].replace("*", "").replace("_", "").replace("`", "")
-    tmp_path = None
+    if not clean:
+        return
     try:
-        import edge_tts
-        communicate = edge_tts.Communicate(clean, TTS_VOICE)
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")  # NOSONAR - instant sync I/O before async save
-        tmp_path = tmp.name
-        tmp.close()
-        await communicate.save(tmp_path)
-        with open(tmp_path, "rb") as audio:  # NOSONAR - small file read, non-blocking in practice
-            await update.message.reply_voice(audio)
-    except ImportError:
-        log.warning("edge-tts non installé — lance: pip install edge-tts")
+        r = await asyncio.to_thread(
+            requests.get, f"{BACKEND_URL}/v1/tts",
+            params={"text": clean}, timeout=90,
+        )
+        r.raise_for_status()
+        data = r.content
+        try:
+            await update.message.reply_voice(io.BytesIO(data))
+        except Exception:
+            # WAV/MP3 may be refused as a "voice"; send as an audio clip instead.
+            await update.message.reply_audio(io.BytesIO(data))
     except Exception as e:
-        log.warning(f"TTS échoué: {e}")
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
+        log.warning(f"TTS backend échoué: {e}")
 
 
 def run_diagnostics() -> str:
