@@ -482,11 +482,13 @@ def chat_completion(req: ChatRequest, request: Request):
     # Rappel langue injecté à la fin du system prompt — modèles suivent mieux la dernière instruction
     # Lu depuis config.json (cache TTL 30s) — jamais hardcodé
     _chat_lang = load_config().get("jarvis", {}).get("language", "Français")
-    _lang_lc   = _chat_lang.lower()
-    if "english" in _lang_lc or "anglais" in _lang_lc:
-        system += "\n\n[MANDATORY] Reply in ENGLISH only. 1-2 sentences max unless detail is explicitly requested. Plain text, no markdown, no lists, no headers. ZERO emoji — never."
-    else:
-        system += f"\n\n[OBLIGATOIRE] Tu réponds UNIQUEMENT en {_chat_lang}. 1 à 2 phrases maximum sauf si détail explicitement demandé. Texte brut — pas de markdown, pas de listes, pas de titres. ZERO emoji — aucun, jamais."
+    system += (
+        f"\n\n[LANGUE] Par défaut réponds en {_chat_lang}. MAIS si l'utilisateur écrit dans "
+        f"une autre langue OU demande explicitement une langue (ex: « réponds en anglais », "
+        f"« in English »), réponds ENTIÈREMENT dans CETTE langue — cette consigne prime sur "
+        f"toute règle « toujours en {_chat_lang} ». 1 à 2 phrases max sauf si détail demandé. "
+        f"Texte brut — pas de markdown, pas de listes, pas de titres. ZERO emoji — jamais."
+    )
 
     # ── Skills catalog — injection compacte dans le system prompt ───────────
     try:
@@ -552,10 +554,9 @@ def chat_completion(req: ChatRequest, request: Request):
         ollama_msgs = []
         for i, msg in enumerate(ollama_msgs_raw):
             if i == len(ollama_msgs_raw) - 1 and msg["role"] == "user":
-                if "english" in _lang_lc or "anglais" in _lang_lc:
-                    _tail = "[English only. 1-2 sentences MAX. No markdown, no lists, no headers, no emoji.]"
-                else:
-                    _tail = f"[{_chat_lang} uniquement. MAX 2 phrases courtes. Texte brut, zéro markdown, zéro liste, zéro titre, ZERO emoji.]"
+                _tail = (f"[Langue: {_chat_lang} par défaut, MAIS si l'utilisateur demande ou "
+                         f"écrit dans une autre langue (ex: anglais), réponds dans CETTE langue. "
+                         f"MAX 2 phrases courtes. Texte brut, zéro markdown/liste/titre, ZERO emoji.]")
                 # Si Docker requis : injecte les données directement dans le message user
                 if _needs_docker and _docker_block:
                     _docker_inject = (

@@ -45,6 +45,22 @@ def _run_kokoro_sync(text: str, tts_voice: str) -> bytes:
     return buf.getvalue()
 
 
+def _detect_lang(text: str) -> str:
+    """Cheap FR/EN guess for TTS voice routing (no deps). Defaults to 'fr'.
+    Lets the 'Écouter' button auto-pick an English Kokoro voice when JARVIS
+    replies in English, without any manual engine/voice override."""
+    t = f" {text.lower()} "
+    if any(c in t for c in "éèêëàâäçùûîïôœ"):
+        return "fr"
+    fr = sum(w in t for w in (" le ", " la ", " les ", " un ", " une ", " des ", " et ",
+                              " est ", " je ", " tu ", " vous ", " pour ", " avec ", " que ",
+                              " qui ", " ça ", " dans ", " ne ", " pas "))
+    en = sum(w in t for w in (" the ", " is ", " are ", " you ", " your ", " and ", " for ",
+                              " with ", " this ", " that ", " what ", " how ", " to ", " of ",
+                              " sir ", " i'm ", " it's "))
+    return "en" if en > fr else "fr"
+
+
 @router.get("/v1/tts")
 async def text_to_speech(
     text: str = Query(..., description="Texte à lire"),
@@ -60,6 +76,17 @@ async def text_to_speech(
     text = text[:4000].strip()   # Bug fix: limite portée à 4000 chars
     if not text:
         raise HTTPException(400, "Texte vide")
+
+    # Auto language→voice: if no manual override and the text is English, read it
+    # with an English voice (Kokoro bm_george if installed, else Edge en-GB) so
+    # JARVIS doesn't read English with a French voice. French stays as configured.
+    if not engine and not voice and _detect_lang(text) == "en":
+        try:
+            import kokoro  # noqa: F401
+            tts_engine = "kokoro"
+        except ImportError:
+            tts_engine = "edge"
+            voice = "en-GB-RyanNeural"
 
     # ── Kokoro (local, offline) ──────────────────────────────────────────────
     if tts_engine == "kokoro":
