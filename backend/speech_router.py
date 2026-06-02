@@ -46,19 +46,24 @@ def _run_kokoro_sync(text: str, tts_voice: str) -> bytes:
 
 
 def _detect_lang(text: str) -> str:
-    """Cheap FR/EN guess for TTS voice routing (no deps). Defaults to 'fr'.
-    Lets the 'Écouter' button auto-pick an English Kokoro voice when JARVIS
-    replies in English, without any manual engine/voice override."""
-    t = f" {text.lower()} "
-    if any(c in t for c in "éèêëàâäçùûîïôœ"):
+    """FR/EN guess for TTS voice routing (no deps). ENGLISH-primary: defaults to
+    'en' (Kokoro bm_george, JARVIS's main voice) and only returns 'fr' on a clear
+    French signal (accents or dominant French words). Punctuation is stripped so
+    short phrases like 'Standing by, sir.' still match."""
+    import re
+    t = " " + re.sub(r"[^a-zàâäéèêëïîôùûüç]+", " ", text.lower()).strip() + " "
+    if any(c in t for c in "àâäéèêëïîôùûüç"):
         return "fr"
     fr = sum(w in t for w in (" le ", " la ", " les ", " un ", " une ", " des ", " et ",
                               " est ", " je ", " tu ", " vous ", " pour ", " avec ", " que ",
-                              " qui ", " ça ", " dans ", " ne ", " pas "))
+                              " qui ", " dans ", " ne ", " pas ", " bonjour ", " monsieur ",
+                              " conteneur ", " est ", " sont "))
     en = sum(w in t for w in (" the ", " is ", " are ", " you ", " your ", " and ", " for ",
                               " with ", " this ", " that ", " what ", " how ", " to ", " of ",
-                              " sir ", " i'm ", " it's "))
-    return "en" if en > fr else "fr"
+                              " sir ", " online ", " standing ", " by ", " status ", " down ",
+                              " all ", " systems ", " ready "))
+    # English-primary → only French on a clear French lead.
+    return "fr" if (fr > en and fr > 0) else "en"
 
 
 @router.get("/v1/tts")
