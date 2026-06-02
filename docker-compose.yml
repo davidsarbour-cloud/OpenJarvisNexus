@@ -74,12 +74,14 @@ services:
       - ./backend/.env
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434
-      - BACKEND_URL=http://backend:8000
+      # Backend runs NATIVELY on the host (START_ALL → native uvicorn), so the
+      # bot must reach it via host.docker.internal, NOT the `backend` compose
+      # service (which isn't running in the native setup → name won't resolve).
+      - BACKEND_URL=http://host.docker.internal:8000
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    depends_on:
-      backend:
-        condition: service_healthy
+    # No depends_on: backend — it's native, not a container. Depending on it
+    # would make compose start a conflicting nexus_backend on :8000.
     restart: unless-stopped
 
   bruce:
