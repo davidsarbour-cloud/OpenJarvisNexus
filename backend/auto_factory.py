@@ -36,6 +36,7 @@ from factory_niches import (
     ICON_THEMES,
     NICHES,
     POD_DESIGNS,
+    PREMIUM_VISUALS,
     SHOPIFY_TEMPLATES,
     TIER_RANK,
     UI_KITS,
@@ -57,26 +58,13 @@ JARVIS_GAME2D_DIR = Path(os.getenv("JARVIS_GAME2D_DIR", str(JARVIS_STL_DIR.paren
 JARVIS_UIKIT_DIR  = Path(os.getenv("JARVIS_UIKIT_DIR",  str(JARVIS_STL_DIR.parent / "UIKits")))
 JARVIS_AIPACK_DIR = Path(os.getenv("JARVIS_AIPACK_DIR", str(JARVIS_STL_DIR.parent / "AIPacks")))
 JARVIS_SHOPIFY_DIR = Path(os.getenv("JARVIS_SHOPIFY_DIR", str(JARVIS_STL_DIR.parent / "Shopify")))
+JARVIS_PREMIUM_DIR = Path(os.getenv("JARVIS_PREMIUM_DIR", str(JARVIS_STL_DIR.parent / "Premium")))
 
 
 def _seed(s: str) -> int:
     """Stable non-negative seed from a string (process-independent)."""
     return zlib.crc32(s.encode("utf-8")) & 0x7FFFFFFF
 
-
-def _remove_bg(png: bytes) -> bytes:
-    """Detour a POD design onto a transparent background (best-effort).
-
-    FLUX renders on white; this strips it so the design prints on any shirt
-    colour. Returns the original bytes unchanged if rembg isn't installed or
-    fails — the pipeline never breaks on a missing optional dependency.
-    """
-    try:
-        from rembg import remove
-        return remove(png)
-    except Exception as e:
-        print(f"[auto_factory] rembg unavailable — keeping white bg: {e}")
-        return png
 
 DEFAULTS: dict = {
     "enabled":            True,
@@ -86,12 +74,15 @@ DEFAULTS: dict = {
     "stagger_minutes":    20,               # gap between each line's daily job
     "spike_check":        False,            # STL line: a buzz spike jumps the queue
     "spike_threshold":    60,               # score (0-100) that counts as "spiking"
-    "products":           ["stl", "icons", "pod", "game2d", "uikit", "aipack", "shopify"],
+    "products":           ["stl", "icons", "pod", "game2d", "uikit", "aipack", "shopify", "premium"],
     "icon_count":         12,               # subset of the 30-app catalog per pack
     "stl_target_size_mm": 150.0,
     "pod_art_size":       1024,             # FLUX render size for POD designs
     "game2d_item_size":   768,              # FLUX render size per game/UI asset
     "game2d_max_items":   8,                # items rendered per pack (cost/time cap)
+    "image_backend":      "comfyui",        # comfyui | gpt-image-1 | auto (ImageFactory)
+    "valkyrie_score_threshold": 60,         # premium line: buzz score to ride a trend (hype)
+    "premium_quality":    "high",           # gpt-image-1 quality for the premium (VALKYRIE) line
 }
 
 _TIER_WEIGHT = {"S": 3, "A": 2, "B": 1}
@@ -149,6 +140,7 @@ def _load_state() -> dict:
     state.setdefault("uikit",   {"done": [], "cycle": 1})
     state.setdefault("aipack",  {"done": [], "cycle": 1})
     state.setdefault("shopify", {"done": [], "cycle": 1})
+    state.setdefault("premium", {"done": [], "cycle": 1})
     return state
 
 
@@ -188,6 +180,47 @@ async def _buzz_scores(items: list[dict]) -> dict[str, float]:
     for n, res in zip(items, results):
         out[n["key"]] = 0.0 if isinstance(res, Exception) else float(res.get("score", 0) or 0)
     return out
+
+
+def _trend_keywords() -> list[str]:
+    """Hype candidate subjects — David's curated trend_hunter keyword list."""
+    cfg_file = BACKEND_DIR / "config.json"
+    try:
+        cfg = json.loads(cfg_file.read_text(encoding="utf-8")) if cfg_file.exists() else {}
+        kws = (cfg.get("trend_hunter", {}) or {}).get("dropshipping_keywords", []) or []
+        return [str(k) for k in kws]
+    except Exception:
+        return []
+
+
+async def _hype_subject(default_subject: str, threshold: float) -> tuple[str, float, bool]:
+    """Score curated trend keywords; if the hottest clears `threshold`, ride it.
+
+    Returns (subject, score, rode_hype). Falls back to `default_subject` on any
+    failure or a quiet day — the premium line never goes silent (rotation still
+    produces the evergreen template). Candidates capped to bound cost/latency.
+    """
+    candidates = _trend_keywords()[:8]
+    if not candidates:
+        return default_subject, 0.0, False
+    try:
+        from trend_hunter import score_single_keyword
+        results = await asyncio.gather(
+            *[score_single_keyword(k) for k in candidates], return_exceptions=True,
+        )
+    except Exception as e:
+        print(f"[auto_factory] hype scoring failed: {e}")
+        return default_subject, 0.0, False
+    best, best_score = default_subject, -1.0
+    for kw, res in zip(candidates, results):
+        if isinstance(res, Exception):
+            continue
+        s = float(res.get("score", 0) or 0)
+        if s > best_score:
+            best, best_score = kw, s
+    if best_score >= threshold:
+        return best, best_score, True
+    return default_subject, max(best_score, 0.0), False
 
 
 def _rotate(catalog: list[dict], sub: dict) -> tuple[dict, str, list[dict]]:
@@ -282,22 +315,23 @@ async def _produce_icons(theme_item: dict, count: int) -> dict:
 
 
 async def _produce_pod(design: dict) -> dict:
-    """POD line: FLUX art -> listing draft -> save (local + Jarvis/POD) ->
-    Printify sync (gated on PRINTIFY_API_KEY)."""
-    from iconforge.generators.comfyui_client import ComfyUIClient
-    client = ComfyUIClient()
-    if not client.is_available():
-        return {"status": "error", "error": "ComfyUI indisponible (design POD)"}
-    client.unload_ollama()                       # free VRAM for FLUX
+    """POD line: art (ImageFactory) -> listing draft -> save (local + Jarvis/POD)
+    -> Printify sync (gated on PRINTIFY_API_KEY)."""
+    from services import image_factory
+    cfg = factory_cfg()
+    backend = image_factory.choose(cfg.get("image_backend", "comfyui"), niche_type="pod")
+    if not image_factory.is_available(backend):
+        return {"status": "error", "error": f"backend image indisponible ({backend}) — POD"}
+    await image_factory.prepare(backend)             # FLUX: free VRAM
 
-    size = int(factory_cfg().get("pod_art_size", 1024))
+    size = int(cfg.get("pod_art_size", 1024))
     try:
-        png = await asyncio.to_thread(client.generate, design["art_prompt"],
-                                      _seed(design["key"]), size)
+        png = await image_factory.render(
+            design["art_prompt"], size=size, seed=_seed(design["key"]),
+            backend=backend, transparent=True,
+        )
     except Exception as e:
-        return {"status": "error", "error": f"FLUX: {e}"}
-
-    png = await asyncio.to_thread(_remove_bg, png)   # -> transparent background
+        return {"status": "error", "error": f"{backend}: {e}"}
 
     # Listing draft (Etsy allows 13 tags). No slogans baked into the art — FLUX
     # text is unreliable; the design is illustrative, the text lives in metadata.
@@ -334,17 +368,19 @@ async def _produce_pod(design: dict) -> dict:
 
 
 async def _produce_pack(pack: dict, *, out_subdir: str, jarvis_dir: Path,
-                        price: float, title_suffix: str) -> dict:
-    """Generic FLUX asset-pack producer (shared by the game-asset and UI-kit
-    lines): render each item in `pack["items"]` with the shared `pack["style"]`,
-    strip the bg (transparent), bundle into a ZIP + listing.json, copy to Jarvis."""
-    from iconforge.generators.comfyui_client import ComfyUIClient
-    client = ComfyUIClient()
-    if not client.is_available():
-        return {"status": "error", "error": "ComfyUI indisponible"}
-    client.unload_ollama()
-
+                        price: float, title_suffix: str,
+                        niche_type: str = "game_assets") -> dict:
+    """Generic asset-pack producer (shared by the game-asset and UI-kit lines):
+    render each item in `pack["items"]` with the shared `pack["style"]` via
+    ImageFactory, strip the bg (transparent), bundle into a ZIP + listing.json,
+    copy to Jarvis."""
+    from services import image_factory
     cfg  = factory_cfg()
+    backend = image_factory.choose(cfg.get("image_backend", "comfyui"), niche_type=niche_type)
+    if not image_factory.is_available(backend):
+        return {"status": "error", "error": f"backend image indisponible ({backend})"}
+    await image_factory.prepare(backend)             # FLUX: free VRAM
+
     size = int(cfg.get("game2d_item_size", 768))
     cap  = int(cfg.get("game2d_max_items", 8))
     ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -355,9 +391,10 @@ async def _produce_pack(pack: dict, *, out_subdir: str, jarvis_dir: Path,
     made: list[str] = []
     for item in pack["items"][: max(1, cap)]:
         try:
-            png = await asyncio.to_thread(client.generate, f"{item}, {pack['style']}",
-                                          _seed(pack["key"] + item), size)
-            png = await asyncio.to_thread(_remove_bg, png)
+            png = await image_factory.render(
+                f"{item}, {pack['style']}", size=size,
+                seed=_seed(pack["key"] + item), backend=backend, transparent=True,
+            )
         except Exception as e:
             print(f"[auto_factory] {out_subdir} item '{item}' failed: {e}")
             continue
@@ -392,25 +429,55 @@ async def _produce_pack(pack: dict, *, out_subdir: str, jarvis_dir: Path,
 async def _produce_game2d(pack: dict) -> dict:
     return await _produce_pack(pack, out_subdir="game2d_output",
                                jarvis_dir=JARVIS_GAME2D_DIR, price=14.99,
-                               title_suffix="2D Game Asset Pack")
+                               title_suffix="2D Game Asset Pack",
+                               niche_type="game_assets")
 
 
 async def _produce_uikit(kit: dict) -> dict:
     return await _produce_pack(kit, out_subdir="uikit_output",
                                jarvis_dir=JARVIS_UIKIT_DIR, price=19.99,
-                               title_suffix="Game UI Kit")
+                               title_suffix="Game UI Kit",
+                               niche_type="ui_kit")
+
+
+def _sonnet_generate(system: str, brief: str) -> str | None:
+    """Generate with Claude Sonnet (premium quality). Returns None on failure so
+    the caller can fall back to Ollama. Records the call in the budget tracker."""
+    try:
+        from app_state import CLAUDE_MODEL_GROS, claude
+        r = claude.messages.create(
+            model=CLAUDE_MODEL_GROS, max_tokens=8192,
+            system=system, messages=[{"role": "user", "content": brief}],
+        )
+        txt = "".join(b.text for b in r.content if getattr(b, "type", "") == "text").strip()
+        try:
+            import budget_tracker
+            budget_tracker.record_call("sonnet", r.usage.input_tokens, r.usage.output_tokens)
+        except Exception:
+            pass
+        return txt or None
+    except Exception as e:
+        print(f"[auto_factory] Sonnet generate failed, falling back to Ollama: {e}")
+        return None
 
 
 async def _produce_llm_pack(item: dict, *, out_subdir: str, jarvis_dir: Path,
                             file_ext: str, system: str, price: float,
-                            title_suffix: str) -> dict:
-    """Generic Ollama (local LLM) text/code producer — shared by the AI-pack and
-    Shopify lines. HONEST: DRAFT output meant to be curated, not finished."""
-    from ollama_client import ask_ollama, strip_think_tags
-    content = await asyncio.to_thread(ask_ollama, f"{system}\n\n{item['brief']}")
+                            title_suffix: str, use_sonnet: bool = False) -> dict:
+    """Generic LLM text/code producer (AI-pack + Shopify lines). use_sonnet=True
+    → Claude Sonnet (premium), else Ollama. Falls back to Ollama if Sonnet fails."""
+    content = None
+    engine = "ollama"
+    if use_sonnet:
+        content = await asyncio.to_thread(_sonnet_generate, system, item["brief"])
+        if content:
+            engine = "sonnet"
     if not content:
-        return {"status": "error", "error": "Ollama indisponible / timeout"}
-    content = strip_think_tags(content)
+        from ollama_client import ask_ollama, strip_think_tags
+        raw = await asyncio.to_thread(ask_ollama, f"{system}\n\n{item['brief']}")
+        content = strip_think_tags(raw) if raw else None
+    if not content:
+        return {"status": "error", "error": "LLM indisponible (Sonnet + Ollama)"}
 
     ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
     base = f"{item['key']}_{ts}"
@@ -418,7 +485,8 @@ async def _produce_llm_pack(item: dict, *, out_subdir: str, jarvis_dir: Path,
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / f"{item['key']}.{file_ext}").write_text(content, encoding="utf-8")
     listing = {"title": f"{item['label']} - {title_suffix}",
-               "price_usd": price, "draft": True, "pack": item["key"]}
+               "price_usd": price, "engine": engine,
+               "draft": engine == "ollama", "pack": item["key"]}
     (out_dir / "listing.json").write_text(
         json.dumps(listing, indent=2, ensure_ascii=False), encoding="utf-8")
 
@@ -437,9 +505,13 @@ async def _produce_llm_pack(item: dict, *, out_subdir: str, jarvis_dir: Path,
 async def _produce_aipack(item: dict) -> dict:
     return await _produce_llm_pack(
         item, out_subdir="aipack_output", jarvis_dir=JARVIS_AIPACK_DIR,
-        file_ext="md", price=12.99, title_suffix="AI Automation Pack",
-        system=("You create sellable digital AI/automation packs. Output clean, "
-                "ready-to-use Markdown ONLY — no preamble, no commentary."))
+        file_ext="md", price=9.99, title_suffix="Premium Prompt Pack",
+        use_sonnet=True,
+        system=("You are an expert prompt engineer producing a PREMIUM, sellable "
+                "prompt pack. Output clean, polished, well-organized Markdown ONLY "
+                "— no preamble, no commentary. Use clear section headers, numbered "
+                "prompts, [placeholders] for personalization, and a short 'How to "
+                "use this pack' intro. Make it genuinely high-value and specific."))
 
 
 async def _produce_shopify(item: dict) -> dict:
@@ -449,6 +521,81 @@ async def _produce_shopify(item: dict) -> dict:
         system=("You are a senior Shopify theme developer. Output a single "
                 "valid Shopify section: Liquid markup + a {% schema %} JSON "
                 "block with settings. Output ONLY the .liquid code, no commentary."))
+
+
+async def _produce_premium(visual: dict) -> dict:
+    """VALKYRIE premium line — the deliberate 5% on gpt-image-1.
+
+    Three things make this line "premium" rather than just another rotation:
+      1) niche_type ∈ PREMIUM_NICHES -> ImageFactory FORCES gpt-image-1.
+      2) hype: rides a trending subject when buzz clears valkyrie_score_threshold.
+      3) self-improvement: appends learned best modifiers, then records the
+         generation so future prompts get measurably better.
+    """
+    from services import image_factory, valkyrie_memory
+    cfg = factory_cfg()
+    niche_type = visual.get("niche_type", "thumbnail")
+    backend = image_factory.choose(cfg.get("image_backend", "comfyui"), niche_type=niche_type)
+    if not image_factory.is_available(backend):
+        return {"status": "error", "error": f"backend image indisponible ({backend}) — premium"}
+    await image_factory.prepare(backend)             # FLUX fallback: free VRAM
+
+    # 1) Hype — ride a trending subject when buzz clears the threshold.
+    subject = visual.get("subject", "")
+    hype_score: float | None = None
+    rode_hype = False
+    if visual.get("hype"):
+        subject, hype_score, rode_hype = await _hype_subject(
+            visual.get("subject", ""), float(cfg.get("valkyrie_score_threshold", 60)))
+
+    base_prompt = visual["prompt"].replace("{subject}", subject)
+    # 2) Self-improvement — append the current best-performing modifiers.
+    final_prompt, mods = valkyrie_memory.enhance(base_prompt, niche_type)
+
+    size = visual.get("size", "1024x1024")
+    transparent = bool(visual.get("transparent", False))
+    quality = str(cfg.get("premium_quality", "high"))
+    try:
+        png = await image_factory.render(
+            final_prompt, size=size, seed=_seed(visual["key"]),
+            backend=backend, transparent=transparent, quality=quality,
+        )
+    except Exception as e:
+        return {"status": "error", "error": f"{backend}: {e}"}
+
+    ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base = f"{visual['key']}_{ts}"
+    img_name = f"{base}.png"
+    out_dir = BACKEND_DIR / "premium_output" / base
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / img_name).write_bytes(png)
+    listing = {"title": visual["label"], "niche_type": niche_type, "subject": subject,
+               "hype_score": hype_score, "rode_hype": rode_hype, "backend": backend,
+               "prompt": final_prompt, "modifiers": mods}
+    (out_dir / "listing.json").write_text(
+        json.dumps(listing, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    jarvis_art = None
+    try:
+        JARVIS_PREMIUM_DIR.mkdir(parents=True, exist_ok=True)
+        jarvis_art = str(JARVIS_PREMIUM_DIR / img_name)
+        shutil.copy2(str(out_dir / img_name), jarvis_art)
+        shutil.copy2(str(out_dir / "listing.json"), str(JARVIS_PREMIUM_DIR / f"{base}.listing.json"))
+    except Exception as e:
+        print(f"[auto_factory] Jarvis premium copy failed: {e}")
+
+    # 3) Record for self-improvement (ledger + best-effort agent_memory mirror).
+    valkyrie_memory.record_generation(
+        image_name=img_name, base_prompt=base_prompt, final_prompt=final_prompt,
+        modifiers=mods, niche_type=niche_type, backend=backend, hype_score=hype_score)
+    await valkyrie_memory.mirror_to_memory(
+        f"VALKYRIE {niche_type} · {visual['label']} · subject={subject}",
+        {"agent": "valkyrie", "niche_type": niche_type, "key": visual["key"],
+         "backend": backend, "hype_score": hype_score, "image": img_name})
+
+    return {"status": "complete", "key": visual["key"], "niche_type": niche_type,
+            "subject": subject, "hype_score": hype_score, "rode_hype": rode_hype,
+            "backend": backend, "art": jarvis_art or str(out_dir / img_name)}
 
 
 # ── Orchestrator ────────────────────────────────────────────────────────────
@@ -530,6 +677,17 @@ def _format_alert(chosen: dict, results: dict) -> str:
             lines.append(f"   brouillon {sp['chars']} car.: {sp['file']}")
         else:
             lines.append(f"   échec — {sp.get('error', '?')}")
+    if "premium" in chosen:
+        visual, reason = chosen["premium"]
+        pr = results.get("premium", {})
+        lines.append(f"🎨 Premium — {visual['label']} [{visual['tier']}-tier] ({reason})")
+        if pr.get("status") == "complete":
+            hype = (f" · hype {pr['hype_score']:.0f}"
+                    if pr.get("rode_hype") and pr.get("hype_score") is not None else "")
+            lines.append(f"   {pr['niche_type']} · sujet: {pr['subject']}{hype} · {pr['backend']}")
+            lines.append(f"   image: {pr.get('art')}")
+        else:
+            lines.append(f"   échec — {pr.get('error', '?')}")
     lines += ["", f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M')}"]
     return "\n".join(lines)
 
@@ -564,6 +722,8 @@ async def run_auto_factory(*, dry: bool = False, force: bool = False,
         chosen["aipack"] = await _select(AI_PACKS, state["aipack"], cfg, allow_buzz=False)
     if "shopify" in products:
         chosen["shopify"] = await _select(SHOPIFY_TEMPLATES, state["shopify"], cfg, allow_buzz=False)
+    if "premium" in products:
+        chosen["premium"] = await _select(PREMIUM_VISUALS, state["premium"], cfg, allow_buzz=False)
 
     if dry:
         bits = []
@@ -588,6 +748,9 @@ async def run_auto_factory(*, dry: bool = False, force: bool = False,
         if "shopify" in chosen:
             s, r = chosen["shopify"]
             bits.append(f"Shopify: {s['label']} [{s['tier']}] ({r})")
+        if "premium" in chosen:
+            v, r = chosen["premium"]
+            bits.append(f"Premium: {v['label']} [{v['tier']}] ({r})")
         send_telegram("🏭 Auto-Factory (DRY) — choisirait:\n" + "\n".join(bits) + "\nAucune production.")
         return {"dry": True, "chosen": {k: v[0]["key"] for k, v in chosen.items()},
                 "detail": {k: {"label": v[0]["label"], "reason": v[1]} for k, v in chosen.items()}}
@@ -636,6 +799,12 @@ async def run_auto_factory(*, dry: bool = False, force: bool = False,
         if item["key"] not in state["shopify"]["done"]:
             state["shopify"]["done"].append(item["key"])
         touched["shopify"] = state["shopify"]
+    if "premium" in chosen:
+        visual, _ = chosen["premium"]
+        results["premium"] = await _produce_premium(visual)
+        if visual["key"] not in state["premium"]["done"]:
+            state["premium"]["done"].append(visual["key"])
+        touched["premium"] = state["premium"]
 
     _save_lines(touched)               # atomic, per-line merge — overlap-safe
     send_telegram(_format_alert(chosen, results))
@@ -689,10 +858,15 @@ async def task_auto_factory_shopify():
     return await _safe_run(["shopify"], "Shopify")
 
 
+async def task_auto_factory_premium():
+    """APScheduler entry — VALKYRIE premium gpt-image-1 line (its own task)."""
+    return await _safe_run(["premium"], "Premium")
+
+
 async def task_auto_factory():
     """Manual/combined entry — runs all lines per config."""
     return await _safe_run(
-        ["stl", "icons", "pod", "game2d", "uikit", "aipack", "shopify"], "all")
+        ["stl", "icons", "pod", "game2d", "uikit", "aipack", "shopify", "premium"], "all")
 
 
 router = APIRouter(prefix="/v1/factory", tags=["auto_factory"])
@@ -704,7 +878,8 @@ def get_config() -> dict:
             "stl_niches": len(NICHES), "icon_themes": len(ICON_THEMES),
             "pod_designs": len(POD_DESIGNS), "game2d_packs": len(GAME_ASSETS_2D),
             "uikit_kits": len(UI_KITS), "aipack_packs": len(AI_PACKS),
-            "shopify_templates": len(SHOPIFY_TEMPLATES)}
+            "shopify_templates": len(SHOPIFY_TEMPLATES),
+            "premium_visuals": len(PREMIUM_VISUALS)}
 
 
 @router.get("/catalog")
@@ -719,6 +894,7 @@ def list_catalog() -> dict:
         "uikit_kits": _slim(UI_KITS),
         "aipack_packs": _slim(AI_PACKS),
         "shopify_templates": _slim(SHOPIFY_TEMPLATES),
+        "premium_visuals": _slim(PREMIUM_VISUALS),
     }
 
 

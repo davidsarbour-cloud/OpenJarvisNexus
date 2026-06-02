@@ -184,4 +184,12 @@ export const SPACESHIPS: SpaceshipDef[] = [
     scale: 14.5, scale2: 2.6,
     color: c('security').hex, glow: c('security').glow,
   },
+  {
+    id: 'valkyrie', label: 'VALKYRIE', description: 'OpenAI gpt-image-1 · image gen',
+    pattern: 'recon',
+    mission: 'Visual recon · image-generation sorties',
+    speed: 0.075, phase: 2.2,
+    scale: 12.0, scale2: 3.0,
+    color: c('valkyrie').hex, glow: c('valkyrie').glow,
+  },
 ];

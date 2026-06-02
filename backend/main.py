@@ -44,6 +44,15 @@ async def _lifespan(app: FastAPI):
         limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),
     ))
 
+    # Amorce psutil.cpu_percent(interval=None) : le 1er appel renvoie toujours
+    # 0.0 et arme le delta. On l'arme ici pour que /v1/system/metrics ne bloque
+    # jamais 100ms (interval=0.1) au runtime.
+    try:
+        import psutil as _psutil
+        _psutil.cpu_percent(interval=None)
+    except Exception as _e:
+        print(f"[METRICS] amorçage cpu_percent ignoré: {_e}")
+
     from memory import load_config as _lc
     _cfg = _lc().get("jarvis", {})
 
@@ -227,6 +236,7 @@ from stl_agent import router as stl_router
 from stl_researcher import generate_daily_report
 from stl_researcher import router as research_router
 from trend_hunter import router as trends_router
+from valkyrie_router import router as valkyrie_router
 from vault.vault_router import router as vault_router
 from world_cards_router import router as world_cards_router
 from ws_router import router as ws_router
@@ -257,6 +267,7 @@ app.include_router(orchestrate_router)
 app.include_router(agents_router)
 app.include_router(chat_router)
 app.include_router(world_cards_router)
+app.include_router(valkyrie_router)
 
 # ── Sert Nexus9.html (UI principale) à la racine ─────────
 # Permet l'accès micro (Web Speech API exige un contexte sécurisé : localhost OK, file:// bloqué)
@@ -357,6 +368,12 @@ async def serve_orbital_legacy():
 if os.path.isdir(_ORBITAL_DIR):
     app.mount("/orbital_ui", StaticFiles(directory=_ORBITAL_DIR), name="orbital_ui")
 
+# ── VALKYRIE — images générées (OpenAI gpt-image-1) ──────
+# Monté AVANT le catch-all SPA pour ne pas être shadow par /{full_path:path}.
+_GENERATED_IMAGES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "generated_images"))
+os.makedirs(_GENERATED_IMAGES_DIR, exist_ok=True)
+app.mount("/generated_images", StaticFiles(directory=_GENERATED_IMAGES_DIR), name="generated_images")
+
 _FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <polygon points="16,1 31,8.5 31,23.5 16,31 1,23.5 1,8.5"
            fill="#00c8ff" opacity="0.9"/>
@@ -436,7 +453,7 @@ async def spa_fallback(full_path: str):
     """Toute route inconnue → sert index.html du SPA pour que react-router prenne le relais."""
     # Sécurité : ne jamais shadow les routes API/legacy
     blocked = ("v1/", "health", "callback", "assets/", "orbital_ui/",
-               "favicon", "docs", "redoc", "openapi.json", "nexus9.html")
+               "generated_images/", "favicon", "docs", "redoc", "openapi.json", "nexus9.html")
     if any(full_path.startswith(p) for p in blocked):
         raise HTTPException(status_code=404)
     if os.path.isfile(_SPA_INDEX):

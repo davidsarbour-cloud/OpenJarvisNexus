@@ -776,6 +776,8 @@
     --color-mining-glow: rgba(255, 214, 10, 0.45);
     --color-factory:   #f5c542;
     --color-factory-glow: rgba(245, 197, 66, 0.45);
+    --color-valkyrie:  #ff4fcb;
+    --color-valkyrie-glow: rgba(255, 79, 203, 0.45);
 
     /* HUD chrome (used by HudLayout + TopBar) */
     --hud-bg:          rgba(2, 5, 11, 0.92);

@@ -20,7 +20,8 @@ export type ModuleKey =
   | 'cortex'
   | 'security'
   | 'mining'
-  | 'factory';
+  | 'factory'
+  | 'valkyrie';
 
 export interface ModuleColor {
   /** Display name. */
@@ -105,6 +106,13 @@ export const MODULE_COLORS: Record<ModuleKey, ModuleColor> = {
     cssVar: 'color-factory',
     subtle: 'rgba(245, 197, 66, 0.10)',
     glow: 'rgba(245, 197, 66, 0.45)',
+  },
+  valkyrie: {
+    label: 'Valkyrie',
+    hex: '#ff4fcb',
+    cssVar: 'color-valkyrie',
+    subtle: 'rgba(255, 79, 203, 0.10)',
+    glow: 'rgba(255, 79, 203, 0.45)',
   },
 };
 

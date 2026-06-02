@@ -45,6 +45,7 @@ const AGENT_COLOR: Record<string, ModuleKey> = {
   vault:   'vault',
   nova:    'cyberdeck',
   mining:  'docker',   // flashy neon green (#00ff88) — placeholder, wired later
+  valkyrie:'valkyrie', // OpenAI gpt-image-1 — génération d'images
 };
 
 // Top-level agents only — the STL sub-agents (stl_blender, stl_concept,
@@ -52,7 +53,7 @@ const AGENT_COLOR: Record<string, ModuleKey> = {
 // the FORGE/Commerce pipelines, not standalone agents. They live in the
 // Pipeline Hub view, not in the Agent Network.
 const MAIN_AGENT_IDS = new Set([
-  'jarvis', 'ultron', 'kaizen', 'qwen', 'cortana', 'bruce', 'nova', 'forge',
+  'jarvis', 'ultron', 'kaizen', 'qwen', 'cortana', 'bruce', 'nova', 'forge', 'valkyrie',
 ]);
 
 // Fallback agent set if the backend is unreachable.
@@ -64,6 +65,7 @@ const FALLBACK_AGENTS: AgentInfo[] = [
   { id: 'bruce',   name: 'BRUCE',   provider: 'openhands', model: 'qwen3:14b',        role: 'Autonomous',          description: '', status: 'idle' },
   { id: 'nova',    name: 'NOVA',    provider: 'ollama',  model: 'deepseek-r1:7b',     role: 'Complex code',        description: '', status: 'offline' },
   { id: 'forge',   name: 'FORGE',   provider: 'local',   model: 'Meshy AI + trimesh', role: 'STL pipeline',        description: '', status: 'online' },
+  { id: 'valkyrie',name: 'VALKYRIE',provider: 'openai',  model: 'gpt-image-1',        role: "Génération d'images", description: '', status: 'idle' },
 ];
 
 // Frontend-only placeholder — the Mining agent isn't wired to the backend
@@ -77,6 +79,20 @@ const MINING_PLACEHOLDER: AgentInfo = {
   role:        'Trading & Crypto Mining',
   description: '',
   status:      'online',
+};
+
+// VALKYRIE is wired to the backend (/v1/agents), but a running process that
+// predates it won't return it yet. Append this placeholder whenever the live
+// list lacks valkyrie so the node is always present; the live entry (with its
+// real idle/active/offline status) takes precedence once the backend restarts.
+const VALKYRIE_PLACEHOLDER: AgentInfo = {
+  id:          'valkyrie',
+  name:        'VALKYRIE',
+  provider:    'openai',
+  model:       'gpt-image-1',
+  role:        "Génération d'images",
+  description: '',
+  status:      'idle',
 };
 
 function ringPosition(idx: number, total: number, radius = 320) {
@@ -101,6 +117,9 @@ export default function AgentNetworkPage() {
     const source = live.length ? live : FALLBACK_AGENTS;
     // Keep only top-level agents — drop STL sub-agents + ETSY internals.
     const mains = source.filter((a) => MAIN_AGENT_IDS.has(a.id));
+    // Guarantee a VALKYRIE node even if the running backend predates /v1/agents
+    // returning it — the live entry (real status) wins when already present.
+    if (!mains.some((a) => a.id === 'valkyrie')) mains.push(VALKYRIE_PLACEHOLDER);
     // Append the MINING placeholder (frontend-only, flashy green).
     return [...mains, MINING_PLACEHOLDER];
   }, [data]);

@@ -163,6 +163,7 @@ backend/game2d_output/
 backend/uikit_output/
 backend/aipack_output/
 backend/shopify_output/
+backend/premium_output/
 backend/error_logs/
 backend/vault/claude-mem
 session_logs/

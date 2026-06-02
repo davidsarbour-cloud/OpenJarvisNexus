@@ -18,6 +18,7 @@ from app_state import (
     _log_error_500,
     claude,
     get_http,
+    openai_available,
 )
 from fastapi import APIRouter
 from ollama_client import (
@@ -331,6 +332,15 @@ def agents_list():
             "role":        "Raisonnement profond & Code complexe",
             "description": "deepseek-r1:7b — reasoning multi-étapes, comparatifs, code complexe local.",
             "status":      _agents_status.get("NOVA", "idle") if ollama_ok else "offline",
+        },
+        {
+            "id":          "valkyrie",
+            "name":        "VALKYRIE",
+            "provider":    "openai",
+            "model":       "gpt-image-1",
+            "role":        "Génération d'images",
+            "description": "OpenAI gpt-image-1 — visuels factory, listings, mockups. Sortie PNG haute résolution.",
+            "status":      _agents_status.get("VALKYRIE", "idle") if openai_available() else "offline",
         },
         # ── Agents STL Pipeline ────────────────────────────────
         {

@@ -24,6 +24,15 @@ CLAUDE_MODEL      = os.getenv("CLAUDE_MODEL",      "claude-haiku-4-5-20251001")
 CLAUDE_MODEL_GROS = os.getenv("CLAUDE_MODEL_GROS", "claude-sonnet-4-6")
 PORT              = int(os.getenv("BACKEND_PORT", 8000))
 
+# ── OpenAI (VALKYRIE — génération d'images) ──────────────
+# Accepte OPENAI_API_KEY (canonique) ou OPENAI (nom utilisé dans le .env racine).
+OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI") or "").strip()
+
+
+def openai_available() -> bool:
+    """True si une clé OpenAI est configurée (VALKYRIE prêt à générer)."""
+    return bool(OPENAI_API_KEY)
+
 _default_origins = (
     "http://localhost:5173,http://127.0.0.1:5173,"
     "http://localhost:5174,http://127.0.0.1:5174,"  # Nexusx9 React hub (vite --port 5174)
@@ -126,6 +135,7 @@ _agents_status: dict[str, str] = {
     "CORTANA":  "idle",     # deepseek-coder:6.7b
     "BRUCE":    "offline",  # openhands + qwen3:14b — repair + autonome
     "NOVA":     "idle",     # ollama deepseek-r1:7b — reasoning & complex code
+    "VALKYRIE": "idle" if OPENAI_API_KEY else "offline",  # OpenAI gpt-image-1 — génération d'images
 }
 
 # ── Telegram activity tracker (for /v1/world/cards/snapshot) ──

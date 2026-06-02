@@ -127,11 +127,14 @@
     "stagger_minutes": 20,
     "spike_check": false,
     "spike_threshold": 60,
-    "products": ["stl", "icons", "pod", "game2d", "uikit", "aipack", "shopify"],
+    "products": ["stl", "icons", "pod", "game2d", "uikit", "aipack", "shopify", "premium"],
     "icon_count": 12,
     "stl_target_size_mm": 150.0,
     "pod_art_size": 1024,
     "game2d_item_size": 768,
-    "game2d_max_items": 8
+    "game2d_max_items": 8,
+    "image_backend": "auto",
+    "valkyrie_score_threshold": 60,
+    "premium_quality": "high"
   }
 }
