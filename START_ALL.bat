@@ -33,6 +33,9 @@ echo.
 
 REM -- [2/4] Backend FastAPI (uvicorn natif, port 8000) --
 echo [2/4] Backend FastAPI...
+REM Tuer tout backend fantome qui squatterait deja :8000 (sinon on tombe sur
+REM une vieille instance, souvent en python systeme = pas de Kokoro/rembg).
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8000" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
 start "NEXUS9 - Backend" cmd /k "cd /d %ROOT%\backend && %PYTHON% -m uvicorn main:app --port 8000"
 set /a t=0
 :wait_backend

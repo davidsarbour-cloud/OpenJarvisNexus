@@ -24,5 +24,10 @@ echo.
 REM IMPORTANT: main:app PAS backend.main:app
 REM UTF-8 stdout — évite UnicodeEncodeError sur les emojis dans les logs (console cp1252)
 set PYTHONIOENCODING=utf-8
-python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+REM Chemin venv EXPLICITE (pas `python` nu) — garantit Kokoro/rembg même si
+REM l'activate a échoué ou si le PATH pointe sur le python système.
+set "PYTHON=C:\OpenJarvisNexus\backend\.venv\Scripts\python.exe"
+REM Tuer un backend fantôme sur :8000 avant de relancer
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8000" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
+"%PYTHON%" -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 pause
