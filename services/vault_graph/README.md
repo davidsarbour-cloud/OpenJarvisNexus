@@ -7,9 +7,8 @@ Pipeline : Obsidian (.md) -> chokidar -> parser wikilinks -> WebSocket -> planet
 
 ## Ports
 
-- `8084` (WebSocket) -- choisi pour ne pas entrer en collision avec
-  Obsidian Skills (8081) et Superpowers (8082) deja documentes dans
-  `skills/architecture.md`.
+- `8084` (WebSocket) -- hors de la plage des ports deja attribues aux
+  services Nexus9 (voir `skills/architecture.md`).
 
 ## Install
 

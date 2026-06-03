@@ -22,8 +22,6 @@ import {
   Zap,           // redis
   Network,       // traefik
   Bot,           // bruce (openhands)
-  BookOpen,      // obsidian-skills
-  Sparkles,      // superpowers
   Hammer,        // forge
   Lock,          // vault
   Cpu,           // backend
@@ -221,30 +219,6 @@ export const SERVICES: ServiceDef[] = [
     hostPort: 8000,
     category: 'infra',
     containerName: 'nexus_backend',
-  },
-
-  // ─── Skills bridges ────────────────────────────────────
-  {
-    id: 'obsidian',
-    label: 'OBSIDIAN',
-    description: 'Obsidian Skills bridge',
-    colorKey: 'cortex',
-    icon: BookOpen,
-    externalUrl: 'http://localhost:8081',
-    hostPort: 8081,
-    category: 'ai',
-    containerName: 'nexus_obsidian',
-  },
-  {
-    id: 'superpowers',
-    label: 'SUPERPOWERS',
-    description: 'Mission routing bridge',
-    colorKey: 'cortex',
-    icon: Sparkles,
-    externalUrl: 'http://localhost:8082',
-    hostPort: 8082,
-    category: 'ai',
-    containerName: 'nexus_superpowers',
   },
 
   // ─── Fabrication ───────────────────────────────────────

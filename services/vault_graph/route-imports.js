@@ -46,8 +46,6 @@ const FILE_MAP = {
   'skills/session-protocol.md': '06_Agents/_shared/session-protocol.md',
   'skills/session-history.md':  '02_Daily/session-history.md',
   'skills/stl-pipeline.md':     '03_Projects/STL/stl-pipeline.md',
-  'skills/superpowers.md':      '05_Resources/Research/superpowers.md',
-  'skills/obsidian-skills.md':  '05_Resources/Research/obsidian-skills.md',
   'skills/vault-graph.md':      '05_Resources/Research/vault-graph.md',
 };
 

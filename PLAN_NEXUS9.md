@@ -72,8 +72,6 @@ Services en place :
 | `frontend` (nginx Vite build) | 5173→80 | OK |
 | `telegram` | — | OK |
 | `bruce` (OpenHands) | 3000 | OK |
-| `superpowers` | 8082 | image locale (`superpowers`) — à vérifier |
-| `obsidian-skills` | 8081 | image locale (`obsidian-skills`) — à vérifier |
 | `grafana` | 3001 | OK |
 | `prometheus` | 9090 | OK |
 | `cadvisor` | 8888 | OK |

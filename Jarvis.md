@@ -105,8 +105,6 @@ Full specs in skills/:
   skills/routing.md          — mission routing rules
   skills/stl-pipeline.md     — FORGE STL pipeline
   skills/session-protocol.md — session logs + Telegram commands
-  skills/superpowers.md      — Superpowers bridge
-  skills/obsidian-skills.md  — Obsidian Skills bridge
 
 ---
 
