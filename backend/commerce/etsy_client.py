@@ -79,8 +79,12 @@ def get_oauth_url() -> tuple[str, str]:
 # ── Headers ───────────────────────────────────────────────────────────────────
 
 def _headers(json_content: bool = True) -> dict:
+    # This Etsy app is "Personal Access": the API requires the shared secret
+    # appended to the keystring in x-api-key as "keystring:shared_secret".
+    # Without it Etsy returns 403 "Shared secret is required in x-api-key header".
+    api_key = f"{ETSY_API_KEY}:{ETSY_API_SECRET}" if ETSY_API_SECRET else ETSY_API_KEY
     h: dict = {
-        "x-api-key": ETSY_API_KEY,
+        "x-api-key": api_key,
         "Authorization": f"Bearer {ETSY_ACCESS_TOKEN}",
     }
     if json_content:
