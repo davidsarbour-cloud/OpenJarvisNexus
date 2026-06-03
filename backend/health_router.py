@@ -6,6 +6,7 @@ client) from app_state; no dependency back on main.
 
 import os
 import subprocess
+import threading
 import time
 from datetime import datetime
 
@@ -225,28 +226,86 @@ def telemetry_energy():
 
 _sys_net_state = {"t": 0.0, "bytes": 0}
 
+# ── Caches TTL (le HUD poll à ~2s, world-cards à 30s) ──────────────────────
+# nvidia-smi (~30-60ms) et la collecte psutil sont mises en cache pour absorber
+# les rafales de polling et les appels concurrents (HUD + world-cards snapshot).
+_vram_cache: dict = {"data": None, "ts": 0.0}
+_vram_lock = threading.Lock()
+_VRAM_TTL = 2.0
 
-def _read_vram() -> dict:
-    """VRAM/GPU via nvidia-smi. Retourne des None si pas de GPU NVIDIA."""
+_metrics_cache: dict = {"data": None, "ts": 0.0}
+_metrics_lock = threading.Lock()
+_METRICS_TTL = 1.5
+
+
+def _query_vram() -> dict:
+    """Appel réel nvidia-smi (1 seul process pour VRAM + util + temp)."""
     try:
         out = subprocess.run(
-            ["nvidia-smi", "--query-gpu=memory.used,memory.total,utilization.gpu",
+            ["nvidia-smi",
+             "--query-gpu=memory.used,memory.total,utilization.gpu,temperature.gpu",
              "--format=csv,noheader,nounits"],
             capture_output=True, text=True, timeout=3,
         )
-        used, total, util = (int(x.strip()) for x in out.stdout.strip().splitlines()[0].split(","))
+        used, total, util, temp = (
+            int(x.strip()) for x in out.stdout.strip().splitlines()[0].split(",")
+        )
         return {"vram": round(used / total * 100), "vram_used_mb": used,
-                "vram_total_mb": total, "gpu_util": util}
+                "vram_total_mb": total, "gpu_util": util, "gpu_temp": temp}
     except Exception:
-        return {"vram": None, "vram_used_mb": None, "vram_total_mb": None, "gpu_util": None}
+        return {"vram": None, "vram_used_mb": None, "vram_total_mb": None,
+                "gpu_util": None, "gpu_temp": None}
+
+
+def _read_vram() -> dict:
+    """VRAM/GPU/temp via nvidia-smi, cache TTL ~2s. None si pas de GPU NVIDIA.
+
+    Double-checked locking : évite N appels nvidia-smi concurrents (HUD +
+    world-cards) — un seul thread interroge, les autres lisent le cache.
+    """
+    now = time.time()
+    cached = _vram_cache["data"]
+    if cached is not None and (now - _vram_cache["ts"]) < _VRAM_TTL:
+        return cached
+    with _vram_lock:
+        now = time.time()
+        cached = _vram_cache["data"]
+        if cached is not None and (now - _vram_cache["ts"]) < _VRAM_TTL:
+            return cached
+        data = _query_vram()
+        _vram_cache["data"] = data
+        _vram_cache["ts"] = time.time()
+        return data
 
 
 def _collect_system_metrics() -> dict:
-    """Collecte CPU/RAM/VRAM/stockage/réseau + health score (source unique)."""
+    """Collecte CPU/RAM/VRAM/stockage/réseau + health score (source unique).
+
+    Cache TTL ~1.5s : absorbe le polling 2s du HUD sans rappeler psutil/nvidia.
+    """
+    now = time.time()
+    cached = _metrics_cache["data"]
+    if cached is not None and (now - _metrics_cache["ts"]) < _METRICS_TTL:
+        return cached
+    with _metrics_lock:
+        now = time.time()
+        cached = _metrics_cache["data"]
+        if cached is not None and (now - _metrics_cache["ts"]) < _METRICS_TTL:
+            return cached
+        data = _compute_system_metrics()
+        _metrics_cache["data"] = data
+        _metrics_cache["ts"] = time.time()
+        return data
+
+
+def _compute_system_metrics() -> dict:
+    """Mesure réelle (non cachée)."""
     import sys
 
     import psutil
-    cpu     = psutil.cpu_percent(interval=0.1)
+    # interval=None → non bloquant (mesure depuis le dernier appel). Amorcé au
+    # démarrage dans le lifespan pour que la 1re lecture soit déjà significative.
+    cpu     = psutil.cpu_percent(interval=None)
     ram     = psutil.virtual_memory().percent
     storage = psutil.disk_usage("C:/" if sys.platform == "win32" else "/").percent
     g       = _read_vram()

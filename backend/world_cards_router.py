@@ -17,6 +17,9 @@ from __future__ import annotations
 
 import os
 import re
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -131,22 +134,11 @@ def _token_budget_snapshot() -> dict:
 
 def _gpu_temp_snapshot() -> dict:
     try:
-        # nvidia-smi via existing helper
+        # nvidia-smi (VRAM + util + temp en 1 seul appel, caché ~2s) via helper
         from health_router import _read_vram
         v = _read_vram()
         util = v.get("gpu_util")
-        # GPU temp: read directly via nvidia-smi
-        import subprocess
-        temp = None
-        try:
-            r = subprocess.run(
-                ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader,nounits"],
-                capture_output=True, text=True, timeout=3,
-            )
-            if r.returncode == 0:
-                temp = int(r.stdout.strip().splitlines()[0])
-        except Exception:
-            pass
+        temp = v.get("gpu_temp")
         return {
             "status": "active" if util is not None else "standby",
             "metrics": [
@@ -206,24 +198,15 @@ def _vault_growth_snapshot() -> dict:
             {"label": "TODAY", "value": "0"},
             {"label": "TOTAL", "value": "0"},
         ]}
-
-    today = datetime.now().strftime("%Y-%m-%d")
-    today_count = 0
-    total_count = 0
     try:
-        for md in BRAIN_DIR.rglob("*.md"):
-            # Skip Obsidian internals
-            if ".obsidian" in md.parts:
-                continue
-            total_count += 1
-            try:
-                mtime = datetime.fromtimestamp(md.stat().st_mtime)
-                if mtime.strftime("%Y-%m-%d") == today:
-                    today_count += 1
-            except Exception:
-                continue
+        s = _vault_stats()
+        total_count = s["total_count"]
+        today_count = s["today_count"]
     except Exception:
-        pass
+        return {"status": "standby", "metrics": [
+            {"label": "TODAY", "value": "0"},
+            {"label": "TOTAL", "value": "0"},
+        ]}
 
     total_label = f"{total_count // 1000}.{(total_count % 1000) // 100}K" if total_count >= 1000 else str(total_count)
 
@@ -236,10 +219,89 @@ def _vault_growth_snapshot() -> dict:
     }
 
 
-# ── ORPHAN ALERT (Vault) — scan vault for notes with no [[backlinks]] ──────
+# ── VAULT SCAN PARTAGÉ (Vault Growth + Orphan Alert) ───────────────────────
+# Avant : 2 rglob complets du vault (growth + orphans) à chaque snapshot.
+# Maintenant : 1 seul parcours, caché ~30s (le vault bouge lentement, le front
+# poll à 30s). Les deux cartes consomment la même mesure.
+#   • total_count  = TOUS les fichiers .md         → carte Vault Growth (TOTAL)
+#   • unique_count = stems uniques (lowercased)    → carte Orphan Alert (TOTAL)
+# Ces deux totaux sont volontairement distincts — sémantiques d'origine préservées.
 
 _LINK_RE = re.compile(r"\[\[([^\]|#\n]+?)(?:\|[^\]]*)?\]\]")
 
+_vault_cache: dict = {"data": None, "ts": 0.0}
+_vault_lock = threading.Lock()
+# Le front poll à 30s : un TTL ≤ 30s raterait à chaque appel. 60s → ~1 hit / 2,
+# et le scan ne coûte que ~20ms de toute façon. Le vault bouge lentement.
+_VAULT_TTL = 60.0
+
+
+def _compute_vault_stats() -> dict:
+    """Parcours unique du vault : croissance + graphe de liens (orphelins)."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    today_count = 0
+    total_count = 0
+    all_files: dict[str, Path] = {}
+    outgoing: dict[str, set[str]] = {}
+
+    for md in BRAIN_DIR.rglob("*.md"):
+        if ".obsidian" in md.parts:
+            continue
+        total_count += 1
+        try:
+            mtime = datetime.fromtimestamp(md.stat().st_mtime)
+            if mtime.strftime("%Y-%m-%d") == today:
+                today_count += 1
+        except Exception:
+            pass
+        stem = md.stem.lower()
+        all_files[stem] = md
+        try:
+            txt = md.read_text(encoding="utf-8", errors="replace")
+            outgoing[stem] = {
+                m.group(1).strip().split("/")[-1].lower()
+                for m in _LINK_RE.finditer(txt)
+            }
+        except Exception:
+            outgoing[stem] = set()
+
+    incoming: dict[str, int] = {k: 0 for k in all_files}
+    for _src, links in outgoing.items():
+        for target in links:
+            if target in incoming:
+                incoming[target] += 1
+
+    orphan_count = sum(
+        1 for stem, n in incoming.items()
+        if n == 0 and len(outgoing.get(stem, set())) == 0
+    )
+
+    return {
+        "today_count":  today_count,
+        "total_count":  total_count,       # tous les fichiers (Vault Growth)
+        "unique_count": len(all_files),    # stems uniques (Orphan Alert)
+        "orphan_count": orphan_count,
+    }
+
+
+def _vault_stats() -> dict:
+    """Accès caché (TTL ~30s) au scan vault, double-checked locking."""
+    now = time.time()
+    cached = _vault_cache["data"]
+    if cached is not None and (now - _vault_cache["ts"]) < _VAULT_TTL:
+        return cached
+    with _vault_lock:
+        now = time.time()
+        cached = _vault_cache["data"]
+        if cached is not None and (now - _vault_cache["ts"]) < _VAULT_TTL:
+            return cached
+        data = _compute_vault_stats()
+        _vault_cache["data"] = data
+        _vault_cache["ts"] = time.time()
+        return data
+
+
+# ── ORPHAN ALERT (Vault) — notes sans [[backlinks]], depuis le scan partagé ──
 
 def _orphan_alert_snapshot() -> dict:
     if not BRAIN_DIR.exists():
@@ -247,39 +309,13 @@ def _orphan_alert_snapshot() -> dict:
             {"label": "ORPHANS", "value": "—"},
             {"label": "TOTAL",   "value": "—"},
         ]}
-
     try:
-        all_files: dict[str, Path] = {}
-        outgoing: dict[str, set[str]] = {}
-        for md in BRAIN_DIR.rglob("*.md"):
-            if ".obsidian" in md.parts:
-                continue
-            stem = md.stem
-            all_files[stem.lower()] = md
-            try:
-                txt = md.read_text(encoding="utf-8", errors="replace")
-                links = {m.group(1).strip().split("/")[-1].lower() for m in _LINK_RE.finditer(txt)}
-                outgoing[stem.lower()] = links
-            except Exception:
-                outgoing[stem.lower()] = set()
-
-        # Build incoming-link counts
-        incoming: dict[str, int] = {k: 0 for k in all_files}
-        for src, links in outgoing.items():
-            for target in links:
-                if target in incoming:
-                    incoming[target] += 1
-
-        orphan_count = sum(
-            1 for stem, n in incoming.items()
-            if n == 0 and len(outgoing.get(stem, set())) == 0
-        )
-
+        s = _vault_stats()
         return {
             "status": "active",
             "metrics": [
-                {"label": "ORPHANS", "value": str(orphan_count)},
-                {"label": "TOTAL",   "value": str(len(all_files))},
+                {"label": "ORPHANS", "value": str(s["orphan_count"])},
+                {"label": "TOTAL",   "value": str(s["unique_count"])},
             ],
         }
     except Exception:
@@ -367,10 +403,28 @@ def _disk_usage_snapshot() -> dict:
 
 # ── CONTAINER LOGS (Docker) — count active containers + recent error lines ─
 
+_docker_cache: dict = {"data": None, "ts": 0.0}
+_docker_lock = threading.Lock()
+# `docker ps` coûte ~190ms (le poste le plus lourd du snapshot). Le compteur de
+# conteneurs bouge très lentement → TTL 120s : au polling 30s, ~3 hits / 4
+# (coût moyen ~48ms vs 190ms à chaque appel). Le Pipeline Hub a son propre
+# endpoint pour le contrôle temps réel ; cette carte n'est qu'un compteur passif.
+_DOCKER_TTL = 120.0
+
+
 def _container_logs_snapshot() -> dict:
     try:
-        from tools.docker_tools import docker_status
-        st = docker_status()
+        now = time.time()
+        st = _docker_cache["data"]
+        if st is None or (now - _docker_cache["ts"]) >= _DOCKER_TTL:
+            with _docker_lock:
+                now = time.time()
+                st = _docker_cache["data"]
+                if st is None or (now - _docker_cache["ts"]) >= _DOCKER_TTL:
+                    from tools.docker_tools import docker_status
+                    st = docker_status()
+                    _docker_cache["data"] = st
+                    _docker_cache["ts"] = time.time()
         containers = st.get("containers", [])
         active = sum(1 for c in containers if c.get("running"))
         # Estimating errors would require scanning each container's logs;
@@ -461,27 +515,47 @@ def _model_routing_snapshot() -> dict:
 
 # ── Snapshot endpoint ───────────────────────────────────────────────────────
 
+def _safe(fn) -> dict:
+    """Exécute un collecteur sans jamais propager d'exception au snapshot global."""
+    try:
+        return fn()
+    except Exception:
+        return {"status": "standby", "metrics": []}
+
+
 @router.get("/v1/world/cards/snapshot")
 def world_cards_snapshot() -> dict[str, Any]:
-    """Aggregate metrics for all live-wired world cards in a single response."""
-    return {
+    """Aggregate metrics for all live-wired world cards in a single response.
+
+    Les 12 collecteurs sont I/O-bound (FS, subprocess, état partagé). On les
+    lance en parallèle dans un threadpool : la latence totale tombe au plus
+    lent au lieu de la somme. Les scans vault (growth + orphans) partagent un
+    cache verrouillé, donc une seule passe même en concurrence.
+    """
+    jobs = {
         # Forge
-        "stl_output":      _stl_output_snapshot(),
+        "stl_output":        _stl_output_snapshot,
         # Commerce
-        "approval_queue":  _approval_queue_snapshot(),
-        "token_budget":    _token_budget_snapshot(),
+        "approval_queue":    _approval_queue_snapshot,
+        "token_budget":      _token_budget_snapshot,
         # Cyberdeck
-        "gpu_temp":        _gpu_temp_snapshot(),
-        "error_log":       _error_log_snapshot(),
+        "gpu_temp":          _gpu_temp_snapshot,
+        "error_log":         _error_log_snapshot,
         # Vault
-        "vault_growth":    _vault_growth_snapshot(),
-        "orphan_alert":    _orphan_alert_snapshot(),
-        "morning_brief":   _morning_brief_snapshot(),
+        "vault_growth":      _vault_growth_snapshot,
+        "orphan_alert":      _orphan_alert_snapshot,
+        "morning_brief":     _morning_brief_snapshot,
         # Docker
-        "disk_usage":      _disk_usage_snapshot(),
-        "container_logs":  _container_logs_snapshot(),
+        "disk_usage":        _disk_usage_snapshot,
+        "container_logs":    _container_logs_snapshot,
         # Cyberdeck (state-tracked)
-        "telegram_activity": _telegram_activity_snapshot(),
-        "model_routing":     _model_routing_snapshot(),
-        "generated_at":      datetime.now().isoformat(),
+        "telegram_activity": _telegram_activity_snapshot,
+        "model_routing":     _model_routing_snapshot,
     }
+    out: dict[str, Any] = {}
+    with ThreadPoolExecutor(max_workers=len(jobs)) as ex:
+        futures = {ex.submit(_safe, fn): key for key, fn in jobs.items()}
+        for fut, key in futures.items():
+            out[key] = fut.result()
+    out["generated_at"] = datetime.now().isoformat()
+    return out
