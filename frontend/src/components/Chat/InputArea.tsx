@@ -1,10 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, Square, Paperclip, X } from 'lucide-react';
+import { Send, Square, Paperclip, X, Mic, MicOff } from 'lucide-react';
 import { useAppStore, generateId } from '../../lib/store';
 import { streamChat } from '../../lib/sse';
 import { fetchSavings, getBase } from '../../lib/api';
-import { MicButton } from './MicButton';
-import { useSpeech } from '../../hooks/useSpeech';
 import type { ChatMessage, ToolCallInfo, TokenUsage, MessageTelemetry } from '../../types';
 
 export function InputArea() {
@@ -61,8 +59,8 @@ export function InputArea() {
   const setStreamState = useAppStore((s) => s.setStreamState);
   const resetStream = useAppStore((s) => s.resetStream);
   const modelLoading = useAppStore((s) => s.modelLoading);
-
-  const { state: speechState, available: speechAvailable, startRecording, stopRecording, cancelRecording } = useSpeech();
+  const handsFree = useAppStore((s) => s.handsFree);
+  const setHandsFree = useAppStore((s) => s.setHandsFree);
 
   // Abort in-flight stream when the user switches models mid-generation.
   // This prevents errors from trying to continue a stream with a stale model.
@@ -79,31 +77,6 @@ export function InputArea() {
     }
     prevModelRef.current = selectedModel;
   }, [selectedModel, streamState.isStreaming, resetStream]);
-
-  const micDisabled = !speechEnabled || !speechAvailable || streamState.isStreaming;
-  const micReason: 'not-enabled' | 'no-backend' | 'streaming' | undefined =
-    !speechEnabled ? 'not-enabled'
-    : !speechAvailable ? 'no-backend'
-    : streamState.isStreaming ? 'streaming'
-    : undefined;
-
-  const handleMicClick = useCallback(async () => {
-    if (speechState === 'recording') {
-      try {
-        const text = await stopRecording();
-        if (text) {
-          setInput((prev) => (prev ? prev + ' ' + text : text));
-        }
-      } catch {
-        // Error is captured in useSpeech
-      }
-    } else {
-      await startRecording();
-    }
-  }, [speechState, startRecording, stopRecording]);
-
-  // Bug 5 fix: cancelRecording is already stable, no wrapper needed
-  const handleMicCancel = cancelRecording;
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -442,13 +415,26 @@ export function InputArea() {
             >
               <Paperclip size={16} />
             </button>
-            <MicButton
-              state={speechState}
-              onClick={handleMicClick}
-              onCancel={handleMicCancel}
-              disabled={micDisabled}
-              reason={micReason}
-            />
+            <button
+              type="button"
+              onClick={() => setHandsFree(!handsFree)}
+              disabled={!speechEnabled}
+              className="p-2 rounded-xl transition-colors shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-default"
+              style={{
+                background: handsFree ? 'var(--color-jarvis, #00c878)' : 'transparent',
+                color: handsFree ? 'var(--color-bg)' : 'var(--color-text-secondary)',
+                animation: handsFree ? 'pulse 1.5s ease-in-out infinite' : 'none',
+              }}
+              title={
+                !speechEnabled ? 'Activer la voix dans les Réglages'
+                : handsFree ? 'Arrêter la conversation mains-libres'
+                : 'Conversation vocale mains-libres'
+              }
+            >
+              {/* MicOff (barré) seulement si la voix est désactivée dans les Réglages.
+                  Sinon Mic plein : au repos comme en mains-libres = la voix est dispo. */}
+              {speechEnabled ? <Mic size={16} /> : <MicOff size={16} />}
+            </button>
             <button
               onClick={sendMessage}
               disabled={(!input.trim() && pendingImages.length === 0) || modelLoading}

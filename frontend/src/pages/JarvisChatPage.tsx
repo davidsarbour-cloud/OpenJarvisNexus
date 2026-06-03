@@ -2,6 +2,8 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { ChevronRight, ChevronLeft, ChevronDown, Cpu, Volume2, VolumeX } from 'lucide-react';
 import { useAppStore } from '../lib/store';
 import { getBase } from '../lib/api';
+import { useVadSpeech } from '../hooks/useVadSpeech';
+import { useSendMessage } from '../hooks/useSendMessage';
 import { MessageBubble } from '../components/Chat/MessageBubble';
 import { InputArea } from '../components/Chat/InputArea';
 import { StreamingDots } from '../components/Chat/StreamingDots';
@@ -183,7 +185,9 @@ export function JarvisChatPage() {
   useEffect(() => {
     const wasStreaming = prevStreaming.current;
     prevStreaming.current = speaking;
-    if (wasStreaming && !speaking && ttsEnabled) {
+    // In hands-free mode the conversation loop drives TTS itself (await), so
+    // skip the edge-effect here to avoid speaking twice.
+    if (wasStreaming && !speaking && ttsEnabled && !useAppStore.getState().handsFree) {
       const last = [...messages].reverse().find((m) => m.role === 'assistant' && m.content);
       // speakText updates internal speech state — calling it from an
       // effect that observes the streaming edge is intentional.
@@ -191,6 +195,33 @@ export function JarvisChatPage() {
       if (last?.content) speakText(last.content, last.id);
     }
   }, [speaking, messages, ttsEnabled, speakText]);
+
+  // ── Hands-free conversation loop ──────────────────────────────────────
+  // Toggle once → JARVIS listens (VAD) → auto-sends → replies → speaks (here,
+  // awaited) → listens again. No per-turn button. Toggle off to stop.
+  const handsFree    = useAppStore((s) => s.handsFree);
+  const { state: vadState, listenOnce, abort: abortVad } = useVadSpeech();
+  const { send } = useSendMessage();
+  const handsFreeRef = useRef(false);
+
+  useEffect(() => {
+    handsFreeRef.current = handsFree;
+    if (!handsFree) { abortVad(); stopTts(); return; }
+    setTtsEnabled(true);                                  // ensure replies are spoken
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    (async () => {
+      while (handsFreeRef.current) {
+        const text = await listenOnce();                  // resolves when you stop talking
+        if (!handsFreeRef.current) break;
+        if (!text || !text.trim()) { await sleep(250); continue; }
+        const reply = await send(text, { maxTokens: 260 }); // shorter = snappier voice
+        if (!handsFreeRef.current) break;
+        if (reply && reply.trim()) await speakText(reply);  // SPEAK and wait until done
+        await sleep(120);
+      }
+    })();
+    return () => { abortVad(); };
+  }, [handsFree, listenOnce, send, abortVad, speakText, stopTts]);
 
   return (
     <div className="flex h-full" style={{ background: 'var(--hud-bg)' }}>
@@ -310,8 +341,29 @@ export function JarvisChatPage() {
             </div>
           </div>
 
+          {/* ── Hands-free live status (toggle lives in the chat bar) ───── */}
+          {handsFree && (
+            <div
+              className="flex items-center gap-2 px-4 py-2 shrink-0"
+              style={{
+                border: '1px solid var(--color-jarvis)', color: 'var(--color-jarvis)',
+                background: 'rgba(0,255,136,0.06)', fontSize: 10, fontWeight: 700, letterSpacing: '0.2em',
+              }}
+            >
+              <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse"
+                style={{ background: 'var(--color-jarvis)' }} />
+              <span>
+                {(vadState === 'listening' || vadState === 'speaking') ? 'EN ÉCOUTE…'
+                  : vadState === 'transcribing' ? 'TRANSCRIPTION…'
+                  : speaking ? 'JARVIS RÉPOND…'
+                  : ttsPlaying ? 'JARVIS PARLE…'
+                  : 'CONVERSATION ● ON'}
+              </span>
+            </div>
+          )}
+
           {/* Empty hint */}
-          {empty && (
+          {empty && !handsFree && (
             <div className="text-[9px] tracking-[0.2em] text-center" style={{ color: 'var(--hud-text-dim)' }}>
               PARLE OU ÉCRIS À JARVIS
             </div>

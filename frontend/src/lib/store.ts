@@ -133,6 +133,7 @@ interface AppState {
   selectedModel: string;
   serverInfo: ServerInfo | null;
   savings: SavingsData | null;
+  handsFree: boolean;          // hands-free voice conversation mode
 
   // Settings
   settings: Settings;
@@ -177,6 +178,7 @@ interface AppState {
   setModels: (models: ModelInfo[]) => void;
   setModelsLoading: (loading: boolean) => void;
   setSelectedModel: (model: string) => void;
+  setHandsFree: (v: boolean) => void;
   setServerInfo: (info: ServerInfo | null) => void;
   setSavings: (data: SavingsData | null) => void;
 
@@ -244,6 +246,7 @@ export const useAppStore = create<AppState>((set, get) => {
     selectedModel: '',
     serverInfo: null,
     savings: null,
+    handsFree: false,
 
     settings: loadSettings(),
 
@@ -422,6 +425,7 @@ export const useAppStore = create<AppState>((set, get) => {
     setModels: (models: ModelInfo[]) => set({ models }),
     setModelsLoading: (loading: boolean) => set({ modelsLoading: loading }),
     setSelectedModel: (model: string) => set({ selectedModel: model }),
+    setHandsFree: (v: boolean) => set({ handsFree: v }),
     setServerInfo: (info: ServerInfo | null) => set({ serverInfo: info }),
     setSavings: (data: SavingsData | null) => set({ savings: data }),
 
