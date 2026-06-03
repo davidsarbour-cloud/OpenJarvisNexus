@@ -475,8 +475,10 @@ _PATTERNS = {
         re.I
     ),
     "stl": re.compile(
-        r"\bstl\b"                                             # mot "stl" n'importe où
-        r"|stl[\s_]pipeline"
+        # NB: bare "\bstl\b" removed — it fired the real fabrication pipeline on
+        # ANY mention of STL (e.g. "should I use a queue for the STL batch jobs?").
+        # Require a clear run-intent: an action verb + stl, or an explicit phrase.
+        r"stl[\s_]pipeline"
         r"|forge\s+mission"
         r"|(génère|crée|imprime|make|print|lance|run)\s+(un\s+|le\s+|la\s+)?stl"
         r"|(génère|crée|imprime|print)\s+(un\s+|le\s+)?(modèle|objet|figurine|pièce|dragon|boitier|engrenage|support)"

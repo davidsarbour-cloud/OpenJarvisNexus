@@ -7,7 +7,9 @@ Reads shared client/budget from app_state; owns the chat-only detectors.
 
 import json
 import re
+import threading
 import time
+import unicodedata
 from typing import Optional
 
 import budget_tracker
@@ -79,6 +81,31 @@ class ChatRequest(BaseModel):
     session_id:  str                         = "default"
 
 # ── Helpers ──────────────────────────────────────────────
+# Decorative glyphs JARVIS must never emit: emoji + bullets/arrows/etc. They
+# break the Kokoro TTS (read aloud) and clash with the plain-text persona. We
+# strip them server-side because no prompt rule is 100% reliable on a small model.
+_DECOR_EXTRA = set("→←↔⇒⟶➜➤▶◀◆●○•◦▪▫■★☆✦✧✪⬡⬢▸▹‣·∙")
+_VARIATION_SELECTORS = {chr(c) for c in range(0xFE00, 0xFE10)}
+
+
+def _strip_decorations(text: str) -> str:
+    """Remove emoji / decorative symbols while keeping normal prose, punctuation
+    (em dash, quotes), and code/math operators intact."""
+    if not text:
+        return text
+    out = []
+    for ch in text:
+        if ch in _VARIATION_SELECTORS:
+            continue
+        if ch in _DECOR_EXTRA:
+            continue
+        # So = "Symbol, other" (emoji, ✅, ⬡…), Sk = modifier, Cf = format (ZWJ…)
+        if unicodedata.category(ch) in ("So", "Sk", "Cf"):
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
 def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
@@ -168,6 +195,120 @@ def _stream_text(text: str, model_used: str, req_id: str, memory: dict | None = 
         _final["memory"] = memory
     yield _sse(_final)
     yield "data: [DONE]\n\n"
+
+
+def _claude_stream_gen(model_used, system, anthropic_messages, all_tools,
+                       max_tokens, temperature, session_id, req_id, memory_meta):
+    """Real-time SSE generator for the Claude path.
+
+    Streams tokens live via ``claude.messages.stream()`` and runs the tool loop
+    in place (any preamble text of a tool turn is streamed too). Replaces the
+    old blocking ``create()`` + ``_stream_text`` replay that forced the user to
+    wait for the entire generation before seeing the first word.
+    """
+    def _chunk(content):
+        return _sse({
+            "id": req_id, "object": "chat.completion.chunk", "model": model_used,
+            "choices": [{"index": 0, "delta": {"content": content},
+                         "finish_reason": None}],
+        })
+
+    _tool_msgs = list(anthropic_messages)
+    _parts: list[str] = []
+    _total_in, _total_out = 0, 0
+
+    # initial role chunk
+    yield _sse({
+        "id": req_id, "object": "chat.completion.chunk", "model": model_used,
+        "choices": [{"index": 0, "delta": {"role": "assistant", "content": ""},
+                     "finish_reason": None}],
+    })
+
+    try:
+        while True:
+            _kw = dict(model=model_used, max_tokens=max_tokens,
+                       temperature=temperature, system=system, messages=_tool_msgs)
+            if all_tools:
+                _kw["tools"] = all_tools
+
+            with claude.messages.stream(**_kw) as _st:
+                for _delta in _st.text_stream:
+                    _delta = _strip_decorations(_delta)
+                    if not _delta:
+                        continue
+                    _parts.append(_delta)
+                    yield _chunk(_delta)
+                _final = _st.get_final_message()
+
+            _total_in  += _final.usage.input_tokens
+            _total_out += _final.usage.output_tokens
+
+            if _final.stop_reason != "tool_use":
+                break
+
+            # Execute tool calls, append results, loop for the next turn
+            _tool_results = []
+            for _blk in _final.content:
+                if getattr(_blk, "type", None) == "tool_use":
+                    _tname = _blk.name
+                    print(f"[tool] calling {_tname} {_blk.input}")
+                    if _tname.startswith("skill_"):
+                        _res = _skill_dispatch(_tname, _blk.input)
+                    elif _tname.startswith("brain_"):
+                        _res = _brain_dispatch(_tname, _blk.input)
+                    else:
+                        _res = _docker_dispatch(_tname, _blk.input)
+                    _tool_results.append({
+                        "type": "tool_result", "tool_use_id": _blk.id, "content": _res,
+                    })
+            _tool_msgs.append({"role": "assistant", "content": _final.content})
+            _tool_msgs.append({"role": "user",      "content": _tool_results})
+
+        _enregistrer_cout(_total_in + _total_out, model_used,
+                          input_tokens=_total_in, output_tokens=_total_out)
+
+    except APIError as _e:
+        # Crédit Anthropic épuisé → fallback Ollama (rejoué en chunks)
+        _msg = str(_e)
+        if "credit balance" in _msg.lower() or "insufficient" in _msg.lower():
+            print("[claude] Crédit épuisé — fallback Ollama (stream)")
+            _budget["cout_usd"] = BUDGET_MAX_USD + 1.0
+            _fb = ""
+            if is_ollama_available():
+                _fb = ask_ollama_chat(
+                    [{"role": "system", "content": system}] + anthropic_messages,
+                    OLLAMA_MODEL,
+                )
+                if _fb:
+                    _fb = strip_think_tags(_fb)
+            if not _fb:
+                _fb = ("Crédits Anthropic épuisés. Recharge sur "
+                       "https://console.anthropic.com/settings/billing")
+            for _i in range(0, len(_fb), 12):
+                _parts.append(_fb[_i:_i + 12])
+                yield _chunk(_fb[_i:_i + 12])
+        else:
+            _err = f"Erreur API Claude: {_msg[:200]}"
+            _parts.append(_err)
+            yield _chunk(_err)
+    except Exception as _e:
+        _err = f"Erreur Claude: {_e}"
+        _parts.append(_err)
+        yield _chunk(_err)
+
+    _text = "".join(_parts).strip() or "Désolé David, je n'ai pas pu générer de réponse. Réessaie."
+    add_message(session_id, "assistant", _text)
+    print(f"[chat] modèle={model_used} (stream) '{_text[:50]}...'")
+
+    _fin = {
+        "id": req_id, "object": "chat.completion.chunk", "model": model_used,
+        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+    }
+    if memory_meta:
+        _fin["memory"] = memory_meta
+    yield _sse(_fin)
+    yield "data: [DONE]\n\n"
+
 
 # ════════════════════════════════════════════════════════
 # ROUTES SYSTÈME
@@ -477,7 +618,14 @@ def chat_completion(req: ChatRequest, request: Request):
             ) + system
 
     # ── Memory compression — déclenche si seuil atteint ─────────
-    compress_session_sync(session_id)
+    # Off the request's critical path: a long session would otherwise block the
+    # reply for up to 10s on a synchronous qwen3:14b summarization. The summary
+    # only matters for the NEXT message, so run it fire-and-forget in a thread.
+    # (The current request already captured anthropic_messages, so the in-place
+    # session rewrite can't race it.)
+    threading.Thread(
+        target=compress_session_sync, args=(session_id,), daemon=True
+    ).start()
 
     # Rappel langue injecté à la fin du system prompt — modèles suivent mieux la dernière instruction
     # Lu depuis config.json (cache TTL 30s) — jamais hardcodé
@@ -661,9 +809,36 @@ def chat_completion(req: ChatRequest, request: Request):
             _tag = "SONNET" if model_used == CLAUDE_MODEL_GROS else "HAIKU"
             print(f"[chat] CLAUDE {_tag} — routing auto")
             try:
+                # Tool gating — only attach the tools the message actually needs.
+                # Trivial messages ("Status?") get NO tools → no pointless tool
+                # round-trips, Haiku answers directly in one streamed call.
                 _docker_tools = _DOCKER_TOOL_DEFS if _needs_docker else []
-                _all_tools    = _docker_tools + _SKILL_TOOL_DEFS + _BRAIN_TOOL_DEFS
-                _tool_msgs    = list(anthropic_messages)  # working copy for tool loop
+                # Skill tools only when the message actually references a skill /
+                # compétence concept — NOT on a bare generic verb ("use", "do",
+                # "fais"), which used to let a casual question ("should I use a
+                # queue for the STL batch jobs?") fire a real pipeline skill.
+                _skill_tools  = _SKILL_TOOL_DEFS if _SKILL_LIST_KW.search(last_user_msg) else []
+                _brain_tools  = _BRAIN_TOOL_DEFS if _needs_memory(last_user_msg) else []
+                _all_tools    = _docker_tools + _skill_tools + _brain_tools
+
+                # Real streaming — the frontend always sends stream=True. Stream
+                # tokens live instead of blocking then replaying via _stream_text.
+                if req.stream:
+                    return StreamingResponse(
+                        _claude_stream_gen(
+                            model_used, system, anthropic_messages, _all_tools,
+                            req.max_tokens, req.temperature, session_id, req_id,
+                            memory_meta,
+                        ),
+                        media_type="text/event-stream",
+                        headers={
+                            "Cache-Control":     "no-cache",
+                            "X-Accel-Buffering": "no",
+                            "Connection":        "keep-alive",
+                        },
+                    )
+
+                _tool_msgs    = list(anthropic_messages)  # working copy (non-stream)
                 _total_in, _total_out = 0, 0
 
                 while True:
@@ -754,6 +929,7 @@ def chat_completion(req: ChatRequest, request: Request):
     if not text:
         text = "Désolé David, je n'ai pas pu générer de réponse. Réessaie."
 
+    text = _strip_decorations(text)  # no emoji/symbols (TTS + plain-text persona)
     print(f"[chat] modèle={model_used} '{text[:50]}...'")
     add_message(session_id, "assistant", text)
 
