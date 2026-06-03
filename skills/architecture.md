@@ -12,8 +12,6 @@
 | Telegram Bot | — | 4_TELEGRAM.bat |
 | BRUCE (OpenHands) | 3000 | docker compose --profile bruce up bruce |
 | NOVA inference | 9000 | uvicorn services/deepseek_sft/inference_server:app --port 9000 |
-| Obsidian Skills | 8081 | docker run -p 8081:80 obsidian-skills |
-| Superpowers | 8082 | docker run -p 8082:80 superpowers |
 | Vault Graph Sync | 8084 | cd services/vault_graph && npm start |
 
 ---
