@@ -14,10 +14,7 @@
 import {
   Server,        // ollama
   Database,      // chroma
-  Activity,      // prometheus
-  BarChart3,     // grafana
-  ShieldCheck,   // sonarqube
-  Boxes,         // docker / cadvisor
+  Boxes,         // docker
   HardDrive,     // postgres
   Zap,           // redis
   Network,       // traefik
@@ -34,8 +31,6 @@ import type { ModuleKey } from '../lib/colors';
 export type ServiceCategory =
   | 'ai'           // LLMs, agents
   | 'memory'       // vector DBs, caches
-  | 'monitoring'   // prometheus, grafana, cadvisor
-  | 'quality'      // sonarqube
   | 'infra'        // docker, traefik, postgres
   | 'commerce'     // etsy, shopify
   | 'fabrication'  // forge, stl
@@ -56,7 +51,7 @@ export interface ServiceDef {
   icon: LucideIcon;
   /** Internal Nexus9 route, if any (e.g. "/orbital", "/agents"). */
   route?: string;
-  /** External URL for the underlying service UI (Grafana, Sonar, etc.). */
+  /** External URL for the underlying service UI. */
   externalUrl?: string;
   /** Backend API endpoint that returns this service's live data. */
   apiEndpoint?: string;
@@ -124,60 +119,6 @@ export const SERVICES: ServiceDef[] = [
     containerName: 'nexus_redis',
   },
 
-  // ─── Monitoring ────────────────────────────────────────
-  {
-    id: 'prometheus',
-    label: 'PROMETHEUS',
-    description: 'Metrics scraping · time-series store',
-    colorKey: 'docker',
-    icon: Activity,
-    apiEndpoint: '/v1/prometheus/targets',
-    externalUrl: 'http://localhost:9090',
-    hostPort: 9090,
-    orbitalRelation: 'docker',
-    category: 'monitoring',
-    containerName: 'nexus_prometheus',
-  },
-  {
-    id: 'grafana',
-    label: 'GRAFANA',
-    description: 'Dashboards · visual telemetry',
-    colorKey: 'docker',
-    icon: BarChart3,
-    externalUrl: 'http://localhost:3001',
-    hostPort: 3001,
-    orbitalRelation: 'docker',
-    category: 'monitoring',
-    containerName: 'nexus_grafana',
-  },
-  {
-    id: 'cadvisor',
-    label: 'CADVISOR',
-    description: 'Container resource usage · CPU/RAM/IO',
-    colorKey: 'docker',
-    icon: Boxes,
-    externalUrl: 'http://localhost:8888',
-    hostPort: 8888,
-    orbitalRelation: 'docker',
-    category: 'monitoring',
-    containerName: 'nexus_cadvisor',
-  },
-
-  // ─── Quality ───────────────────────────────────────────
-  {
-    id: 'sonarqube',
-    label: 'SONARQUBE',
-    description: 'Static analysis · bugs · vulnerabilities',
-    colorKey: 'security',
-    icon: ShieldCheck,
-    apiEndpoint: '/v1/sonarqube/issues',
-    externalUrl: 'http://localhost:9000',
-    hostPort: 9000,
-    orbitalRelation: 'cyberdeck',
-    category: 'quality',
-    containerName: 'nexus_sonarqube',
-  },
-
   // ─── Infra ─────────────────────────────────────────────
   {
     id: 'docker',
@@ -202,7 +143,7 @@ export const SERVICES: ServiceDef[] = [
   {
     id: 'postgres',
     label: 'POSTGRES',
-    description: 'Relational store (Sonar + app data)',
+    description: 'Relational store (app data)',
     colorKey: 'vault',
     icon: HardDrive,
     hostPort: 5432,

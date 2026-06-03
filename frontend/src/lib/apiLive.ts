@@ -151,7 +151,7 @@ export const fetchLogs = () =>
 
 
 // ════════════════════════════════════════════════════════
-// Phase 4 — Monitoring proxies (Docker / Prometheus / ChromaDB / Sonar / Grafana)
+// Phase 4 — Monitoring proxies (Docker / ChromaDB)
 // ════════════════════════════════════════════════════════
 
 // ─── Docker via docker.sock / TCP / cAdvisor ───────────

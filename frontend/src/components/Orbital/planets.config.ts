@@ -127,7 +127,7 @@ export const PLANETS: PlanetDef[] = [
   {
     id: 'docker',
     label: 'DOCKER',
-    description: 'Infra · containers · cAdvisor · Grafana',
+    description: 'Infra · containers',
     orbit: 15.5, radius: 0.92, speed: 0.065, phase: 4.8,           tilt: 0.10,
     color: c('docker').hex, glow: c('docker').glow,
   },

@@ -4,7 +4,7 @@ Nexus9 — Smoke test end-to-end (Phases 0 → 7).
 
 Vérifie toute la stack en quelques secondes :
   • Backend FastAPI + 30 routes
-  • Endpoints monitoring (Docker / Prometheus / ChromaDB / Sonar)
+  • Endpoints monitoring (Docker / ChromaDB)
   • WebSocket /ws/events (Phase 7)
   • Frontend dist/ buildé
   • Services Phase 7 : Postgres, Redis, Traefik

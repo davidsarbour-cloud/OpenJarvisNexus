@@ -6,10 +6,10 @@ Marked with @pytest.mark.live so they're skipped by default; opt-in with:
     python -m pytest -m "not live"    # default — fast pure-helper tests
 
 The bulk of the coverage comes from a single GET /v1/health/all call (added
-in commit e5a1f369). The endpoint fans out asyncio.gather across nine
+in commit e5a1f369). The endpoint fans out asyncio.gather across six
 services and returns a uniform { overall, services } payload, so we get
-backend + claude + ollama + forge + meshy + docker + chromadb + prometheus
-+ sonarqube + grafana in one round-trip instead of N print()-driven probes.
+claude + ollama + forge + meshy + docker + chromadb in one round-trip
+instead of N print()-driven probes.
 """
 import os
 import socket

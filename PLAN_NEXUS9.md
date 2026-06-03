@@ -84,7 +84,6 @@ Services en place :
    - `security_monitor.py` (0 byte) — orphelin, jamais importé → à supprimer ou implémenter
    - `shopify_integration.py` (0 byte) — orphelin → à supprimer ou implémenter
 2. **Doublons** :
-   - `prometheus.yaml` + `prometheus.yml/` (dossier) + `prometheus_1.yml` + `prometheus/` (dossier) → 4 sources de configuration Prometheus en conflit
    - `docker-compose.yml` + `docker-compose.yml.backup` → backup à archiver
    - `backend/index_skills.py` + `backend/index_skills_enriched.py` → dédupliquer
 3. **Dossier au nom suspect** : `OpenJarvisNexusservicescrush_ai/` (probablement créé par erreur, à inspecter puis renommer/supprimer)
@@ -96,7 +95,7 @@ Services en place :
 6. **App React = coquille vide** : stack ARWES + Three + R3F + React Flow installée mais aucun fichier ne l'importe — dette d'installation
 7. **Pas de Command Center** : la `DashboardPage` actuelle est minimaliste (Energy + Cost + Trace), ne correspond pas du tout au brief « tactical command bridge »
 8. **Pas de switch routing** entre Command Center et Orbital View dans la nav React
-9. **Aucun widget de monitoring live** pour Prometheus / Grafana / SonarQube / Docker / ChromaDB
+9. **Aucun widget de monitoring live** pour Docker / ChromaDB
 10. **Pas d'identité couleur** par module/planète (Forge orange, Commerce teal, etc.)
 
 ### 2.3 Bugs backend potentiels (à vérifier en Phase 0)
@@ -145,9 +144,6 @@ frontend/src/
 │   │   ├── OllamaStatusCard.tsx     (live /v1/models)
 │   │   ├── ForgePipelinesCard.tsx   (live /v1/crew/jobs)
 │   │   ├── MemoryCard.tsx           (ChromaDB — mock d'abord)
-│   │   ├── PrometheusCard.tsx       (iframe embed + mock summary)
-│   │   ├── GrafanaCard.tsx          (iframe embed)
-│   │   ├── SonarqubeCard.tsx        (mock + iframe)
 │   │   └── SecurityCard.tsx         (mock)
 │   ├── Orbital/
 │   │   ├── OrbitalScene.tsx         (R3F Canvas)
@@ -204,9 +200,6 @@ Bouton dans `TopBar` :
 Endpoint | Source | Mode
 ---|---|---
 `GET /v1/docker/containers` | `docker ps` ou socket | Live
-`GET /v1/prometheus/query?q=...` | Proxy vers `:9090/api/v1/query` | Live
-`GET /v1/grafana/dashboards` | Proxy vers `:3001/api/search` | Live
-`GET /v1/sonarqube/issues` | Proxy auth vers `:9000/api/issues/search` | Hybride (mock si KO)
 `GET /v1/chromadb/stats` | Proxy vers ChromaDB (`:8001`) | Hybride
 `WS  /ws/events` | EventBus interne → push alerts/logs | Live
 
@@ -222,7 +215,6 @@ Phases courtes, chacune **mergeable indépendamment**, chacune doit laisser le s
 
 - [ ] Supprimer `security_monitor.py` (0 byte) et `shopify_integration.py` (0 byte) à la racine
 - [ ] Déplacer `docker-compose.yml.backup` → `legacy/`
-- [ ] Consolider les 4 sources Prometheus en **un seul** `prometheus.yml` à la racine
 - [ ] Inspecter `OpenJarvisNexusservicescrush_ai/` → renommer ou supprimer
 - [ ] Ajouter le service **ChromaDB** au `docker-compose.yml` (image `chromadb/chroma`, port 8001)
 - [ ] Décider du sort de `index_skills.py` vs `index_skills_enriched.py`
@@ -253,13 +245,10 @@ Pour chaque widget : composant React + endpoint live (ou mock) + Recharts si sé
 - [ ] `ForgePipelinesCard` (live `/v1/crew/jobs`)
 - [ ] `MemoryCard` (mock — placeholder ChromaDB)
 - [ ] `DockerContainersCard` (mock d'abord, endpoint live en Phase 4)
-- [ ] `PrometheusCard` (mock + bouton « Open Grafana » → `:3001`)
-- [ ] `GrafanaCard` (iframe embed minimal)
-- [ ] `SonarqubeCard` (mock)
 - [ ] `RightPanel` : feed live `/v1/logs`
 - [ ] `BottomPanel` : 2-3 graphs Recharts (load, savings, energy)
 
-**Critère de sortie** : Command Center affiche 10 cards, 5 sont live, 5 sont mock visiblement étiquetées `DEMO`.
+**Critère de sortie** : Command Center affiche ses cards ; les live (`/v1/health/deep`, `/v1/models`, `/v1/agents`, `/v1/crew/jobs`) fonctionnent, les autres sont des mocks visiblement étiquetés `DEMO`.
 
 ### Phase 3 — Orbital View React (≈ 3-4 sessions)
 
@@ -281,9 +270,6 @@ Port du vanilla JS vers React + R3F. Réutiliser la **logique mathématique** (`
 
 - [ ] Créer `backend/routers/monitoring.py`
 - [ ] `GET /v1/docker/containers` (via `docker` SDK Python ou `subprocess`)
-- [ ] `GET /v1/prometheus/query` (proxy auth)
-- [ ] `GET /v1/grafana/dashboards`
-- [ ] `GET /v1/sonarqube/issues`
 - [ ] `GET /v1/chromadb/stats`
 - [ ] `WS /ws/events` — pub/sub interne (logs FastAPI + events Forge + alertes)
 - [ ] Brancher widgets CommandCenter au live (remplacer les mocks)

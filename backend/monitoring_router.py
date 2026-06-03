@@ -34,7 +34,7 @@ _CLI_TIMEOUT = 2.5   # `docker ps` subprocess budget
 
 
 # ──────────────────────────────────────────────────────────
-# DOCKER : CLI (Windows-friendly via named pipe) → UDS → TCP → cAdvisor
+# DOCKER : CLI (Windows-friendly via named pipe) → UDS → TCP
 # ──────────────────────────────────────────────────────────
 DOCKER_SOCK     = os.getenv("DOCKER_SOCK", "/var/run/docker.sock")
 # Docker Desktop expose aussi l'API TCP sur ce port si activé dans les settings

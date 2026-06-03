@@ -350,34 +350,6 @@ def system_metrics():
     return _collect_system_metrics()
 
 
-@router.get("/metrics")
-def prometheus_metrics():
-    """Exposition Prometheus des métriques hardware (host + GPU) pour le scrape."""
-    from fastapi.responses import PlainTextResponse
-    m = _collect_system_metrics()
-    out: list[str] = []
-
-    def gauge(name: str, val, help_: str):
-        if val is None:
-            return
-        out.append(f"# HELP {name} {help_}")
-        out.append(f"# TYPE {name} gauge")
-        out.append(f"{name} {val}")
-
-    gauge("nexus_cpu_percent",      m["cpu"],           "Host CPU usage percent")
-    gauge("nexus_ram_percent",      m["ram"],           "Host RAM usage percent")
-    gauge("nexus_storage_percent",  m["storage"],       "Host storage usage percent (C:)")
-    gauge("nexus_vram_percent",     m["vram"],          "GPU VRAM usage percent")
-    gauge("nexus_vram_used_mb",     m["vram_used_mb"],  "GPU VRAM used (MB)")
-    gauge("nexus_vram_total_mb",    m["vram_total_mb"], "GPU VRAM total (MB)")
-    gauge("nexus_gpu_util_percent", m["gpu_util"],      "GPU utilization percent")
-    gauge("nexus_network_mbps",     m["network_mbps"],  "Host network throughput (MB/s)")
-    gauge("nexus_health_score",     m["health_score"],  "Composite system health score (0-100)")
-
-    return PlainTextResponse("\n".join(out) + "\n",
-                             media_type="text/plain; version=0.0.4; charset=utf-8")
-
-
 @router.get("/api/digest")
 def api_digest():
     return {
