@@ -335,7 +335,7 @@ async def etsy_oauth_callback_root(code: str = None, state: str = None, error: s
             el.style.background = 'rgba(0,255,136,.08)';
             el.style.border = '1px solid rgba(0,255,136,.3)';
             el.style.color = '#00ff88';
-            el.innerHTML = '<b>✓ Token échangé avec succès!</b><br>Ajoute dans .env:<br><code>' + (d.env_line || '') + '</code>';
+            el.innerHTML = '<b>✓ Token échangé avec succès!</b><br>Ajoute dans .env:<br><code>' + (d.env_line || '') + '</code><br><code>' + (d.env_line_refresh || '') + '</code>';
         }} else {{
             el.style.background = 'rgba(255,45,85,.08)';
             el.style.border = '1px solid rgba(255,45,85,.3)';

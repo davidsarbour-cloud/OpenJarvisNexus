@@ -56,7 +56,7 @@ async def etsy_callback(
         "ok":          True,
         "code":        code,
         "state":       state,
-        "instruction": "Ajoute dans .env: ETSYYOAUTH_ACCESS_TOKEN=<token>",
+        "instruction": "Ajoute dans .env: ETSY_ACCESS_TOKEN=<token> + ETSY_REFRESH_TOKEN=<token>",
         "next_step":   "POST /v1/etsy/exchange-token avec ce code et ton code_verifier PKCE",
     }
 
@@ -112,15 +112,18 @@ async def etsy_exchange_token(body: TokenExchangeRequest):
 
     if resp.is_success:
         data = resp.json()
-        token = data.get("access_token", "")
-        env_line = f"ETSYYOAUTH_ACCESS_TOKEN={token}"
+        token   = data.get("access_token", "")
+        refresh = data.get("refresh_token", "")
+        env_line         = f"ETSY_ACCESS_TOKEN={token}"
+        env_line_refresh = f"ETSY_REFRESH_TOKEN={refresh}"
         return {
-            "ok":           True,
-            "access_token": token,
-            "refresh_token": data.get("refresh_token", ""),
-            "expires_in":   data.get("expires_in"),
-            "env_line":     env_line,
-            "instruction":  f"Copie dans backend/.env: {env_line}",
+            "ok":               True,
+            "access_token":     token,
+            "refresh_token":    refresh,
+            "expires_in":       data.get("expires_in"),
+            "env_line":         env_line,
+            "env_line_refresh": env_line_refresh,
+            "instruction":      f"Copie ces 2 lignes dans backend/.env:\n{env_line}\n{env_line_refresh}",
         }
 
     return JSONResponse(status_code=resp.status_code, content={"ok": False, "error": resp.text})
