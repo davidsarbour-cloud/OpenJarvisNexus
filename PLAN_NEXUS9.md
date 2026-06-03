@@ -72,10 +72,6 @@ Services en place :
 | `frontend` (nginx Vite build) | 5173→80 | OK |
 | `telegram` | — | OK |
 | `bruce` (OpenHands) | 3000 | OK |
-| `grafana` | 3001 | OK |
-| `prometheus` | 9090 | OK |
-| `cadvisor` | 8888 | OK |
-| `sonarqube` + `sonarqube-db` | 9000 | OK |
 | **ChromaDB** | — | ❌ **MANQUANT** malgré référence dans CLAUDE.md et le brief |
 
 ---
