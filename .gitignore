@@ -141,8 +141,22 @@ backend/vault_data/
 # Local data / generated reports / archive (jamais commités)
 archive/
 backend/research_logs/
+backend/forge_reports/
+backend/mission_logs/
 dependency-report.txt
 dependency-audit-report.txt
+
+# --- AI Server Kit FACTORY (privé — NE JAMAIS publier : c'est l'usine qui
+#     génère le produit payant ; le rendre public = quelqu'un peut le revendre) ---
+backend/build_ai_server_kit.py
+backend/build_niche_edition.py
+backend/build_kit_cover.py
+backend/build_cheatsheets.py
+backend/build_agent_catalog.py
+backend/build_zips.py
+backend/build_hero_cover.py
+backend/build_valkyrie_covers.py
+backend/build_tiktok_slides.py
 AUDIT_REPORT.md
 
 # TS build cache
