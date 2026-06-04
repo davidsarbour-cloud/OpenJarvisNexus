@@ -17,6 +17,8 @@ STL_DIR = Path(os.getenv(
     "JARVIS_STL_DIR",
     str(Path.home() / "OneDrive" / "Bureau" / "Jarvis" / "STL"),
 ))
+BAMBU_PATH = os.getenv("BAMBU_STUDIO_PATH", "")
+_MESH_EXT = (".stl", ".3mf", ".obj", ".glb", ".ply")
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -25,22 +27,27 @@ _BASES = [STL_DIR, STL_DIR.parent, STL_DIR.parent / "Important"]
 
 
 def _resolve(path: str) -> "Path | None":
-    """Find the STL: absolute path, then by name under the Jarvis STL / root /
-    Important folders, then a fuzzy *stem*.stl glob there."""
+    """Find a mesh file (.stl/.3mf/.obj/.glb/.ply): absolute path, then by name
+    under the Jarvis STL / root / Important folders, then a fuzzy *stem* glob."""
     if not path:
         return None
     p = Path(path)
     if p.is_absolute() and p.exists():
         return p
+    exts = [p.suffix] if p.suffix.lower() in _MESH_EXT else list(_MESH_EXT)
     for base in _BASES:
-        for c in (base / p.name, base / (p.stem + ".stl")):
+        if (base / p.name).exists():
+            return base / p.name
+        for e in exts:
+            c = base / (p.stem + e)
             if c.exists():
                 return c
     for base in _BASES:                       # fuzzy fallback
         if base.is_dir() and p.stem:
-            hits = sorted(base.glob(f"*{p.stem}*.stl"))
-            if hits:
-                return hits[0]
+            for e in _MESH_EXT:
+                hits = sorted(base.glob(f"*{p.stem}*{e}"))
+                if hits:
+                    return hits[0]
     return None
 
 
@@ -168,6 +175,34 @@ def stl_cut(path: str, cuts_mm: "list | None" = None,
             "pieces": d.get("pieces", [])}
 
 
+def stl_convert(path: str) -> dict:
+    """Convert any supported mesh (3MF/OBJ/GLB/PLY) to a clean .stl."""
+    src = _resolve(path)
+    if not src:
+        return {"ok": False, "error": f"fichier introuvable: {path}"}
+    m = _load(src)
+    dst = src.with_suffix(".stl") if src.suffix.lower() != ".stl" else _out(src, "conv")
+    m.export(str(dst))
+    return {"ok": True, "input": src.name, "output": str(dst),
+            "dims_mm": _dims(m), "faces": int(len(m.faces))}
+
+
+def stl_open_bambu(path: str) -> dict:
+    """Actually launch Bambu Studio with the given file loaded (NOT a fake)."""
+    import subprocess
+    src = _resolve(path)
+    if not src:
+        return {"ok": False, "error": f"fichier introuvable: {path}"}
+    if not BAMBU_PATH or not Path(BAMBU_PATH).exists():
+        return {"ok": False, "error": f"Bambu Studio introuvable ({BAMBU_PATH})"}
+    try:
+        subprocess.Popen([BAMBU_PATH, str(src)])
+        return {"ok": True, "launched": True, "file": src.name,
+                "note": "Bambu Studio lancé avec le fichier."}
+    except Exception as e:
+        return {"ok": False, "error": f"lancement échoué: {e}"}
+
+
 # ── Claude tool_use defs ─────────────────────────────────────────────────────
 
 _PATH = {"type": "string",
@@ -206,11 +241,18 @@ CLAUDE_TOOL_DEFS = [
          "cuts_mm": {"type": "array", "items": {"type": "number"}, "description": "Hauteurs Z (mm) où couper, ex [50, 100]."},
          "plate_mm": {"type": "array", "items": {"type": "number"}, "description": "Taille du plateau [X, Y] en mm, ex [256, 256]."},
      }, "required": ["path"]}},
+    {"name": "stl_convert",
+     "description": "Convertit un fichier 3MF / OBJ / GLB / PLY en .stl propre. Utilise quand David a un 3MF et veut un STL.",
+     "input_schema": {"type": "object", "properties": {"path": _PATH}, "required": ["path"]}},
+    {"name": "stl_open_bambu",
+     "description": "Lance RÉELLEMENT Bambu Studio avec le fichier (STL/3MF) chargé. Utilise quand David dit d'ouvrir/voir un modèle dans Bambu Studio. N'annonce l'ouverture qu'APRÈS l'appel de cet outil.",
+     "input_schema": {"type": "object", "properties": {"path": _PATH}, "required": ["path"]}},
 ]
 
 _FUNCS = {
     "stl_validate": stl_validate, "stl_repair": stl_repair, "stl_scale": stl_scale,
     "stl_decimate": stl_decimate, "stl_hollow": stl_hollow, "stl_cut": stl_cut,
+    "stl_convert": stl_convert, "stl_open_bambu": stl_open_bambu,
 }
 
 

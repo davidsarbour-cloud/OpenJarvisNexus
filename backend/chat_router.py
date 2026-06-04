@@ -389,12 +389,13 @@ _SKILL_ACTION_KW = re.compile(
 # STL-modification intent → expose the stl_* tools (repair/scale/hollow/cut/validate).
 # "génère un stl" is caught earlier by detect_pipeline; here we catch *modify* asks.
 _STL_KW = re.compile(
-    r"\.stl\b|\bstl\b|\bmesh\b|maillage|figurine|"
+    r"\.stl\b|\.3mf\b|\bstl\b|\b3mf\b|\bmesh\b|maillage|figurine|"
     r"répar|repair|watertight|manifold|"
     r"scale|redimensionn|agrandi|rédui|rédui|"
     r"creus|évide|evide|hollow|"
     r"découp|decoup|\bcut\b|"
-    r"imprimable|décim|decim",
+    r"imprimable|décim|decim|"
+    r"\bbambu\b|convert",
     re.I,
 )
 
