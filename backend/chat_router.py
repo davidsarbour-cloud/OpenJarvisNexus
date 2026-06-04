@@ -45,6 +45,8 @@ from tools.docker_tools import quick_status_text as _docker_quick_status
 from tools.skill_tools import CLAUDE_TOOL_DEFS as _SKILL_TOOL_DEFS
 from tools.skill_tools import dispatch as _skill_dispatch
 from tools.skill_tools import skill_catalog_text as _skill_catalog_text
+from tools.stl_tools import CLAUDE_TOOL_DEFS as _STL_TOOL_DEFS
+from tools.stl_tools import dispatch as _stl_dispatch
 
 from memory import (
     add_message,
@@ -256,6 +258,8 @@ def _claude_stream_gen(model_used, system, anthropic_messages, all_tools,
                         _res = _skill_dispatch(_tname, _blk.input)
                     elif _tname.startswith("brain_"):
                         _res = _brain_dispatch(_tname, _blk.input)
+                    elif _tname.startswith("stl_"):
+                        _res = _stl_dispatch(_tname, _blk.input)
                     else:
                         _res = _docker_dispatch(_tname, _blk.input)
                     _tool_results.append({
@@ -380,6 +384,17 @@ _SKILL_LIST_SHOW_KW = re.compile(
 # protocol via tool_use instead.
 _SKILL_ACTION_KW = re.compile(
     r"\b(utilise|use|applique|apply|lance|launch|run|exec|execute|exécute|invoque|invoke|do|fais|fait)\b",
+    re.I,
+)
+# STL-modification intent → expose the stl_* tools (repair/scale/hollow/cut/validate).
+# "génère un stl" is caught earlier by detect_pipeline; here we catch *modify* asks.
+_STL_KW = re.compile(
+    r"\.stl\b|\bstl\b|\bmesh\b|maillage|figurine|"
+    r"répar|repair|watertight|manifold|"
+    r"scale|redimensionn|agrandi|rédui|rédui|"
+    r"creus|évide|evide|hollow|"
+    r"découp|decoup|\bcut\b|"
+    r"imprimable|décim|decim",
     re.I,
 )
 
@@ -819,7 +834,8 @@ def chat_completion(req: ChatRequest, request: Request):
                 # queue for the STL batch jobs?") fire a real pipeline skill.
                 _skill_tools  = _SKILL_TOOL_DEFS if _SKILL_LIST_KW.search(last_user_msg) else []
                 _brain_tools  = _BRAIN_TOOL_DEFS if _needs_memory(last_user_msg) else []
-                _all_tools    = _docker_tools + _skill_tools + _brain_tools
+                _stl_tools    = _STL_TOOL_DEFS if _STL_KW.search(last_user_msg) else []
+                _all_tools    = _docker_tools + _skill_tools + _brain_tools + _stl_tools
 
                 # Real streaming — the frontend always sends stream=True. Stream
                 # tokens live instead of blocking then replaying via _stream_text.
@@ -867,6 +883,8 @@ def chat_completion(req: ChatRequest, request: Request):
                                     _res_str = _skill_dispatch(_tname, _blk.input)
                                 elif _tname.startswith("brain_"):
                                     _res_str = _brain_dispatch(_tname, _blk.input)
+                                elif _tname.startswith("stl_"):
+                                    _res_str = _stl_dispatch(_tname, _blk.input)
                                 else:
                                     _res_str = _docker_dispatch(_tname, _blk.input)
                                 _tool_results.append({

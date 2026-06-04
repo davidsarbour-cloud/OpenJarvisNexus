@@ -314,9 +314,76 @@ async def _produce_icons(theme_item: dict, count: int) -> dict:
         return {"status": "error", "error": str(e)}
 
 
+def _overlay_slogan(art_png: bytes, slogan: str) -> bytes:
+    """Typeset a clean bold slogan in a band UNDER the rendered mascot art.
+    FLUX can't draw text, so the slogan is rendered here (Impact/Arial Black) in
+    white with a dark outline so it reads on dark shirts. Transparent-bg PNG out.
+    Best-effort: returns the original art unchanged if PIL/fonts are missing."""
+    if not slogan:
+        return art_png
+    import os
+    from io import BytesIO
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except Exception:
+        return art_png
+
+    art = Image.open(BytesIO(art_png)).convert("RGBA")
+    W = art.width
+    band = int(W * 0.30)              # height of the text band under the art
+    pad  = int(W * 0.06)
+    canvas = Image.new("RGBA", (W, art.height + band), (0, 0, 0, 0))
+    canvas.paste(art, (0, 0), art)
+    draw = ImageDraw.Draw(canvas)
+
+    fpath = next((p for p in (
+        r"C:\Windows\Fonts\impact.ttf", r"C:\Windows\Fonts\ariblk.ttf",
+        r"C:\Windows\Fonts\arialbd.ttf", r"C:\Windows\Fonts\segoeuib.ttf",
+    ) if os.path.exists(p)), None)
+
+    text = slogan.upper()
+    maxw = W - 2 * pad
+
+    def _wrap(font):
+        lines, cur = [], ""
+        for w in text.split():
+            t = (cur + " " + w).strip()
+            if not cur or draw.textlength(t, font=font) <= maxw:
+                cur = t
+            else:
+                lines.append(cur)
+                cur = w
+        if cur:
+            lines.append(cur)
+        return lines
+
+    size = int(band * 0.6)
+    font = ImageFont.load_default()
+    lines, lh = [text], size
+    while size > 10:
+        font = ImageFont.truetype(fpath, size) if fpath else ImageFont.load_default()
+        lines = _wrap(font)
+        lh = int(size * 1.12)
+        if len(lines) <= 3 and lh * len(lines) <= band - pad:
+            break
+        size -= 4
+
+    y = art.height + (band - lh * len(lines)) // 2
+    stroke = max(2, size // 16)
+    for ln in lines:
+        lw = draw.textlength(ln, font=font)
+        draw.text(((W - lw) / 2, y), ln, font=font, fill=(255, 255, 255, 255),
+                  stroke_width=stroke, stroke_fill=(15, 15, 18, 255))
+        y += lh
+
+    out = BytesIO()
+    canvas.save(out, "PNG")
+    return out.getvalue()
+
+
 async def _produce_pod(design: dict) -> dict:
-    """POD line: art (ImageFactory) -> listing draft -> save (local + Jarvis/POD)
-    -> Printify sync (gated on PRINTIFY_API_KEY)."""
+    """POD line: art (ImageFactory) -> slogan overlay -> listing draft -> save
+    (local + Jarvis/POD) -> Printify sync (gated on PRINTIFY_API_KEY)."""
     from services import image_factory
     cfg = factory_cfg()
     backend = image_factory.choose(cfg.get("image_backend", "comfyui"), niche_type="pod")
@@ -333,13 +400,20 @@ async def _produce_pod(design: dict) -> dict:
     except Exception as e:
         return {"status": "error", "error": f"{backend}: {e}"}
 
-    # Listing draft (Etsy allows 13 tags). No slogans baked into the art — FLUX
-    # text is unreliable; the design is illustrative, the text lives in metadata.
+    # Typeset the clean slogan onto the mascot art (FLUX can't render text).
+    slogan = design.get("slogan", "")
+    if slogan:
+        png = _overlay_slogan(png, slogan)
+
+    # Listing draft (Etsy allows 13 tags). The slogan drives the SEO title.
     tags  = design["tags"][:13]
-    title = f"{design['label']} {design['product'].title()} - Aesthetic Graphic Tee Gift"
-    desc  = (f"{design['label']} — design original, imprimé à la demande.\n\n"
-             f"Produit: {design['product']}. Impression haute qualité, "
-             f"plusieurs tailles et couleurs.\nMots-clés: {', '.join(tags)}")
+    _head = slogan or design["label"]
+    title = f'{_head} - {design["label"]} AI Coding Humor Unisex Tee Gift'[:140]
+    desc  = (f'"{slogan}" — funny AI / coding-humor {design["product"]}.\n\n'
+             f"Original {design['label']} design, print-on-demand, high-quality "
+             f"print, multiple sizes and colors.\n"
+             f"Perfect gift for programmers, developers, prompt engineers and AI "
+             f"nerds.\nKeywords: {', '.join(tags)}")
     listing = {"title": title, "tags": tags, "description": desc,
                "price_usd": 24.99, "product": design["product"], "design": design["key"]}
 

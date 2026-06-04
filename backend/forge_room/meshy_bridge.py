@@ -147,3 +147,117 @@ async def generate_stl_via_meshy(
             print(f"[meshy] conversion GLB->STL error: {e}")
             glb_path.unlink(missing_ok=True)
             return False
+
+
+def _mesh_to_stl(glb_path: Path, output_path: Path) -> bool:
+    """Load a downloaded GLB/OBJ mesh, decimate if huge, export a print-ready STL."""
+    try:
+        import trimesh
+        scene = trimesh.load(str(glb_path))
+        if isinstance(scene, trimesh.Scene):
+            meshes = [g for g in scene.geometry.values()
+                      if isinstance(g, trimesh.Trimesh) and len(g.faces) > 0]
+            if not meshes:
+                print("[meshy] scene vide")
+                return False
+            mesh = trimesh.util.concatenate(meshes)
+        else:
+            mesh = scene
+        if len(mesh.faces) > 60_000:
+            try:
+                import fast_simplification
+                ratio = 60_000 / len(mesh.faces)
+                pts, faces = fast_simplification.simplify(
+                    mesh.vertices, mesh.faces, target_reduction=1.0 - ratio)
+                mesh = trimesh.Trimesh(vertices=pts, faces=faces, process=False)
+                mesh.fix_normals()
+            except Exception as e:
+                print(f"[meshy] decimation skip ({e})")
+        mesh.export(str(output_path))
+        kb = output_path.stat().st_size // 1024
+        print(f"[meshy] STL: {output_path.name} ({kb}KB, {len(mesh.faces)} faces)")
+        glb_path.unlink(missing_ok=True)
+        return kb > 1
+    except Exception as e:
+        print(f"[meshy] GLB->STL error: {e}")
+        glb_path.unlink(missing_ok=True)
+        return False
+
+
+async def generate_stl_from_image(
+    image_path: "Path | str",
+    output_path: Path,
+    timeout_s: int = 300,
+    ai_model: str = "meshy-5",
+) -> bool:
+    """Image-to-3D via Meshy (/openapi/v1/image-to-3d): send a PNG of a subject/
+    mascot, poll, download the mesh, export a print-ready STL. True on success."""
+    import base64
+    if not MESHY_API_KEY:
+        print("[meshy] MESHY_API_KEY non configure")
+        return False
+    p = Path(image_path)
+    if not p.exists():
+        print(f"[meshy] image introuvable: {p}")
+        return False
+
+    headers = {"Authorization": f"Bearer {MESHY_API_KEY}", "Content-Type": "application/json"}
+    data_uri = "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode("ascii")
+    base = "https://api.meshy.ai/openapi/v1/image-to-3d"
+
+    try:
+        async with httpx.AsyncClient(timeout=90) as c:
+            r = await c.post(base, headers=headers, json={
+                "image_url": data_uri, "ai_model": ai_model, "topology": "triangle",
+                "target_polycount": 50000, "should_remesh": True, "should_texture": False,
+            })
+        if r.status_code not in (200, 201, 202):
+            print(f"[meshy] image-to-3d submit {r.status_code}: {r.text[:200]}")
+            return False
+        task_id = r.json().get("result") or r.json().get("id")
+        if not task_id:
+            print(f"[meshy] pas de task_id: {r.text[:150]}")
+            return False
+        print(f"[meshy] image-to-3d task {task_id} soumis")
+    except Exception as e:
+        print(f"[meshy] submit exception: {e}")
+        return False
+
+    model_url, elapsed, errors = None, 0, 0
+    async with httpx.AsyncClient(timeout=20) as poll_c:
+        while elapsed < timeout_s:
+            await asyncio.sleep(5)
+            elapsed += 5
+            try:
+                d = (await poll_c.get(f"{base}/{task_id}", headers=headers)).json()
+                st, pct = d.get("status", ""), d.get("progress", 0)
+                print(f"[meshy] {st} {pct}%")
+                errors = 0
+                if st == "SUCCEEDED":
+                    urls = d.get("model_urls", {})
+                    model_url = urls.get("glb") or urls.get("obj") or urls.get("fbx")
+                    break
+                if st in ("FAILED", "EXPIRED"):
+                    print(f"[meshy] {st}: {d.get('task_error', {})}")
+                    return False
+            except Exception as e:
+                errors += 1
+                print(f"[meshy] poll err ({errors}): {e}")
+                if errors >= 5:
+                    return False
+    if not model_url:
+        print("[meshy] pas d'URL modele apres timeout")
+        return False
+
+    glb_path = output_path.with_suffix(".glb")
+    try:
+        async with httpx.AsyncClient(timeout=120) as dl:
+            resp = await dl.get(model_url)
+            resp.raise_for_status()
+            glb_path.write_bytes(resp.content)
+        print(f"[meshy] modele telecharge: {glb_path.stat().st_size // 1024}KB")
+    except Exception as e:
+        print(f"[meshy] download error: {e}")
+        return False
+
+    return _mesh_to_stl(glb_path, output_path)
