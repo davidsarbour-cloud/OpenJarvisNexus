@@ -348,25 +348,16 @@ async def etsy_oauth_callback_root(code: str = None, state: str = None, error: s
     </body></html>"""
     return HTMLResponse(html)
 
-# ── Orbital UI — couche visuelle modulaire ────────────────
-from fastapi.staticfiles import StaticFiles
+# ── Orbital UI — React SPA (l'ancien orbital_ui vanilla a été retiré) ──────
+from fastapi.staticfiles import StaticFiles  # noqa: E402  (used by /generated_images)
 
-_ORBITAL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "archive", "legacy", "orbital_ui_vanilla"))
 
 @app.get("/orbital", include_in_schema=False)
 async def serve_orbital():
-    """Phase 5 : sert le SPA React si buildé, sinon l'ancien orbital.html vanilla."""
+    """Sert le SPA React (build dist)."""
     if os.path.isfile(_SPA_INDEX):
         return FileResponse(_SPA_INDEX, media_type="text/html")
-    return FileResponse(os.path.join(_ORBITAL_DIR, "orbital.html"), media_type="text/html")
-
-@app.get("/orbital-legacy", include_in_schema=False)
-async def serve_orbital_legacy():
-    """Accès explicite à l'ancien orbital_ui vanilla (avant Phase 3 React)."""
-    return FileResponse(os.path.join(_ORBITAL_DIR, "orbital.html"), media_type="text/html")
-
-if os.path.isdir(_ORBITAL_DIR):
-    app.mount("/orbital_ui", StaticFiles(directory=_ORBITAL_DIR), name="orbital_ui")
+    raise HTTPException(status_code=404, detail="SPA non buildé (frontend/dist) — lance `npm run build`.")
 
 # ── VALKYRIE — images générées (OpenAI gpt-image-1) ──────
 # Monté AVANT le catch-all SPA pour ne pas être shadow par /{full_path:path}.

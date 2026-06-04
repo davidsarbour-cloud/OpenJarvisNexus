@@ -26,8 +26,6 @@ services:
       - ./backend/skills:/app/skills
       - ./backend/BRAIN:/app/BRAIN
       - ./frontend/dist:/frontend/dist:ro
-      - ./archive/legacy/Nexus9.html:/archive/legacy/Nexus9.html:ro
-      - ./archive/legacy/orbital_ui_vanilla:/archive/legacy/orbital_ui_vanilla:ro
       # Socket Docker en read-only : /v1/docker/containers utilise direct le socket
       - /var/run/docker.sock:/var/run/docker.sock:ro
     env_file:

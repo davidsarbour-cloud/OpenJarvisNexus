@@ -195,18 +195,6 @@ def main():
         return True, f"index.html present ({os.path.getsize(idx)}B)"
     results.append(test("frontend/dist/index.html", _dist))
 
-    # ── Archive integrity ──────────────────────────────────
-    section("ARCHIVE")
-    def _legacy(p, label):
-        full = os.path.join(here, "archive", "legacy", p)
-        if os.path.isfile(full) or os.path.isdir(full):
-            return True, "archived OK"
-        return False, "missing"
-    results.append(test("archive/legacy/Nexus9.html",
-        lambda: _legacy("Nexus9.html", "html")))
-    results.append(test("archive/legacy/orbital_ui_vanilla/",
-        lambda: _legacy("orbital_ui_vanilla", "dir")))
-
     # ── Summary ────────────────────────────────────────────
     n_ok   = sum(1 for r in results if r is True)
     n_warn = sum(1 for r in results if r is None)
