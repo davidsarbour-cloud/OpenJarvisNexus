@@ -33,6 +33,7 @@ interface PipelineSpec {
   bodyKey?: string;
   inputLabel?: string;
   obsidianPath?: string;
+  allowImage?: boolean;
 }
 
 const OBSIDIAN_VAULT = 'BRAIN';
@@ -42,14 +43,15 @@ const PIPELINES: PipelineSpec[] = [
     id: 'stl',
     label: 'STL Pipeline',
     category: 'fabrication',
-    description: '3D model · Meshy → repair → orient → export',
+    description: '3D model · texte OU image → Meshy → repair → export',
     icon: Boxes,
     colorKey: 'forge',
     totalSteps: 11,
     estimatedSecondsPerStep: 12,
     endpoint: '/v1/forge/mission',
     bodyKey: 'prompt',
-    inputLabel: 'ex: dragon égyptien stylisé...',
+    inputLabel: 'ex: dragon égyptien stylisé... (ou ajoute une image)',
+    allowImage: true,
     obsidianPath: '03_Projects/STL/stl-pipeline.md',
     steps: [
       'Routing (JARVIS detects intent)',
@@ -193,6 +195,7 @@ export default function PipelineHubPage() {
   const [inputs, setInputs] = useState<Record<string, string>>(
     () => Object.fromEntries(PIPELINES.map((p) => [p.id, ''])),
   );
+  const [images, setImages] = useState<Record<string, { dataUri: string; name: string } | null>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
 
@@ -217,6 +220,13 @@ export default function PipelineHubPage() {
     setInputs((prev) => ({ ...prev, [id]: v }));
   }, []);
 
+  const handleImageChange = useCallback(
+    (id: string, dataUri: string | null, name: string | null) => {
+      setImages((prev) => ({ ...prev, [id]: dataUri && name ? { dataUri, name } : null }));
+    },
+    [],
+  );
+
   const handleToggleExpand = useCallback((id: string) => {
     setExpandedId((cur) => (cur === id ? null : id));
   }, []);
@@ -227,10 +237,11 @@ export default function PipelineHubPage() {
       if (!spec || !spec.endpoint) return;
 
       const input = inputs[id]?.trim() ?? '';
-      if (spec.inputLabel && !input) {
+      const image = spec.allowImage ? images[id] : null;
+      if (spec.inputLabel && !input && !image) {
         setRunStates((prev) => ({
           ...prev,
-          [id]: { status: 'error', currentStep: 0, message: 'Input required' },
+          [id]: { status: 'error', currentStep: 0, message: 'Texte ou image requis' },
         }));
         return;
       }
@@ -259,6 +270,9 @@ export default function PipelineHubPage() {
         const body: Record<string, unknown> = {};
         if (spec.bodyKey) {
           body[spec.bodyKey] = input;
+        }
+        if (image) {
+          body.image = image.dataUri;
         }
         const res = await fetch(spec.endpoint, {
           method: 'POST',
@@ -326,7 +340,7 @@ export default function PipelineHubPage() {
         }));
       }
     },
-    [inputs, stopTicker],
+    [inputs, images, stopTicker],
   );
 
   const activeCount = Object.values(runStates).filter((s) => s.status === 'running').length;
@@ -388,9 +402,12 @@ export default function PipelineHubPage() {
                     isExpanded: expandedId === p.id,
                     obsidianPath: p.obsidianPath,
                     obsidianVault: OBSIDIAN_VAULT,
+                    allowImage: p.allowImage,
+                    imageName: images[p.id]?.name ?? null,
                     onInputChange: handleInputChange,
                     onActivate: handleActivate,
                     onToggleExpand: handleToggleExpand,
+                    onImageChange: handleImageChange,
                   }}
                 />
               ))}

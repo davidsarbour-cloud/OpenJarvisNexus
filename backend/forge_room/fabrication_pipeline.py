@@ -20,7 +20,7 @@ from forge_room.deepseek_coder_bridge import is_available as deepseek_ok
 from forge_room.manufacturing_report import generate_report, save_report
 from forge_room.mesh_repair import auto_repair, scale_to_target
 from forge_room.mesh_validator import validate_mesh
-from forge_room.meshy_bridge import generate_stl_via_meshy
+from forge_room.meshy_bridge import generate_stl_from_image, generate_stl_via_meshy
 from forge_room.meshy_bridge import is_available as meshy_ok
 from forge_room.openscad_generator import generate_stl_via_openscad
 from forge_room.orientation_optimizer import apply_orientation, optimize_orientation
@@ -111,6 +111,7 @@ def new_mission(prompt: str, auto_bambu: bool = False) -> dict:
         "completed_at": None,
         "error": None,
         "auto_bambu": auto_bambu,
+        "image_path": None,   # défini par forge_engine si mission image-to-3D
     }
     _forge_missions[mid] = m
     _save_cache(_forge_missions)
@@ -172,6 +173,7 @@ async def _ultron_plan(prompt: str) -> dict:
                     "message": f"Fabrication request: {prompt}\n\nGenerate a precise plan.",
                     "stream": False,
                     "model": CLAUDE_MODEL_GROS,
+                    "skip_pipeline": True,  # appel interne — pas de routing pipeline
                 },
                 timeout=30,
             )
@@ -262,6 +264,21 @@ async def _generate_raw_mesh(m: dict, plan: dict):
     desc  = plan.get("deepseek_instructions", m["prompt"])
     fplan = json.dumps(plan, ensure_ascii=False)
     out   = FORGE_OUTPUT / f"{m['id']}_raw.stl"
+
+    # ── Image-to-3D prioritaire : si une image a été fournie, on génère via
+    #    Meshy image-to-3D (idéal pour figurines/persos). Fallback texte si échec.
+    img_path = m.get("image_path")
+    if img_path and meshy_ok():
+        _log(m, "Image fournie -> Meshy image-to-3D...")
+        try:
+            if await generate_stl_from_image(img_path, out):
+                _log(m, f"STL via Meshy image-to-3D: {out.name}", "success")
+                return out
+            _log(m, "Meshy image-to-3D echec - bascule text-to-3D/Blender", "warning")
+        except Exception as e:
+            _log(m, f"Meshy image-to-3D exception: {e} - bascule", "warning")
+    elif img_path:
+        _log(m, "Image fournie mais Meshy non configure - bascule text-to-3D", "warning")
 
     try:
         engine, reason = _classify_engine(m["prompt"], plan)

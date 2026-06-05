@@ -29,12 +29,15 @@ router = APIRouter(prefix="/v1/forge", tags=["forge"])
 
 
 class ForgeMissionRequest(BaseModel):
-    prompt: str
+    prompt: str = ""
     engine: str = "auto"
     target_size_mm: float = 150.0
     auto_repair: bool = True
     auto_orient: bool = True
     auto_bambu: bool = False
+    # Image-to-3D : data URI base64 (data:image/...;base64,xxxx) ou base64 brut.
+    # Si fourni, le pipeline génère via Meshy image-to-3D au lieu de text-to-3D.
+    image: str | None = None
 
 
 class ForgeValidateRequest(BaseModel):
@@ -56,16 +59,67 @@ class EngineeringPassRequest(BaseModel):
 
 @router.post("/mission")
 async def create_forge_mission(req: ForgeMissionRequest, background_tasks: BackgroundTasks):
-    """Lance une mission de fabrication The Forge Room."""
-    if not req.prompt.strip():
-        raise HTTPException(status_code=400, detail="prompt requis")
+    """Lance une mission de fabrication The Forge Room.
 
-    m = new_mission(req.prompt.strip(), auto_bambu=req.auto_bambu)
+    Deux modes : text-to-3D (prompt) OU image-to-3D (req.image). Au moins l'un
+    des deux est requis. Si une image est fournie, le pipeline la priorise
+    (Meshy image-to-3D), avec fallback texte si l'image échoue.
+    """
+    prompt = req.prompt.strip()
+    if not prompt and not req.image:
+        raise HTTPException(status_code=400, detail="prompt ou image requis")
+
+    # Image présente : tag de hash dans la clé d'anti-duplication (texte+image
+    # inclus) pour que deux images DIFFÉRENTES avec le même texte ne fusionnent
+    # jamais, et qu'une re-soumission identique soit bien dédupliquée.
+    if req.image:
+        import hashlib
+        tag = hashlib.sha1(req.image.encode("utf-8", "ignore")).hexdigest()[:8]  # noqa: S324 - tag non-crypto, dédup only
+        prompt = f"{prompt} [img:{tag}]" if prompt else f"image-to-3D {tag}"
+
+    # Dédup : new_mission renvoie une mission EXISTANTE (running, <5min, même clé)
+    # au lieu d'en créer une. Un id réutilisé était déjà présent dans le registre.
+    _before_ids = set(_forge_missions.keys())
+    m = new_mission(prompt, auto_bambu=req.auto_bambu)
+    if m["id"] in _before_ids:
+        # Mission identique déjà en cours : ne PAS écraser l'image ni relancer un
+        # 2e pipeline sur le même mission_id — on renvoie l'état existant.
+        return {
+            "mission_id": m["id"],
+            "status": m.get("status", "running"),
+            "mode": "image-to-3D" if m.get("image_path") else "text-to-3D",
+            "message": f"THE FORGE ROOM - Mission {m['id']} deja en cours (dedup)",
+            "poll_url": f"/v1/forge/mission/{m['id']}",
+            "deduplicated": True,
+        }
+
+    # ── Image-to-3D : décode le base64 + normalise en PNG sur disque ──
+    if req.image:
+        try:
+            import base64
+            import io
+
+            from PIL import Image
+
+            b64 = req.image.split("base64,", 1)[-1]
+            raw = base64.b64decode(b64)
+            img_path = FORGE_OUTPUT / f"{m['id']}_input.png"
+            Image.open(io.BytesIO(raw)).convert("RGBA").save(str(img_path), "PNG")
+            m["image_path"] = str(img_path)
+            m["files"]["input_image"] = str(img_path)
+        except Exception as e:
+            # Image illisible → on log et on retombe sur le text-to-3D (prompt).
+            m["logs"].append({
+                "ts": "", "level": "warning",
+                "msg": f"Image illisible ({e}) - bascule text-to-3D",
+            })
+
     background_tasks.add_task(run_forge_pipeline, m["id"])
 
     return {
         "mission_id": m["id"],
         "status": "running",
+        "mode": "image-to-3D" if m.get("image_path") else "text-to-3D",
         "message": f"THE FORGE ROOM - Mission {m['id']} demarree",
         "poll_url": f"/v1/forge/mission/{m['id']}",
     }

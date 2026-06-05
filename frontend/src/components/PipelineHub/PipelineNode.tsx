@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Loader2, Check, AlertTriangle, ChevronDown, Circle, BookOpen } from 'lucide-react';
+import { Play, Loader2, Check, AlertTriangle, ChevronDown, Circle, BookOpen, ImagePlus, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ModuleKey } from '../../lib/colors';
 import { cssVar, MODULE_COLORS } from '../../lib/colors';
@@ -29,9 +29,12 @@ export interface PipelineNodeData {
   isExpanded: boolean;
   obsidianPath?: string;
   obsidianVault?: string;
+  allowImage?: boolean;
+  imageName?: string | null;
   onInputChange: (id: string, v: string) => void;
   onActivate: (id: string) => void;
   onToggleExpand: (id: string) => void;
+  onImageChange?: (id: string, dataUri: string | null, name: string | null) => void;
 }
 
 const STATUS_DOT: Record<PipelineRunStatus, string> = {
@@ -171,6 +174,70 @@ export function PipelineNode({ data }: { data: PipelineNodeData }) {
           }}
           onClick={(e) => e.stopPropagation()}
         />
+      )}
+
+      {data.allowImage && (
+        <div className="mb-1.5 flex items-center gap-1.5">
+          <label
+            className="nodrag flex items-center gap-1 px-2 py-1 text-[9px] tracking-wider rounded-sm cursor-pointer"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid var(--hud-border)',
+              color: 'var(--hud-text-dim)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ImagePlus size={11} style={{ color: c }} />
+            {data.imageName ? 'CHANGER IMAGE' : 'IMAGE → 3D'}
+            <input
+              type="file"
+              accept="image/*"
+              disabled={isRunning}
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () =>
+                  data.onImageChange?.(
+                    data.id,
+                    typeof reader.result === 'string' ? reader.result : null,
+                    file.name,
+                  );
+                reader.readAsDataURL(file);
+                e.target.value = '';
+              }}
+            />
+          </label>
+          {data.imageName && (
+            <>
+              <span
+                className="text-[9px] truncate"
+                style={{ color: c, maxWidth: 110 }}
+                title={data.imageName}
+              >
+                {data.imageName}
+              </span>
+              <button
+                className="nodrag"
+                title="Retirer l'image"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  data.onImageChange?.(data.id, null, null);
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--hud-text-dim)',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                }}
+              >
+                <X size={11} />
+              </button>
+            </>
+          )}
+        </div>
       )}
 
       <button

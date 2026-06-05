@@ -81,6 +81,11 @@ class ChatRequest(BaseModel):
     temperature: float                       = 0.7
     stream:      bool                        = False
     session_id:  str                         = "default"
+    # Bypass du routing d'intention JARVIS (détection pipeline/skill) pour les
+    # appels LLM INTERNES (génération de concept STL, plan ULTRON Forge…). Sans
+    # ça, un message interne contenant "meshy"/"stl" déclenche un faux pipeline
+    # et renvoie un template à la place de la vraie réponse du modèle.
+    skip_pipeline: bool                      = False
 
 # ── Helpers ──────────────────────────────────────────────
 # Decorative glyphs JARVIS must never emit: emoji + bullets/arrows/etc. They
@@ -445,13 +450,20 @@ def chat_completion(req: ChatRequest, request: Request):
         ""
     )
 
+    # Appels LLM INTERNES (skip_pipeline=True : génération de concept STL, plan
+    # ULTRON Forge…) : on coupe TOUT le routing d'intention (docker/skills/cheat/
+    # pipeline) ET l'exposition des outils → completion LLM pure, jamais détournée
+    # vers un template ou un appel d'outil. Sans ça, un prompt de design contenant
+    # "docker"/"cheat"/"compétence"/"figurine" auto-déclenchait un short-circuit.
+    _routing_on = not req.skip_pipeline
+
     # Detect whether this message is about Docker / containers
     _needs_docker = bool(_DOCKER_KW.search(last_user_msg))
 
     # ── Shortcut Docker STATUS — bypass LLM entièrement ─────
     # Si la question concerne l'affichage/liste des containers (pas une action start/stop/restart),
     # on formate la réponse directement depuis l'API Docker sans passer par Claude ou Ollama.
-    if _needs_docker and _DOCKER_SHOW_KW.search(last_user_msg) and not _DOCKER_ACTION_KW.search(last_user_msg):
+    if _routing_on and _needs_docker and _DOCKER_SHOW_KW.search(last_user_msg) and not _DOCKER_ACTION_KW.search(last_user_msg):
         try:
             from tools.docker_tools import docker_status as _ds
             _dstat = _ds()
@@ -508,7 +520,7 @@ def chat_completion(req: ChatRequest, request: Request):
     # via skill_get tool-use instead of being short-circuited to a catalog dump.
     _skill_msg_short  = len(last_user_msg.strip().split()) <= 2
     _is_skill_action  = bool(_SKILL_ACTION_KW.search(last_user_msg))
-    if _SKILL_LIST_KW.search(last_user_msg) and not _is_skill_action and (
+    if _routing_on and _SKILL_LIST_KW.search(last_user_msg) and not _is_skill_action and (
         _SKILL_LIST_SHOW_KW.search(last_user_msg) or _skill_msg_short
     ):
         try:
@@ -540,7 +552,7 @@ def chat_completion(req: ChatRequest, request: Request):
     # ─────────────────────────────────────────────────────────
 
     # ── Shortcut JARVIS: RUN CHEAT CODE ─────────────────────
-    if "jarvis" in last_user_msg.lower() and "cheat" in last_user_msg.lower():
+    if _routing_on and "jarvis" in last_user_msg.lower() and "cheat" in last_user_msg.lower():
         import asyncio as _asyncio
 
         from pipeline_runner import run_cheat_code
@@ -583,7 +595,9 @@ def chat_completion(req: ChatRequest, request: Request):
     # ── Pipelines : START ALL · DAILY RESEARCH · RAPPORT · STL ──
     from pipeline_runner import detect_pipeline, execute_pipeline
     from pipeline_runner import format_response as _fmt_pipe
-    _pipe = detect_pipeline(last_user_msg)
+    # skip_pipeline = appel interne (concept STL, plan Forge) → pas de routing,
+    # sinon le message interne s'auto-déclenche en mission fantôme.
+    _pipe = None if req.skip_pipeline else detect_pipeline(last_user_msg)
     if _pipe:
         import asyncio as _asyncio2
         _pipe_id, _pipe_arg = _pipe
@@ -836,7 +850,8 @@ def chat_completion(req: ChatRequest, request: Request):
                 _skill_tools  = _SKILL_TOOL_DEFS if _SKILL_LIST_KW.search(last_user_msg) else []
                 _brain_tools  = _BRAIN_TOOL_DEFS if _needs_memory(last_user_msg) else []
                 _stl_tools    = _STL_TOOL_DEFS if _STL_KW.search(last_user_msg) else []
-                _all_tools    = _docker_tools + _skill_tools + _brain_tools + _stl_tools
+                # Appel interne (skip_pipeline) → aucun outil : completion pure.
+                _all_tools    = [] if not _routing_on else (_docker_tools + _skill_tools + _brain_tools + _stl_tools)
 
                 # Real streaming — the frontend always sends stream=True. Stream
                 # tokens live instead of blocking then replaying via _stream_text.

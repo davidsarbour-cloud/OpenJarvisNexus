@@ -130,6 +130,7 @@ async def _get_concept(prompt: str) -> str:
                     ),
                     "stream": False,
                     "model": CLAUDE_MODEL_GROS,  # ULTRON = Sonnet 4-6 toujours
+                    "skip_pipeline": True,       # appel interne — pas de routing pipeline
                 },
                 timeout=20,
             )
