@@ -11,6 +11,7 @@ import { CalendarClock, BookOpen } from 'lucide-react';
 import { HudCard } from './HudCard';
 import { useLiveMetric } from '../../hooks/useLiveMetric';
 import { fetchScheduledTasks, type ScheduledJob } from '../../lib/apiLive';
+import { openObsidian } from '../../lib/obsidian';
 // urgencyFor + URGENCY_COLOR are no longer used in the rendered output —
 // the visual treatment is uniform white now. Imports/types kept tree-
 // shaken to nothing.
@@ -56,9 +57,9 @@ const BUCKET_LABEL: Record<Bucket, string> = {
 };
 
 // Each scheduled job optionally points to its schema note in the Obsidian
-// vault. Clicking the row's 📖 icon opens that note in Obsidian via
-// the custom URI protocol — same pattern as the Pipeline Hub cards.
-const OBSIDIAN_VAULT = 'BRAIN';
+// vault. Clicking the row's 📖 icon opens that note in Obsidian via the shared
+// openObsidian() helper (anchor-click — window.open '_self' was silently dropped
+// by Chromium/Brave for the obsidian:// scheme, which is why these never opened).
 const JOB_OBSIDIAN_PATHS: Record<string, string> = {
   trend_hunt:                '07_Schemas/workflows/trend-hunt-schema.md',
   morning_briefing:          '07_Schemas/workflows/morning-briefing-schema.md',
@@ -71,24 +72,18 @@ const JOB_OBSIDIAN_PATHS: Record<string, string> = {
   skill_codebase_inspection: '05_Resources/Research/hermes/codebase-inspection.md',
   skill_ideation:            '05_Resources/Research/hermes/ideation.md',
   skill_polymarket_digest:   '05_Resources/Research/hermes/polymarket.md',
-  // Generated reports — open the most recent run under 02_Daily/<today>/
-  // via a relative path; if Obsidian fails to resolve it falls back to
-  // the user's home / search. The report itself is timestamped per-run
-  // so we point at the hermes index page that links them.
-  weekly_vault_growth:       '02_Daily/index.md',
-  daily_brain_stubs_check:   '02_Daily/index.md',
-  monthly_repo_audit:        '02_Daily/index.md',
-  monthly_brain_snapshot:    '02_Daily/index.md',
+  // Generated reports are timestamped per-run under 02_Daily/<date>/ (no stable
+  // single note exists), so we point at the daily session-history index, which
+  // does exist in the vault, instead of a phantom 02_Daily/index.md.
+  weekly_vault_growth:       '02_Daily/session-history.md',
+  daily_brain_stubs_check:   '02_Daily/session-history.md',
+  monthly_repo_audit:        '02_Daily/session-history.md',
+  monthly_brain_snapshot:    '02_Daily/session-history.md',
 };
 
 // Auto-Factory lines live in their own dedicated Factory hub (/factory), so
 // they're excluded from this general automation schedule to avoid duplication.
 const isFactoryJob = (id: string) => id.startsWith('auto_factory');
-
-function openObsidian(path: string) {
-  const url = `obsidian://open?vault=${encodeURIComponent(OBSIDIAN_VAULT)}&file=${encodeURIComponent(path)}`;
-  window.open(url, '_self');
-}
 
 // Refresh policy:
 //   • Backend list (job names + next_run_time) is fetched every 30 min — APScheduler

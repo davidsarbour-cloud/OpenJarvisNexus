@@ -9,10 +9,11 @@
  * no order execution lives here.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Bot, Boxes, CandlestickChart, Gamepad2, Hammer, LayoutDashboard, Play, Shirt, ShoppingCart } from 'lucide-react';
+import { Bot, BookOpen, Boxes, CandlestickChart, FolderOpen, Gamepad2, Hammer, LayoutDashboard, Play, Shirt, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 import { HudCard, type CardStatus } from '../components/CommandCenter/HudCard';
 import { cssVar, type ModuleKey } from '../lib/colors';
+import { openObsidian } from '../lib/obsidian';
 import {
   fetchFactoryCatalog,
   fetchFactoryConfig,
@@ -28,6 +29,18 @@ import {
 } from '../lib/apiLive';
 
 const TIER_RANK: Record<string, number> = { S: 0, A: 1, B: 2 };
+
+// Note Brain (Obsidian) documentant chaque ligne de production. Toutes ces notes
+// existent dans le vault BRAIN (vérifié).
+const LINE_BRAIN_NOTES: Record<string, string> = {
+  stl:     '07_Schemas/workflows/forge-pipeline.md',
+  icons:   '03_Projects/IconForge/iconforge-architecture.md',
+  pod:     '07_Schemas/system/commerce-pipeline.md',
+  game2d:  '03_Projects/AutoFactory/auto-factory.md',
+  uikit:   '03_Projects/AutoFactory/auto-factory.md',
+  aipack:  '03_Projects/AutoFactory/auto-factory.md',
+  shopify: '03_Projects/AutoFactory/auto-factory.md',
+};
 
 /** Mirror the backend tier-rotation pick so the card shows what's next. */
 function nextUp(catalog: FactoryCatalogItem[], done: string[]): FactoryCatalogItem | null {
@@ -54,7 +67,7 @@ function Row({ k, v, color }: { k: string; v: string; color?: string }) {
 }
 
 function ProductionLineCard({
-  title, sub, icon, colorKey, enabled, time, total, state, catalog,
+  title, sub, icon, colorKey, enabled, time, total, state, catalog, lineKey, onOpenFolder,
 }: {
   title: string;
   sub: string;
@@ -65,17 +78,41 @@ function ProductionLineCard({
   total: number;
   state: FactoryLineState | undefined;
   catalog: FactoryCatalogItem[];
+  lineKey: string;
+  onOpenFolder: (line: string) => void;
 }) {
   const done = state?.done ?? [];
   const cycle = state?.cycle ?? 1;
   const next = catalog.length ? nextUp(catalog, done) : null;
   const status: CardStatus = enabled ? 'live' : 'warn';
+  const brainNote = LINE_BRAIN_NOTES[lineKey];
   return (
     <HudCard title={title} subtitle={sub} colorKey={colorKey} icon={icon} status={status}>
       <Row k="ÉTAT" v={enabled ? 'ACTIF' : 'désactivé'} color={enabled ? cssVar(colorKey) : 'var(--color-security)'} />
       <Row k="DÉCLENCHE" v={`tous les jours ${time}`} />
       <Row k="ROTATION" v={`${done.length}/${total} · cycle ${cycle}`} />
       <Row k="PROCHAIN" v={next ? `${next.label} [${next.tier}]` : '—'} color={cssVar(colorKey)} />
+      {/* Liens "product making" : dossier des produits finis + doc Brain */}
+      <div className="flex items-center gap-2 mt-2 pt-2" style={{ borderTop: '1px solid var(--hud-border)' }}>
+        <button
+          onClick={() => onOpenFolder(lineKey)}
+          title="Ouvrir le dossier des produits finis (Explorer)"
+          className="flex items-center gap-1 px-2 py-1 text-[9px] tracking-wider cursor-pointer"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--hud-border)', color: 'var(--hud-text-dim)' }}
+        >
+          <FolderOpen size={11} style={{ color: cssVar(colorKey) }} /> PRODUITS
+        </button>
+        {brainNote && (
+          <button
+            onClick={() => openObsidian(brainNote)}
+            title={`Ouvrir la doc dans Obsidian → ${brainNote}`}
+            className="flex items-center gap-1 px-2 py-1 text-[9px] tracking-wider cursor-pointer"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--hud-border)', color: 'var(--hud-text-dim)' }}
+          >
+            <BookOpen size={11} style={{ color: cssVar(colorKey) }} /> DOC
+          </button>
+        )}
+      </div>
     </HudCard>
   );
 }
@@ -146,6 +183,16 @@ export function FactoryHubPage() {
     }
   }, []);
 
+  const openFolder = useCallback(async (line: string) => {
+    try {
+      const r = await fetch(`/v1/factory/open-output/${line}`, { method: 'POST' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      toast.success('Dossier produits ouvert');
+    } catch {
+      toast.error('Ouverture du dossier échouée — backend injoignable ?');
+    }
+  }, []);
+
   const c = cfg?.config;
   const h = c?.schedule_hour ?? 8;
   const m = c?.schedule_minute ?? 0;
@@ -185,36 +232,43 @@ export function FactoryHubPage() {
           title="STL automated" sub="figurines & déco 3D → Meshy" icon={Hammer}
           colorKey="forge" enabled={on('stl')} time={t(0)}
           total={cfg?.stl_niches ?? 0} state={cfg?.state.stl} catalog={cat?.stl_niches ?? []}
+          lineKey="stl" onOpenFolder={openFolder}
         />
         <ProductionLineCard
           title="Icon pack automated" sub="packs d'icônes iOS → FLUX" icon={Boxes}
           colorKey="cortex" enabled={on('icons')} time={t(stag)}
           total={cfg?.icon_themes ?? 0} state={cfg?.state.icons} catalog={cat?.icon_themes ?? []}
+          lineKey="icons" onOpenFolder={openFolder}
         />
         <ProductionLineCard
           title="PoD textile automated" sub="designs apparel → Printify" icon={Shirt}
           colorKey="commerce" enabled={on('pod')} time={t(stag * 2)}
           total={cfg?.pod_designs ?? 0} state={cfg?.state.pod} catalog={cat?.pod_designs ?? []}
+          lineKey="pod" onOpenFolder={openFolder}
         />
         <ProductionLineCard
           title="Game Assets 2D automated" sub="packs d'assets jeu → itch.io" icon={Gamepad2}
           colorKey="security" enabled={on('game2d')} time={t(stag * 3)}
           total={cfg?.game2d_packs ?? 0} state={cfg?.state.game2d} catalog={cat?.game2d_packs ?? []}
+          lineKey="game2d" onOpenFolder={openFolder}
         />
         <ProductionLineCard
           title="UI Kits jeux automated" sub="kits d'interface jeu → itch.io" icon={LayoutDashboard}
           colorKey="vault" enabled={on('uikit')} time={t(stag * 4)}
           total={cfg?.uikit_kits ?? 0} state={cfg?.state.uikit} catalog={cat?.uikit_kits ?? []}
+          lineKey="uikit" onOpenFolder={openFolder}
         />
         <ProductionLineCard
           title="AI Packs automated" sub="prompts/workflows (Ollama, brouillon)" icon={Bot}
           colorKey="jarvis" enabled={on('aipack')} time={t(stag * 5)}
           total={cfg?.aipack_packs ?? 0} state={cfg?.state.aipack} catalog={cat?.aipack_packs ?? []}
+          lineKey="aipack" onOpenFolder={openFolder}
         />
         <ProductionLineCard
           title="Shopify templates automated" sub="sections Liquid (Ollama, brouillon)" icon={ShoppingCart}
           colorKey="docker" enabled={on('shopify')} time={t(stag * 6)}
           total={cfg?.shopify_templates ?? 0} state={cfg?.state.shopify} catalog={cat?.shopify_templates ?? []}
+          lineKey="shopify" onOpenFolder={openFolder}
         />
         <DaytradingCard health={mHealth} positions={mPos} />
       </div>

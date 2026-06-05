@@ -41,7 +41,7 @@ from factory_niches import (
     TIER_RANK,
     UI_KITS,
 )
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 load_dotenv()  # so TELEGRAM_* creds resolve in standalone runs (backend also loads them)
 
@@ -976,3 +976,34 @@ def list_catalog() -> dict:
 async def run_now(dry: bool = False, force: bool = False) -> dict:
     """Manual trigger. ?dry=true = select+alert only; ?force=true = run even if disabled."""
     return await run_auto_factory(dry=dry, force=force)
+
+
+# Chaque ligne dépose ses produits finis dans un dossier Jarvis dédié — c'est le
+# "product making" de la ligne. Le Factory Hub ouvre ce dossier d'un clic.
+_LINE_OUTPUT_DIRS: dict[str, Path] = {
+    "stl":     JARVIS_STL_DIR,
+    "icons":   JARVIS_ICONS_DIR,
+    "pod":     JARVIS_POD_DIR,
+    "game2d":  JARVIS_GAME2D_DIR,
+    "uikit":   JARVIS_UIKIT_DIR,
+    "aipack":  JARVIS_AIPACK_DIR,
+    "shopify": JARVIS_SHOPIFY_DIR,
+    "premium": JARVIS_PREMIUM_DIR,
+}
+
+
+@router.post("/open-output/{line}")
+def open_output_folder(line: str) -> dict:
+    """Ouvre dans l'explorateur Windows le dossier des produits finis d'une ligne
+    (stl, icons, pod, game2d, uikit, aipack, shopify, premium)."""
+    import subprocess
+
+    d = _LINE_OUTPUT_DIRS.get(line)
+    if d is None:
+        raise HTTPException(status_code=404, detail=f"ligne inconnue: {line}")
+    d.mkdir(parents=True, exist_ok=True)  # peut être vide si aucun produit encore
+    try:
+        subprocess.Popen(["explorer", str(d)], shell=False)  # NOSONAR - fire-and-forget GUI launch
+        return {"status": "opened", "line": line, "path": str(d)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ouverture échouée: {e}") from e

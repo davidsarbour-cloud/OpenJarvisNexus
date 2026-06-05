@@ -3,6 +3,7 @@ import { Play, Loader2, Check, AlertTriangle, ChevronDown, Circle, BookOpen, Ima
 import type { LucideIcon } from 'lucide-react';
 import type { ModuleKey } from '../../lib/colors';
 import { cssVar, MODULE_COLORS } from '../../lib/colors';
+import { openObsidian } from '../../lib/obsidian';
 
 export type PipelineRunStatus = 'idle' | 'running' | 'done' | 'error';
 
@@ -121,11 +122,7 @@ export function PipelineNode({ data }: { data: PipelineNodeData }) {
             className="nodrag"
             onClick={(e) => {
               e.stopPropagation();
-              const vault = data.obsidianVault ?? 'BRAIN';
-              const url = `obsidian://open?vault=${encodeURIComponent(vault)}&file=${encodeURIComponent(
-                data.obsidianPath!,
-              )}`;
-              window.open(url, '_self');
+              openObsidian(data.obsidianPath!, data.obsidianVault ?? undefined);
             }}
             title={`Open in Obsidian → ${data.obsidianPath}`}
             style={{
