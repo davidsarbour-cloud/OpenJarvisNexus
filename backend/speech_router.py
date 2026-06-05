@@ -5,6 +5,7 @@ no shared app state.
 """
 
 import os
+import re
 import tempfile
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
@@ -43,6 +44,24 @@ def _run_kokoro_sync(text: str, tts_voice: str) -> bytes:
     buf = _io.BytesIO()
     sf.write(buf, full_audio, 24000, format="WAV")
     return buf.getvalue()
+
+
+# ── Voix : reconnaître le moteur d'origine d'un nom de voix ─────────────────
+# Kokoro = "{lang}{gender}_{name}" tout en minuscule (ex: bm_george, af_heart).
+# Edge   = locale "xx-XX-...Neural"           (ex: en-US-GuyNeural, fr-CA-SylvieNeural).
+# Les deux formats sont disjoints (underscore minuscule vs tiret + majuscules),
+# ce qui permet de router une voix vers SON moteur et d'éviter qu'une voix Edge
+# atteigne Kokoro (qui tenterait de télécharger un .pt inexistant → 404 → 500).
+_KOKORO_VOICE_RE = re.compile(r"^[a-z]{2}_[a-z]+$")
+_EDGE_VOICE_RE   = re.compile(r"^[a-z]{2}-[A-Z]{2}-")
+
+
+def _is_kokoro_voice(voice: str) -> bool:
+    return bool(voice) and bool(_KOKORO_VOICE_RE.match(voice))
+
+
+def _is_edge_voice(voice: str) -> bool:
+    return bool(voice) and bool(_EDGE_VOICE_RE.match(voice))
 
 
 def _detect_lang(text: str) -> str:
@@ -97,9 +116,24 @@ async def text_to_speech(
         else:
             tts_engine = "edge"   # French → Edge French (never the English bm_george)
 
+    # Une voix explicite implique son moteur : si l'appelant a choisi une voix
+    # mais pas de moteur, router vers le moteur natif de cette voix. Évite qu'une
+    # voix Edge (en-US-GuyNeural) tombe sur Kokoro (→ 404 .pt → 500) et inversement.
+    if voice and not engine:
+        if _is_edge_voice(voice):
+            tts_engine = "edge"
+        elif _is_kokoro_voice(voice):
+            tts_engine = "kokoro"
+
     # ── Kokoro (local, offline) ──────────────────────────────────────────────
     if tts_engine == "kokoro":
-        tts_voice = voice or cfg.get("tts_voice_kokoro", "bm_george")
+        default_kokoro = cfg.get("tts_voice_kokoro", "bm_george")
+        tts_voice = voice or default_kokoro
+        # Filet de sécurité : si Kokoro est forcé avec une voix non-Kokoro (ex.
+        # engine=kokoro&voice=en-US-GuyNeural), retomber sur la voix Kokoro par
+        # défaut au lieu de laisser Kokoro tenter un téléchargement → 404 → 500.
+        if not _is_kokoro_voice(tts_voice):
+            tts_voice = default_kokoro
         try:
             import kokoro  # noqa: F401
             import soundfile  # noqa: F401
