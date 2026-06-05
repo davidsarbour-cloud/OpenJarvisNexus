@@ -188,6 +188,70 @@ function SectionTitle({ text, accent }: { text: string; accent: string }) {
   );
 }
 
+// Bandeau LIVE : affiche la mission forge la plus récente (lancée d'OÙ QUE CE
+// SOIT — chat JARVIS, bouton du Hub, auto-factory) avec sa vraie progression.
+// Répond au besoin "le Pipeline Hub ne montre pas l'activation".
+function ForgeLiveStatus() {
+  const [m, setM] = useState<{
+    id: string; status?: string; progress_pct?: number; current_step?: string;
+    files?: { jarvis_stl?: string; final_stl?: string };
+    report?: { printability_score?: number };
+  } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      try {
+        const r = await fetch('/v1/forge/missions');
+        if (!r.ok) return;
+        const d = await r.json();
+        const ms: Array<{ id: string; created_at?: string }> = d.missions ?? [];
+        if (!ms.length) { if (alive) setM(null); return; }
+        const latest = [...ms].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))[0];
+        const dr = await fetch(`/v1/forge/mission/${latest.id}`);
+        if (!dr.ok) return;
+        const det = await dr.json();
+        if (alive) setM(det);
+      } catch { /* transient — retry next tick */ }
+    };
+    tick();
+    const iv = setInterval(tick, 4000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+
+  if (!m) return null;
+  const running = m.status === 'running';
+  const done = m.status === 'completed';
+  const failed = m.status === 'failed' || m.status === 'error';
+  const color = failed ? 'var(--color-cyberdeck)' : done ? 'var(--color-docker)' : MODULE_COLORS.forge.hex;
+  const f = m.files?.jarvis_stl ?? m.files?.final_stl ?? '';
+  const fname = f ? f.split(/[\\/]/).pop() : '';
+  const score = m.report?.printability_score;
+  return (
+    <div
+      className="shrink-0 px-2 py-1.5"
+      style={{ background: 'rgba(0,0,0,0.35)', border: `1px solid ${color}`, borderRadius: 4 }}
+    >
+      <div className="flex items-center gap-1.5 text-[9px]">
+        <span style={{ width: 6, height: 6, borderRadius: 1, background: color, boxShadow: `0 0 6px ${color}` }} />
+        <span className="font-bold tracking-[0.18em]" style={{ color }}>
+          FORGE {running ? `· ${m.progress_pct ?? 0}%` : done ? '· OK' : failed ? '· ERREUR' : ''}
+        </span>
+        <span className="ml-auto" style={{ color: 'var(--hud-text-dim)' }}>#{m.id}</span>
+      </div>
+      <div className="mt-0.5 text-[9px] truncate" style={{ color: 'var(--hud-text-dim)' }}>
+        {running
+          ? `étape: ${m.current_step ?? '?'}`
+          : done
+            ? (fname ? `STL: ${fname}${score != null ? ` · ${score}/100` : ''}` : 'terminé')
+            : failed
+              ? 'mission échouée'
+              : (m.status ?? '')}
+      </div>
+    </div>
+  );
+}
+
 export default function PipelineHubPage() {
   const [runStates, setRunStates] = useState<Record<string, PipelineRunState>>(
     () => Object.fromEntries(PIPELINES.map((p) => [p.id, initialRunState()])),
@@ -450,6 +514,8 @@ export default function PipelineHubPage() {
           PIPELINE HUB
           <span className="ml-auto text-[9px]">{PIPELINES.length} · {activeCount} RUNNING</span>
         </div>
+
+        <ForgeLiveStatus />
 
         {CATEGORIES.map((cat) => {
           const cardsInCat = PIPELINES.filter((p) => p.category === cat.id);

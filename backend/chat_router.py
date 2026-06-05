@@ -414,6 +414,16 @@ _STL_IMG_INTENT = re.compile(
     re.I,
 )
 
+# Dernière mission forge lancée PAR session — pour répondre au VRAI statut sur
+# "done?/fini?/c'est prêt?" au lieu de laisser le modèle halluciner la progression.
+_LAST_FORGE_MISSION: dict[str, str] = {}
+_STL_STATUS_INTENT = re.compile(
+    r"\bdone\b|\bfini[se]?\b|termin|\bpr[eê]t\b|\bready\b|status|statut|avancement|"
+    r"progress|o[uù]\s+en\s+est|et\s+maintenant|and\s+now|c'?est\s+bon|[çc]a\s+avance|"
+    r"alors\s*\?",
+    re.I,
+)
+
 
 def _needs_memory(msg: str) -> bool:
     """Déclenche l'injection brain/vault : message long, complexe, ou debug."""
@@ -632,6 +642,7 @@ def chat_completion(req: ChatRequest, request: Request):
         except Exception as _fe:
             _fdata, _mid = {"error": str(_fe)}, None
         if _mid:
+            _LAST_FORGE_MISSION[session_id] = _mid   # pour les questions de statut
             _stl_text = (
                 f"Mission STL image-to-3D lancee : #{_mid}.\n\n"
                 "Meshy genere le modele 3D a partir de ton image (environ 2 a 3 "
@@ -657,6 +668,59 @@ def chat_completion(req: ChatRequest, request: Request):
             "id": _stl_id, "object": "chat.completion", "model": "stl-image-to-3d",
             "created": int(time.time()),
             "choices": [{"index": 0, "message": {"role": "assistant", "content": _stl_text}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        }
+    # ─────────────────────────────────────────────────────────
+
+    # ── Shortcut STATUT mission STL — "done?/fini?/c'est prêt?" sur une mission
+    #    récente => on lit le VRAI statut forge au lieu de laisser le modèle
+    #    halluciner ("Meshy still processing… I'll export…"). ──
+    _sess_mid = _LAST_FORGE_MISSION.get(session_id)
+    if (_routing_on and not _last_user_imgs and _sess_mid
+            and len(last_user_msg.split()) <= 8
+            and _STL_STATUS_INTENT.search(last_user_msg)):
+        import os as _os2
+        import urllib.request as _ureq2
+        _port2 = _os2.getenv("BACKEND_PORT", "8000")
+        try:
+            with _ureq2.urlopen(  # noqa: S310 - localhost self-call
+                f"http://127.0.0.1:{_port2}/v1/forge/mission/{_sess_mid}", timeout=15
+            ) as _r2:
+                _ms = json.loads(_r2.read().decode())
+        except Exception as _se2:
+            _ms = {"error": str(_se2)}
+        _mst = _ms.get("status")
+        if _mst == "completed":
+            _ff = (_ms.get("files") or {}).get("jarvis_stl") or (_ms.get("files") or {}).get("final_stl") or ""
+            _ffn = _ff.replace("\\", "/").split("/")[-1] if _ff else ""
+            _sc = (_ms.get("report") or {}).get("printability_score")
+            _status_text = ("Mission #" + str(_sess_mid) + " : TERMINEE. "
+                            + (f"Fichier STL : {_ffn}. " if _ffn else "")
+                            + (f"Imprimabilite {_sc}/100. " if _sc is not None else "")
+                            + "Il est dans le dossier Jarvis/STL.")
+        elif _mst in ("failed", "error"):
+            _status_text = f"Mission #{_sess_mid} : ECHOUEE — {_ms.get('error', 'erreur inconnue')}."
+        elif _mst:
+            _pct = _ms.get("progress_pct", 0)
+            _cstep = _ms.get("current_step", "?")
+            _status_text = (f"Mission #{_sess_mid} : EN COURS — {_pct}% (etape : {_cstep}). "
+                            "Je lis le vrai statut du pipeline forge (pas une simulation). "
+                            "Redemande dans une minute.")
+        else:
+            _status_text = (f"Mission #{_sess_mid} introuvable (peut-etre purgee du cache). "
+                            "Relance une generation si besoin.")
+        add_message(session_id, "assistant", _status_text)
+        _ssid = f"chatcmpl-stlstatus-{int(time.time())}"
+        if req.stream:
+            return StreamingResponse(
+                _stream_text(_status_text, "stl-status", _ssid),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+        return {
+            "id": _ssid, "object": "chat.completion", "model": "stl-status",
+            "created": int(time.time()),
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": _status_text}, "finish_reason": "stop"}],
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
     # ─────────────────────────────────────────────────────────
