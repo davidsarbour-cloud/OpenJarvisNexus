@@ -312,6 +312,12 @@ export function PipelineNode({ data }: { data: PipelineNodeData }) {
         </div>
       )}
 
+      {isDone && runState.message && (
+        <div className="mt-1.5 text-[9px] break-all" style={{ color: 'var(--color-docker)' }}>
+          {runState.message}
+        </div>
+      )}
+
       <AnimatePresence initial={false}>
         {isExpanded && (
           <motion.div

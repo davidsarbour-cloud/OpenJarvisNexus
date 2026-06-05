@@ -274,6 +274,10 @@ export default function PipelineHubPage() {
         if (image) {
           body.image = image.dataUri;
         }
+        // STL : si le prompt mentionne "bambu", ouvrir Bambu Studio à la fin.
+        if (spec.id === 'stl' && /\bbambu\b/i.test(input)) {
+          body.auto_bambu = true;
+        }
         const res = await fetch(spec.endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -297,9 +301,10 @@ export default function PipelineHubPage() {
         }
 
         // Some pipelines return HTTP 200 with { ok: false, error: ... } on failure.
-        let payload: { ok?: boolean; error?: string } | null = null;
+        type ForgePayload = { ok?: boolean; error?: string; mission_id?: string; poll_url?: string };
+        let payload: ForgePayload | null = null;
         try {
-          payload = (await res.clone().json()) as { ok?: boolean; error?: string };
+          payload = (await res.clone().json()) as ForgePayload;
         } catch {
           /* not JSON or empty — treat as success */
         }
@@ -314,6 +319,74 @@ export default function PipelineHubPage() {
               message: payload?.error ?? 'pipeline returned ok=false',
             },
           }));
+          return;
+        }
+
+        // Forge/STL renvoie une mission ASYNCHRONE (mission_id + poll_url) qui
+        // tourne ~minutes en arrière-plan. On suit le VRAI statut au lieu de
+        // mentir "COMPLETED" dès le POST. Les autres pipelines finissent direct.
+        if (payload && payload.mission_id) {
+          const pollUrl = payload.poll_url ?? `/v1/forge/mission/${payload.mission_id}`;
+          const deadline = Date.now() + 15 * 60 * 1000; // garde-fou 15 min
+          let settled = false;
+          while (!settled && Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 4000));
+            let st:
+              | {
+                  status?: string; progress_pct?: number; error?: string;
+                  files?: { jarvis_stl?: string; final_stl?: string };
+                  report?: { printability_score?: number };
+                }
+              | null = null;
+            try {
+              const pr = await fetch(pollUrl);
+              if (pr.ok) st = await pr.json();
+            } catch {
+              /* transient — retry next tick */
+            }
+
+            if (st?.status === 'completed') {
+              const f = st.files?.jarvis_stl ?? st.files?.final_stl ?? '';
+              const fname = f ? f.split(/[\\/]/).pop() : '';
+              const score = st.report?.printability_score;
+              setRunStates((prev) => ({
+                ...prev,
+                [id]: {
+                  status: 'done', currentStep: spec.totalSteps, startedAt, finishedAt: Date.now(),
+                  message: fname
+                    ? `STL prêt: ${fname}${score != null ? ` · ${score}/100` : ''}`
+                    : 'Terminé',
+                },
+              }));
+              settled = true;
+            } else if (st?.status === 'failed' || st?.status === 'error') {
+              setRunStates((prev) => ({
+                ...prev,
+                [id]: {
+                  status: 'error', currentStep: prev[id]?.currentStep ?? 0,
+                  startedAt, finishedAt: Date.now(), message: st?.error ?? 'mission échouée',
+                },
+              }));
+              settled = true;
+            } else {
+              const pct = typeof st?.progress_pct === 'number' ? st.progress_pct : 0;
+              const step = Math.min(spec.totalSteps - 1, Math.round((pct / 100) * spec.totalSteps));
+              setRunStates((prev) => {
+                const cur = prev[id];
+                if (!cur || cur.status !== 'running') return prev;
+                return { ...prev, [id]: { ...cur, currentStep: step } };
+              });
+            }
+          }
+          if (!settled) {
+            setRunStates((prev) => ({
+              ...prev,
+              [id]: {
+                status: 'done', currentStep: spec.totalSteps, startedAt, finishedAt: Date.now(),
+                message: 'Toujours en cours (timeout suivi) — vérifie le dossier STL',
+              },
+            }));
+          }
           return;
         }
 
