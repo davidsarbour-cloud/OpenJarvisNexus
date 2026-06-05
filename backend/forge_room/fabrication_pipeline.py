@@ -476,9 +476,12 @@ async def run_forge_pipeline(mission_id: str) -> None:
             if mesh is None:
                 _log(m, "Mesh indispo - orientation skip", "warning")
                 return mesh, None
-            _log(m, "Optimisation orientation FDM...")
+            # Image-to-3D (figurine/perso) → on garde le modèle DEBOUT (supports OK)
+            # au lieu de le coucher sur le dos pour minimiser les surplombs.
+            _upright = bool(m.get("image_path"))
+            _log(m, f"Optimisation orientation FDM{' (mode debout, image-to-3D)' if _upright else ''}...")
             scaled  = scale_to_target(mesh, 150.0)
-            ort     = optimize_orientation(scaled)
+            ort     = optimize_orientation(scaled, prefer_upright=_upright)
             oriented = apply_orientation(scaled, ort)
             _log(m, f"Orientation: {ort.label} (overh: {ort.overhang_pct}%, contact: {ort.contact_pct}%)")
             return oriented, ort

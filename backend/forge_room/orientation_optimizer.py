@@ -43,6 +43,7 @@ def _score_orientation(
     overhang_deg: float = 45.0,
     overhang_w: float = 0.6,
     contact_w: float = 0.4,
+    prefer_upright: bool = False,
 ) -> tuple[float, float, float]:
     """Retourne (score, overhang_pct, contact_pct) pour une rotation donnée."""
     m = mesh.copy()
@@ -65,10 +66,24 @@ def _score_orientation(
     contact_area = face_areas[contact_mask].sum()
     contact_pct  = float((contact_area / total_area) * 100.0)
 
-    # Score : maximiser contact, minimiser surplombs
-    # Pénalité forte si aucun contact avec la build plate (objet en l'air)
-    no_contact_penalty = 50.0 if contact_pct < 0.5 else 0.0
-    score = (contact_w * contact_pct) - (overhang_w * overhang_pct) - no_contact_penalty
+    if prefer_upright:
+        # Figurines / personnages (image-to-3D) : on PRIVILÉGIE la pose DEBOUT
+        # (hauteur Z maximale) au lieu de coucher le modèle sur le dos juste pour
+        # réduire les surplombs. Les supports gèrent les overhangs (assumé). Pas de
+        # pénalité "pas de contact" : un perso debout sur de petites jambes a peu
+        # de contact mais c'est la bonne pose d'affichage.
+        ext = m.extents
+        height_ratio = float(ext[2] / max(float(ext.max()), 1e-9))   # 1.0 = orientation la plus haute
+        # Bonus à l'orientation NATIVE de Meshy (identité) : Meshy génère le modèle
+        # dans la pose de l'image (debout). On la garde sauf si une autre est
+        # nettement plus haute. (Vérifié sur le cowboy : identité = debout.)
+        native_bonus = 15.0 if np.allclose(rot, np.eye(3), atol=1e-6) else 0.0
+        score = (100.0 * height_ratio) + native_bonus + (0.3 * contact_pct) - (0.15 * overhang_pct)
+    else:
+        # Score : maximiser contact, minimiser surplombs.
+        # Pénalité forte si aucun contact avec la build plate (objet en l'air).
+        no_contact_penalty = 50.0 if contact_pct < 0.5 else 0.0
+        score = (contact_w * contact_pct) - (overhang_w * overhang_pct) - no_contact_penalty
 
     return score, overhang_pct, contact_pct
 
@@ -76,9 +91,13 @@ def _score_orientation(
 def optimize_orientation(
     mesh: trimesh.Trimesh,
     max_overhang_deg: float = 45.0,
+    prefer_upright: bool = False,
 ) -> OrientationResult:
     """
     Teste les 8 orientations candidates et retourne la meilleure.
+
+    prefer_upright=True (figurines image-to-3D) : garde le modèle DEBOUT (pose la
+    plus haute) au lieu de le coucher pour minimiser les surplombs.
     """
     best_score   = -1e9
     best_idx     = 0
@@ -86,7 +105,7 @@ def optimize_orientation(
 
     for i, rot in enumerate(_CANDIDATE_ROTATIONS):
         score, oh_pct, ct_pct = _score_orientation(
-            mesh, rot, overhang_deg=max_overhang_deg
+            mesh, rot, overhang_deg=max_overhang_deg, prefer_upright=prefer_upright
         )
         all_scores.append({
             "label": _CANDIDATE_LABELS[i],
@@ -99,7 +118,8 @@ def optimize_orientation(
             best_idx   = i
 
     best_rot = _CANDIDATE_ROTATIONS[best_idx]
-    _, oh_pct, ct_pct = _score_orientation(mesh, best_rot, max_overhang_deg)
+    _, oh_pct, ct_pct = _score_orientation(
+        mesh, best_rot, max_overhang_deg, prefer_upright=prefer_upright)
 
     return OrientationResult(
         rotation_matrix=best_rot,
