@@ -79,7 +79,8 @@ DEFAULTS: dict = {
     "stl_target_size_mm": 150.0,
     "pod_art_size":       1024,             # FLUX render size for POD designs
     "game2d_item_size":   768,              # FLUX render size per game/UI asset
-    "game2d_max_items":   8,                # items rendered per pack (cost/time cap)
+    "game2d_max_items":   20,               # items/pack — ARPG packs = 20 icônes/jour
+    "pod_per_run":        10,               # POD designs produits par run quotidien
     "image_backend":      "comfyui",        # comfyui | gpt-image-1 | auto (ImageFactory)
     "valkyrie_score_threshold": 60,         # premium line: buzz score to ride a trend (hype)
     "premium_quality":    "high",           # gpt-image-1 quality for the premium (VALKYRIE) line
@@ -419,7 +420,8 @@ async def _produce_pod(design: dict) -> dict:
 
     ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
     base = f"{design['key']}_{ts}"
-    out_dir = BACKEND_DIR / "pod_output" / base
+    platform = design.get("platform", "general")   # bucket l'output par plateforme AI
+    out_dir = BACKEND_DIR / "pod_output" / platform / base
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / f"{base}.png").write_bytes(png)
     (out_dir / "listing.json").write_text(
@@ -427,10 +429,11 @@ async def _produce_pod(design: dict) -> dict:
 
     jarvis_art = None
     try:
-        JARVIS_POD_DIR.mkdir(parents=True, exist_ok=True)
-        jarvis_art = str(JARVIS_POD_DIR / f"{base}.png")
+        pod_jarvis_dir = JARVIS_POD_DIR / platform   # 1 dossier par plateforme
+        pod_jarvis_dir.mkdir(parents=True, exist_ok=True)
+        jarvis_art = str(pod_jarvis_dir / f"{base}.png")
         shutil.copy2(str(out_dir / f"{base}.png"), jarvis_art)
-        shutil.copy2(str(out_dir / "listing.json"), str(JARVIS_POD_DIR / f"{base}.listing.json"))
+        shutil.copy2(str(out_dir / "listing.json"), str(pod_jarvis_dir / f"{base}.listing.json"))
     except Exception as e:
         print(f"[auto_factory] Jarvis POD copy failed: {e}")
 
@@ -456,7 +459,7 @@ async def _produce_pack(pack: dict, *, out_subdir: str, jarvis_dir: Path,
     await image_factory.prepare(backend)             # FLUX: free VRAM
 
     size = int(cfg.get("game2d_item_size", 768))
-    cap  = int(cfg.get("game2d_max_items", 8))
+    cap  = int(cfg.get("game2d_max_items", 20))   # ARPG packs = 20 icônes/jour
     ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
     base = f"{pack['key']}_{ts}"
     out_dir = BACKEND_DIR / out_subdir / base
@@ -576,16 +579,103 @@ async def _produce_llm_pack(item: dict, *, out_subdir: str, jarvis_dir: Path,
             "file": jarvis_file or str(out_dir / f"{item['key']}.{file_ext}")}
 
 
+_AIPACK_KIT_SYSTEM = (
+    "You are a senior prompt engineer building a PREMIUM, sellable prompt KIT in the "
+    "style of a polished paid digital product (like a top Gumroad/Etsy 'AI prompt "
+    "kit'). Output clean Markdown ONLY — no preamble, no commentary outside the kit. "
+    "Structure: a # title, a punchy 2-3 sentence intro/hook, a '## How to use this "
+    "kit' section, then 90-120 copy-paste prompts organized into clearly-titled "
+    "workflow sections (## ...). Every prompt: numbered, specific, professional, uses "
+    "[PLACEHOLDERS] for personalization, and a one-line '> Use when:' note. End with a "
+    "short '## Pro tips' section. Make it genuinely high-value and ready to sell."
+)
+
+
+def _md_to_pdf_bytes(md_text: str) -> bytes | None:
+    """Best-effort Markdown -> PDF (same stack as the AI Server Kit). Returns None if
+    the optional libs aren't installed — the kit then ships as Markdown only."""
+    try:
+        from io import BytesIO
+
+        import markdown as _md
+        from xhtml2pdf import pisa
+    except Exception:
+        return None
+    try:
+        body = _md.markdown(md_text, extensions=["tables", "fenced_code"])
+        html = ("<html><head><meta charset='utf-8'><style>"
+                "@page { size: A4; margin: 2cm; } "
+                "body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; line-height: 1.45; } "
+                "h1 { color:#111; } h2 { color:#222; border-bottom:1px solid #ccc; padding-bottom:3px; } "
+                "code, pre { background:#f4f4f4; }"
+                f"</style></head><body>{body}</body></html>")
+        out = BytesIO()
+        if pisa.CreatePDF(html, dest=out).err:
+            return None
+        return out.getvalue()
+    except Exception:
+        return None
+
+
 async def _produce_aipack(item: dict) -> dict:
-    return await _produce_llm_pack(
-        item, out_subdir="aipack_output", jarvis_dir=JARVIS_AIPACK_DIR,
-        file_ext="md", price=9.99, title_suffix="Premium Prompt Pack",
-        use_sonnet=True,
-        system=("You are an expert prompt engineer producing a PREMIUM, sellable "
-                "prompt pack. Output clean, polished, well-organized Markdown ONLY "
-                "— no preamble, no commentary. Use clear section headers, numbered "
-                "prompts, [placeholders] for personalization, and a short 'How to "
-                "use this pack' intro. Make it genuinely high-value and specific."))
+    """AI Pack line — produces a full 'AI Server Kit'-style prompt KIT (intro +
+    how-to + ~100 organized prompts), bundled into a ZIP (Markdown + best-effort
+    PDF + START_HERE + LICENSE). Premium = Claude Sonnet, Ollama fallback. 1/run."""
+    brief = (f"Build the complete kit now. Topic: {item['label']}.\n\n"
+             f"Scope: {item['brief']}\n\n"
+             "Expand to a FULL kit (90-120 prompts), not a short pack.")
+    content = await asyncio.to_thread(_sonnet_generate, _AIPACK_KIT_SYSTEM, brief)
+    engine = "sonnet"
+    if not content:
+        from ollama_client import ask_ollama, strip_think_tags
+        raw = await asyncio.to_thread(ask_ollama, f"{_AIPACK_KIT_SYSTEM}\n\n{brief}")
+        content = strip_think_tags(raw) if raw else None
+        engine = "ollama"
+    if not content:
+        return {"status": "error", "error": "LLM indisponible (Sonnet + Ollama)"}
+
+    ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base = f"{item['key']}_{ts}"
+    out_dir = BACKEND_DIR / "aipack_output" / base
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"{item['key']}.md").write_text(content, encoding="utf-8")
+
+    pdf_bytes = await asyncio.to_thread(_md_to_pdf_bytes, content)
+    if pdf_bytes:
+        (out_dir / f"{item['key']}.pdf").write_bytes(pdf_bytes)
+
+    (out_dir / "START_HERE.txt").write_text(
+        f"{item['label']} — AI Prompt Kit\n\n"
+        "START HERE:\n"
+        f"1. Open {item['key']}.pdf (or .md) — the full kit.\n"
+        "2. Copy-paste any prompt, fill the [PLACEHOLDERS], run it in your AI.\n\n"
+        "Single-user license. Questions: d3dprintix@outlook.com\n", encoding="utf-8")
+    (out_dir / "LICENSE.txt").write_text(
+        "Single-user license. Use this kit for your own work. Redistribution or "
+        "resale of the files is not permitted.\n", encoding="utf-8")
+    listing = {"title": f"{item['label']} - AI Prompt Kit", "price_usd": 14.99,
+               "engine": engine, "pack": item["key"], "has_pdf": bool(pdf_bytes),
+               "chars": len(content), "draft": engine == "ollama"}
+    (out_dir / "listing.json").write_text(
+        json.dumps(listing, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    zip_path = out_dir.parent / f"{base}.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in sorted(out_dir.iterdir()):
+            if f.is_file():
+                z.write(f, f.name)
+
+    jarvis_zip = None
+    try:
+        JARVIS_AIPACK_DIR.mkdir(parents=True, exist_ok=True)
+        jarvis_zip = str(JARVIS_AIPACK_DIR / f"{base}.zip")
+        shutil.copy2(str(zip_path), jarvis_zip)
+    except Exception as e:
+        print(f"[auto_factory] Jarvis aipack copy failed: {e}")
+
+    return {"status": "complete", "pack": item["key"], "chars": len(content),
+            "engine": engine, "has_pdf": bool(pdf_bytes),
+            "file": jarvis_zip or str(zip_path)}
 
 
 async def _produce_shopify(item: dict) -> dict:
@@ -701,23 +791,21 @@ def _format_alert(chosen: dict, results: dict) -> str:
         else:
             lines.append(f"   échec — {pk.get('error', '?')}")
     if "pod" in chosen:
-        design, reason = chosen["pod"]
         pod = results.get("pod", {})
-        lines.append(f"👕 POD — {design['label']} [{design['tier']}-tier] ({reason})")
-        if pod.get("status") == "complete":
-            lines.append(f"   design: {pod.get('art')}")
-            pf = pod.get("printify", {})
-            st = pf.get("status")
-            if st == "product_created":
-                lines.append(f"   Printify: produit créé {pf.get('product_id')}"
-                             + (" + PUBLIÉ" if pf.get("published") else " (brouillon)"))
-            elif st == "uploaded":
-                lines.append("   Printify: image uploadée (config produit incomplète)")
-            elif st == "skipped":
-                lines.append("   Printify: local seulement (pas de clé) — prêt à uploader")
-            else:
-                lines.append(f"   Printify: {pf.get('reason', st)}")
+        batch = pod.get("batch")
+        if batch is not None:
+            ok = pod.get("ok", 0)
+            lines.append(f"👕 POD — {ok}/{batch} designs produits")
+            platforms = sorted({d.get("platform", "general")
+                                for d in pod.get("designs", []) if d.get("status") == "complete"})
+            if platforms:
+                lines.append(f"   plateformes: {', '.join(platforms)}")
+            for d in pod.get("designs", []):
+                icon = "✅" if d.get("status") == "complete" else "❌"
+                lines.append(f"   {icon} {d.get('label', d.get('design'))} [{d.get('platform', 'general')}]")
         else:
+            design, reason = chosen["pod"]
+            lines.append(f"👕 POD — {design['label']} [{design['tier']}-tier] ({reason})")
             lines.append(f"   échec — {pod.get('error', '?')}")
     if "game2d" in chosen:
         pack, reason = chosen["game2d"]
@@ -740,7 +828,8 @@ def _format_alert(chosen: dict, results: dict) -> str:
         ap = results.get("aipack", {})
         lines.append(f"🤖 AIPack — {item['label']} [{item['tier']}-tier] ({reason})")
         if ap.get("status") == "complete":
-            lines.append(f"   brouillon {ap['chars']} car.: {ap['file']}")
+            pdf = "PDF+" if ap.get("has_pdf") else ""
+            lines.append(f"   kit {pdf}{ap['chars']} car. ({ap.get('engine')}): {ap['file']}")
         else:
             lines.append(f"   échec — {ap.get('error', '?')}")
     if "shopify" in chosen:
@@ -844,10 +933,22 @@ async def run_auto_factory(*, dry: bool = False, force: bool = False,
             state["icons"]["done"].append(theme["key"])
         touched["icons"] = state["icons"]
     if "pod" in chosen:
+        pod_n = max(1, int(cfg.get("pod_per_run", 10)))   # 10 designs/jour
         design, _ = chosen["pod"]
-        results["pod"] = await _produce_pod(design)
-        if design["key"] not in state["pod"]["done"]:
-            state["pod"]["done"].append(design["key"])
+        pod_batch: list[dict] = []
+        for _ in range(pod_n):
+            if design is None:
+                break
+            res = await _produce_pod(design)
+            pod_batch.append({"label": design["label"],
+                              "platform": design.get("platform", "general"), **res})
+            if design["key"] not in state["pod"]["done"]:
+                state["pod"]["done"].append(design["key"])
+            nxt = await _select(POD_DESIGNS, state["pod"], cfg, allow_buzz=False)
+            design = nxt[0] if nxt else None
+        ok = sum(1 for r in pod_batch if r.get("status") == "complete")
+        results["pod"] = {"status": "complete" if ok else "error",
+                          "batch": len(pod_batch), "ok": ok, "designs": pod_batch}
         touched["pod"] = state["pod"]
     if "game2d" in chosen:
         pack, _ = chosen["game2d"]

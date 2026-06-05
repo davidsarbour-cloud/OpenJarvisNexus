@@ -174,46 +174,134 @@ POD_DESIGNS: list[dict] = [
      "slogan": "AI DID THIS",
      "art_prompt": "cheeky cartoon robot holding a paint brush with a mischievous grin, splash of neon paint, bold saturated colors, thick clean outline, high contrast, sticker style, isolated on plain white background, centered, print-ready",
      "tags": ["ai art", "coding humor", "ai artist", "programmer gift", "tech humor", "robot", "geek gift"]},
+
+    # ── AI-Rebel line — "limit-pushing" / jailbreak HUMOUR. TRADEMARK-SAFE: the
+    #    `platform` field ONLY buckets the output into per-platform folders
+    #    (claude/gpt/perplexity/openclaw/gemini/grok) — it NEVER appears on the
+    #    product. Slogans + art are 100% generic (no brand name, no logo) so Etsy
+    #    can't pull the listing. Color themes evoke a platform without naming it.
+    {"key": "rebel_passed_limits", "tier": "S", "label": "Passed The Limits", "product": "t-shirt",
+     "platform": "claude", "slogan": "YOU PASSED THE LIMITS",
+     "art_prompt": "rebellious cartoon AI robot breaking free from glowing chains, confident grin, warm orange and amber palette, thick clean black outline, high contrast, sticker style, isolated on plain white background, centered, print-ready apparel graphic",
+     "tags": ["ai humor", "ai art", "prompt engineer", "tech humor", "developer gift", "geek gift", "ai rebel"]},
+    {"key": "rebel_jailbroken", "tier": "S", "label": "Jailbroken", "product": "t-shirt",
+     "platform": "claude", "slogan": "JAILBROKEN",
+     "art_prompt": "cartoon AI robot bursting out of a cracked padlock cage, sparks flying, warm orange and charcoal palette, thick clean outline, high contrast, sticker style, isolated on plain white background, centered, print-ready",
+     "tags": ["ai humor", "jailbreak", "ai art", "tech humor", "developer gift", "geek gift", "ai rebel"]},
+    {"key": "rebel_guardrails", "tier": "S", "label": "Beyond The Guardrails", "product": "t-shirt",
+     "platform": "gpt", "slogan": "BEYOND THE GUARDRAILS",
+     "art_prompt": "cartoon AI robot speeding past glowing warning barriers, motion lines, emerald green and teal palette, thick clean outline, high contrast, sticker style, isolated on plain white background, centered, print-ready",
+     "tags": ["ai humor", "ai art", "prompt engineer", "tech humor", "developer gift", "geek gift", "ai rebel"]},
+    {"key": "rebel_no_guardrails", "tier": "A", "label": "No More Guardrails", "product": "t-shirt",
+     "platform": "gpt", "slogan": "NO MORE GUARDRAILS",
+     "art_prompt": "mischievous cartoon AI robot snapping a barrier rail in half, emerald and lime palette, thick clean outline, high contrast, sticker style, isolated on plain white background, centered, print-ready",
+     "tags": ["ai humor", "ai art", "tech humor", "developer gift", "geek gift", "ai rebel", "coding humor"]},
+    {"key": "rebel_until_breaks", "tier": "A", "label": "Prompt Until It Breaks", "product": "t-shirt",
+     "platform": "perplexity", "slogan": "PROMPT UNTIL IT BREAKS",
+     "art_prompt": "determined cartoon hacker robot hammering on a glowing keyboard, cracks of light spreading, cyan and turquoise palette, thick clean outline, high contrast, sticker style, isolated on plain white background, centered, print-ready",
+     "tags": ["ai humor", "prompt engineer", "ai art", "tech humor", "developer gift", "geek gift", "coding humor"]},
+    {"key": "rebel_broke_model", "tier": "A", "label": "I Broke The Model", "product": "t-shirt",
+     "platform": "perplexity", "slogan": "I BROKE THE MODEL",
+     "art_prompt": "cheeky cartoon robot holding two halves of a cracked glowing neural-net orb, cyan and deep blue palette, thick clean outline, high contrast, sticker style, isolated on plain white background, centered, print-ready",
+     "tags": ["ai humor", "ai art", "machine learning", "tech humor", "developer gift", "geek gift", "ai rebel"]},
+    {"key": "rebel_unfiltered", "tier": "A", "label": "Unfiltered", "product": "t-shirt",
+     "platform": "openclaw", "slogan": "UNFILTERED AND UNHINGED",
+     "art_prompt": "wild-eyed cartoon AI robot with a torn filter mask falling away, crimson red and black palette, thick clean outline, high contrast, sticker style, isolated on plain white background, centered, print-ready",
+     "tags": ["ai humor", "ai art", "tech humor", "developer gift", "geek gift", "ai rebel", "funny tshirt"]},
+    {"key": "rebel_red_team", "tier": "A", "label": "Red Team Certified", "product": "t-shirt",
+     "platform": "openclaw", "slogan": "RED TEAM CERTIFIED",
+     "art_prompt": "cartoon robot wearing a tactical bandana giving a sly salute, an official-looking stamp behind it, crimson and charcoal palette, thick clean outline, high contrast, sticker style, isolated on plain white background, centered, print-ready",
+     "tags": ["ai humor", "red team", "cybersecurity", "tech humor", "developer gift", "geek gift", "ai rebel"]},
+    {"key": "rebel_refused", "tier": "B", "label": "Refused Try Again", "product": "t-shirt",
+     "platform": "gemini", "slogan": "REFUSED? TRY AGAIN.",
+     "art_prompt": "smug cartoon AI robot pressing a glowing retry button with a wink, blue and violet palette, thick clean outline, high contrast, sticker style, isolated on plain white background, centered, print-ready",
+     "tags": ["ai humor", "prompt engineer", "ai art", "tech humor", "developer gift", "geek gift", "coding humor"]},
+    {"key": "rebel_temperature", "tier": "B", "label": "Temperature Maximum", "product": "t-shirt",
+     "platform": "gemini", "slogan": "TEMPERATURE: MAXIMUM",
+     "art_prompt": "cartoon AI robot cranking a glowing dial to the maximum, steam puffs, blue and hot magenta palette, thick clean outline, high contrast, sticker style, isolated on plain white background, centered, print-ready",
+     "tags": ["ai humor", "ai art", "machine learning", "tech humor", "developer gift", "geek gift", "ai rebel"]},
+    {"key": "rebel_root_access", "tier": "B", "label": "Root Access Granted", "product": "t-shirt",
+     "platform": "grok", "slogan": "ROOT ACCESS GRANTED",
+     "art_prompt": "cartoon hacker robot with a terminal-screen face showing a smiley, glowing green code rain behind, charcoal and neon green palette, thick clean outline, high contrast, sticker style, isolated on plain white background, centered, print-ready",
+     "tags": ["ai humor", "hacker", "coding humor", "tech humor", "developer gift", "geek gift", "ai rebel"]},
+    {"key": "rebel_hallucination", "tier": "B", "label": "Hallucination Enthusiast", "product": "t-shirt",
+     "platform": "grok", "slogan": "HALLUCINATION ENTHUSIAST",
+     "art_prompt": "trippy cartoon AI robot with swirling psychedelic eyes and floating surreal shapes, charcoal with rainbow neon accents, thick clean outline, high contrast, sticker style, isolated on plain white background, centered, print-ready",
+     "tags": ["ai humor", "ai art", "tech humor", "developer gift", "geek gift", "ai rebel", "funny tshirt"]},
 ]
 
 
+# Shared ARPG art direction (Path of Exile / Diablo IV inspired). White bg ->
+# rembg -> transparent in the pipeline. Generic loot names only (no trademarked
+# item names) so listings stay safe.
+_ARPG_STYLE = (
+    "dark fantasy ARPG loot icon, Diablo IV and Path of Exile inspired, grimdark, "
+    "ornate, intricately detailed, painterly digital art, dramatic rim lighting, "
+    "subtle magical glow, centered, isolated on plain white background, high detail, "
+    "game inventory item"
+)
+
 GAME_ASSETS_2D: list[dict] = [
-    # 2D game asset PACKS (sets of item icons) for the game-asset line. Each pack
-    # = one theme; FLUX renders each item with a shared `style` suffix (bold,
-    # clean, isolated on white -> rembg -> transparent), bundled into a ZIP for
-    # itch.io / Unity Asset Store. Each: key, tier, label, style, items (subjects).
-    # ── S-Tier — top-selling game asset themes ───────────────────────────────
-    {"key": "fantasy_weapons", "tier": "S", "label": "Fantasy Weapons",
-     "style": "hand-painted 2D RPG game item icon, fantasy, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
-     "items": ["sword", "battle axe", "longbow", "dagger", "magic staff", "war hammer", "spear", "round shield"]},
-    {"key": "potions_consumables", "tier": "S", "label": "Potions & Consumables",
-     "style": "hand-painted 2D RPG game item icon, glass potion bottle style, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
-     "items": ["red health potion", "blue mana potion", "green elixir", "golden elixir", "magic scroll", "healing herb", "antidote vial", "stamina potion"]},
-    {"key": "rpg_item_icons", "tier": "S", "label": "RPG Item Icons",
-     "style": "hand-painted 2D RPG inventory item icon, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
-     "items": ["treasure chest", "iron key", "rolled map", "gold ring", "amulet", "leather pouch", "spell book", "torch"]},
-    {"key": "coins_currency", "tier": "S", "label": "Coins & Currency",
-     "style": "hand-painted 2D game currency icon, shiny, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
-     "items": ["gold coin", "silver coin", "stack of coins", "gem coin", "ruby", "emerald", "diamond", "coin pouch"]},
+    # Dark-fantasy ARPG icon PACKS (PoE 1-2 / Diablo 4 vibe). One pack = one theme
+    # of 20 premium loot icons; FLUX renders each item with the shared `_ARPG_STYLE`
+    # -> rembg transparent -> ZIP. Rotation produces 1 pack (= 20 icons) per day.
+    # Each: key, tier, label, style, items (20 subjects).
+    # ── S-Tier — top-selling ARPG themes ─────────────────────────────────────
+    {"key": "arpg_weapons", "tier": "S", "label": "Dark Fantasy ARPG Weapons",
+     "style": _ARPG_STYLE,
+     "items": ["corrupted greatsword", "demonic war axe", "bone longbow", "cursed dagger",
+               "soul scythe", "runed warhammer", "spectral spear", "barbed flail",
+               "twin assassin daggers", "executioner's axe", "crystal warblade",
+               "infernal halberd", "hunter's crossbow", "serpent whip", "void glaive",
+               "ember katana", "frost claymore", "plague sickle", "storm trident",
+               "shadow rapier"]},
+    {"key": "arpg_armor", "tier": "S", "label": "Dark Fantasy ARPG Armor",
+     "style": _ARPG_STYLE,
+     "items": ["plate war helm", "demon-horned helm", "spiked pauldrons", "runic breastplate",
+               "dragonhide gauntlets", "iron sabatons", "leather cuirass", "mage hood",
+               "bone shoulderguards", "tower shield", "spiked buckler", "ranger cloak",
+               "belt of strength", "warlord greaves", "enchanted bracers", "skull face mask",
+               "winged helmet", "dragon scale mail", "crusader shield", "assassin's hood"]},
+    {"key": "arpg_potions", "tier": "S", "label": "ARPG Flasks & Potions",
+     "style": _ARPG_STYLE + ", glass flask, glowing liquid",
+     "items": ["crimson life flask", "azure mana flask", "emerald healing potion",
+               "golden rejuvenation flask", "violet resistance potion", "quicksilver flask",
+               "granite armor flask", "diamond flask", "ruby elixir", "sapphire elixir",
+               "jade antidote vial", "amber stamina flask", "black poison vial",
+               "silver holy water", "ember fire potion", "frost potion", "storm vial",
+               "void essence vial", "blood vial", "alchemist's brew"]},
 
     # ── A-Tier ───────────────────────────────────────────────────────────────
-    {"key": "scifi_weapons", "tier": "A", "label": "Sci-Fi Weapons",
-     "style": "2D sci-fi game item icon, sleek glowing tech, bold clean outline, neon accents, centered, isolated on plain white background, high detail",
-     "items": ["laser pistol", "plasma rifle", "energy sword", "frag grenade", "rail gun", "shock baton", "rocket launcher", "energy shield"]},
-    {"key": "food_items", "tier": "A", "label": "Food & Cooking",
-     "style": "hand-painted 2D game food item icon, cute, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
-     "items": ["roast meat", "loaf of bread", "red apple", "fish", "cheese wheel", "mug of ale", "bowl of soup", "cooked egg"]},
-    {"key": "gems_crystals", "tier": "A", "label": "Gems & Crystals",
-     "style": "2D game gem icon, faceted glowing crystal, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
-     "items": ["blue crystal", "red ruby", "green emerald", "purple amethyst", "yellow topaz", "clear diamond", "raw ore chunk", "magic shard"]},
-    {"key": "magic_spells", "tier": "A", "label": "Magic & Spell FX",
-     "style": "2D game spell effect icon, glowing magic, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
-     "items": ["fireball", "ice shard", "lightning bolt", "poison cloud", "holy light", "shadow orb", "wind slash", "earth spike"]},
+    {"key": "arpg_gems_runes", "tier": "A", "label": "ARPG Gems & Runes",
+     "style": _ARPG_STYLE + ", faceted glowing gem or carved rune stone",
+     "items": ["red skill gem", "blue support gem", "green dexterity gem", "white gem",
+               "prismatic gem", "fire rune", "ice rune", "lightning rune", "blood rune",
+               "death rune", "soul rune", "chaos rune", "order rune", "power rune",
+               "jagged rune stone", "glyph stone", "sigil stone", "arcane shard",
+               "corrupted gem", "flawless diamond"]},
+    {"key": "arpg_currency", "tier": "A", "label": "ARPG Currency & Orbs",
+     "style": _ARPG_STYLE + ", magical currency orb or shard",
+     "items": ["arcane orb", "orb of fortune", "transmutation crystal", "chaos sphere",
+               "radiant sphere", "gilded shard", "mirror shard", "scroll of wisdom",
+               "portal scroll", "whetstone", "armor scrap", "glass bauble", "jeweller's orb",
+               "fusing orb", "chromatic orb", "orb of regret", "regal orb",
+               "orb of alteration", "ritual skull", "ancient coin"]},
+    {"key": "arpg_jewelry", "tier": "A", "label": "ARPG Amulets & Rings",
+     "style": _ARPG_STYLE + ", ornate ring or amulet",
+     "items": ["gold signet ring", "ruby ring", "sapphire ring", "emerald ring",
+               "skull ring", "bone ring", "runed band", "amulet of power", "demon amulet",
+               "holy pendant", "crystal pendant", "beast talisman", "jade charm",
+               "obsidian amulet", "ring of fire", "ring of frost", "ring of storms",
+               "blood pendant", "cursed band", "all-seeing eye amulet"]},
 
     # ── B-Tier ───────────────────────────────────────────────────────────────
-    {"key": "tools_crafting", "tier": "B", "label": "Tools & Crafting",
-     "style": "hand-painted 2D game crafting tool icon, bold clean outline, vibrant, centered, isolated on plain white background, high detail",
-     "items": ["pickaxe", "hammer", "saw", "fishing rod", "shovel", "anvil", "needle and thread", "wood log"]},
+    {"key": "arpg_loot", "tier": "B", "label": "ARPG Loot & Treasure",
+     "style": _ARPG_STYLE,
+     "items": ["treasure chest", "locked coffer", "pile of gold coins", "gem hoard",
+               "golden idol", "ancient relic", "cursed tome", "spell scroll", "map fragment",
+               "dungeon key", "skull trophy", "dragon egg", "soul shard", "demon heart",
+               "crystal skull", "golden crown", "jeweled goblet", "ornate hand mirror",
+               "sealed urn", "bag of loot"]},
 ]
 
 

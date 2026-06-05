@@ -146,7 +146,8 @@
     "stl_target_size_mm": 150.0,
     "pod_art_size": 1024,
     "game2d_item_size": 768,
-    "game2d_max_items": 8,
+    "game2d_max_items": 20,
+    "pod_per_run": 10,
     "image_backend": "auto",
     "valkyrie_score_threshold": 60,
     "premium_quality": "high"
