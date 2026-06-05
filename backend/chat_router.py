@@ -404,6 +404,16 @@ _STL_KW = re.compile(
     re.I,
 )
 
+# Image jointe + intention 3D/impression -> on déclenche la VRAIE mission
+# image-to-3D (forge) au lieu de laisser le modèle de chat HALLUCINER "Meshy en
+# cours… export…". Volontairement resserré (pas "personnage"/"modèle" seuls pour
+# éviter de se déclencher sur un simple "décris ce personnage").
+_STL_IMG_INTENT = re.compile(
+    r"\bstl\b|\b3d\b|3d[\s-]?print|imprim|\bprint\b|figurine|maquette|sculpt|"
+    r"\bmeshy\b|\bbambu\b|mod[eè]le\s*3d|statue|miniature|\bforge\b",
+    re.I,
+)
+
 
 def _needs_memory(msg: str) -> bool:
     """Déclenche l'injection brain/vault : message long, complexe, ou debug."""
@@ -589,6 +599,65 @@ def chat_completion(req: ChatRequest, request: Request):
             "created": int(time.time()),
             "choices": [{"index": 0, "message": {"role": "assistant", "content": cheat_text}, "finish_reason": "stop"}],
             "usage":   {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        }
+    # ─────────────────────────────────────────────────────────
+
+    # ── Shortcut IMAGE -> STL (image-to-3D) — déclenche la VRAIE mission forge
+    #    au lieu de laisser JARVIS halluciner le pipeline. Une image jointe + une
+    #    intention 3D/impression => mission image-to-3D réelle (Meshy -> STL),
+    #    lancée via /v1/forge/mission (retour immédiat, run en arrière-plan). ──
+    _last_user_imgs = None
+    if req.messages:
+        for _m in reversed(req.messages):
+            if _m.role == "user" and _m.images:
+                _last_user_imgs = _m.images
+                break
+    if _routing_on and _last_user_imgs and _STL_IMG_INTENT.search(last_user_msg):
+        import os as _os
+        import urllib.request as _ureq
+        _img0 = _last_user_imgs[0]
+        _data_uri = _img0 if _img0.startswith("data:") else f"data:image/png;base64,{_img0}"
+        _auto_bambu = bool(re.search(r"\bbambu\b", last_user_msg, re.I))
+        _prompt_txt = (last_user_msg.strip() or "image-to-3D model")[:300]
+        _port = _os.getenv("BACKEND_PORT", "8000")
+        _payload = json.dumps({"prompt": _prompt_txt, "image": _data_uri,
+                               "auto_bambu": _auto_bambu}).encode()
+        try:
+            _rq = _ureq.Request(f"http://127.0.0.1:{_port}/v1/forge/mission",
+                                data=_payload, method="POST",
+                                headers={"Content-Type": "application/json"})
+            with _ureq.urlopen(_rq, timeout=30) as _rsp:   # noqa: S310 - localhost self-call
+                _fdata = json.loads(_rsp.read().decode())
+            _mid = _fdata.get("mission_id")
+        except Exception as _fe:
+            _fdata, _mid = {"error": str(_fe)}, None
+        if _mid:
+            _stl_text = (
+                f"Mission STL image-to-3D lancee : #{_mid}.\n\n"
+                "Meshy genere le modele 3D a partir de ton image (environ 2 a 3 "
+                "minutes), puis reparation, orientation FDM et export STL. "
+                + ("Bambu Studio s'ouvrira automatiquement a la fin. " if _auto_bambu else "")
+                + "Le STL final arrive dans le dossier Jarvis/STL ; suis l'avancement "
+                "reel dans le Pipeline Hub ou le Forge Hub. La generation tourne "
+                "vraiment en arriere-plan (aucune simulation)."
+            )
+        else:
+            _stl_text = ("Echec du lancement de la mission STL : "
+                         f"{_fdata.get('detail') or _fdata.get('error') or 'reponse inattendue'}. "
+                         "Verifie que le backend et Meshy sont operationnels.")
+        add_message(session_id, "assistant", _stl_text)
+        _stl_id = f"chatcmpl-stl-{int(time.time())}"
+        if req.stream:
+            return StreamingResponse(
+                _stream_text(_stl_text, "stl-image-to-3d", _stl_id),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
+        return {
+            "id": _stl_id, "object": "chat.completion", "model": "stl-image-to-3d",
+            "created": int(time.time()),
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": _stl_text}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
     # ─────────────────────────────────────────────────────────
 
