@@ -146,31 +146,34 @@ def _uuid() -> str:
 
 
 def _build_project_settings(palette_hex: list[str]) -> str:
-    """Charge le profil Bambu template (A1 0.4 nozzle, AMS) et y injecte la palette."""
+    """Charge le profil Bambu template (X1C 0.4, AMS) et l'aligne sur n filaments.
+
+    Le template est un profil 2 filaments : pour n≠2 il FAUT redimensionner TOUS les
+    tableaux par-filament (longueur == nb filaments d'origine) ET les matrices de purge
+    (flush_volumes_matrix n×n, flush_volumes_vector 2n) — sinon Bambu refuse avec
+    « invalid configuration » (tableaux de tailles incohérentes)."""
     n = len(palette_hex)
     try:
         prof = json.loads(_TEMPLATE.read_text(encoding="utf-8"))
     except Exception:
         prof = {}
 
+    orig = len(prof.get("filament_colour", [])) or 2
+
+    if orig != n:
+        # Tout tableau par-filament (longueur == orig) → longueur n (répète le dernier).
+        # Les coordonnées plateau (printable_area, bed_exclude_area… longueur 4) ne sont
+        # PAS de longueur orig → épargnées.
+        for k, v in list(prof.items()):
+            if isinstance(v, list) and len(v) == orig:
+                prof[k] = [v[i] if i < len(v) else v[-1] for i in range(n)]
+        # Matrices de purge AMS recalculées pour n filaments.
+        prof["flush_volumes_matrix"] = [
+            ("0" if i == j else "280") for i in range(n) for j in range(n)
+        ]
+        prof["flush_volumes_vector"] = ["140"] * (2 * n)
+
     prof["filament_colour"] = list(palette_hex)
-
-    # Aligner la longueur des tableaux filament_* sur le nombre de couleurs.
-    def _fit(key: str, fill):
-        cur = prof.get(key)
-        if not isinstance(cur, list) or not cur:
-            prof[key] = [fill] * n
-            return
-        base = cur[0]
-        prof[key] = [(cur[i] if i < len(cur) else base) for i in range(n)]
-
-    _fit("filament_type", "PLA")
-    _fit("filament_settings_id", "Generic PLA @BBL A1")
-    for k in ("filament_ids", "filament_is_support", "filament_flow_ratio",
-              "filament_max_volumetric_speed", "nozzle_temperature",
-              "nozzle_temperature_initial_layer", "filament_diameter"):
-        if k in prof and isinstance(prof[k], list) and prof[k]:
-            _fit(k, prof[k][0])
     return json.dumps(prof, ensure_ascii=False, indent=4)
 
 
@@ -489,6 +492,204 @@ def _image_to_png_bytes(thumbnail_path: "Path | str | None") -> bytes | None:
         return data
     except Exception:
         return None
+
+
+# Codes paint_color Bambu mmu (décodés sur OpenClaw3D.3mf = 3 filaments → 4/8/0C) :
+# filament 2 = "4", filament 3 = "8", filament 4 = "0C". (Pas de paint = filament 1.)
+PAINT_CODE = {2: "4", 3: "8", 4: "0C"}
+
+
+def _mesh_xml_painted(mesh: trimesh.Trimesh, paint_codes: list) -> str:
+    """Mesh XML avec paint_color par triangle (code Bambu mmu) ; chaîne vide = pas de
+    peinture (= filament 1). Garde UN seul objet étanche → ne flotte pas."""
+    V = np.asarray(mesh.vertices)
+    F = np.asarray(mesh.faces)
+    verts = "".join(f'<vertex x="{x:.5f}" y="{y:.5f}" z="{z:.5f}"/>' for x, y, z in V)
+    tris = []
+    for i in range(len(F)):
+        a, b, c = F[i]
+        code = paint_codes[i]
+        if code:
+            tris.append(f'<triangle v1="{a}" v2="{b}" v3="{c}" paint_color="{code}"/>')
+        else:
+            tris.append(f'<triangle v1="{a}" v2="{b}" v3="{c}"/>')
+    return f"<mesh><vertices>{verts}</vertices><triangles>{''.join(tris)}</triangles></mesh>"
+
+
+def write_bambu_paint_3mf(
+    mesh: trimesh.Trimesh,
+    paint_codes: list,
+    palette_hex: list[str],
+    out_path: Path,
+    name: str = "forge_model",
+    thumbnail_bytes: "bytes | None" = None,
+) -> Path:
+    """Écrit un .3mf Bambu où des triangles sont peints (paint_color) sur UN SEUL objet
+    étanche — pour colorer des détails (yeux) sans découper le solide (donc sans le
+    faire flotter). filament_colour = palette ; paint_color "4"/"8" = filament 2/3."""
+    out_path = Path(out_path)
+    m = mesh.copy()
+    mins = m.bounds[0]
+    ext = m.extents
+    m.apply_translation([
+        _BED_MM / 2.0 - (mins[0] + ext[0] / 2.0),
+        _BED_MM / 2.0 - (mins[1] + ext[1] / 2.0),
+        -mins[2],
+    ])
+
+    mesh_xml = _mesh_xml_painted(m, paint_codes)
+    model = (
+        "<?xml version='1.0' encoding='UTF-8'?>\n"
+        '<model unit="millimeter" xml:lang="en-US" '
+        'xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" '
+        'xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" '
+        'requiredextensions="p" '
+        'xmlns:BambuStudio="http://schemas.bambulab.com/package/2021">'
+        '<metadata name="Application">BambuStudio-02.06.00.51</metadata>'
+        '<metadata name="BambuStudio:3mfVersion">1</metadata>'
+        f'<resources><object id="1" p:UUID="{_uuid()}" type="model">{mesh_xml}</object></resources>'
+        f'<build><item objectid="1" p:UUID="{_uuid()}" '
+        'transform="1 0 0 0 1 0 0 0 1 0 0 0" printable="1"/></build>'
+        "</model>"
+    )
+    model_settings = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n<config>\n'
+        '  <object id="1">\n'
+        f'    <metadata key="name" value="{name}"/>\n'
+        '    <metadata key="extruder" value="1"/>\n'
+        f'    <metadata face_count="{len(m.faces)}"/>\n'
+        "  </object>\n</config>\n"
+    )
+    project_settings = _build_project_settings(palette_hex)   # direct (pas d'inversion)
+
+    thumb_bytes = thumbnail_bytes
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>'
+        '<Default Extension="png" ContentType="image/png"/>'
+        "</Types>"
+    )
+    _thumb_rel = (
+        '<Relationship Target="/Auxiliaries/.thumbnails/thumbnail_3mf.png" Id="rel-thumb" '
+        'Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/>'
+        if thumb_bytes else ''
+    )
+    rels = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Target="/3D/3dmodel.model" Id="rel0" '
+        'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>'
+        f'{_thumb_rel}'
+        "</Relationships>"
+    )
+    slice_info = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n<config>\n  <header>\n'
+        '    <header_item key="X-BBL-Client-Type" value="slicer"/>\n'
+        '    <header_item key="X-BBL-Client-Version" value="02.06.00.51"/>\n'
+        '  </header>\n</config>\n'
+    )
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", content_types)
+        z.writestr("_rels/.rels", rels)
+        z.writestr("3D/3dmodel.model", model)
+        z.writestr("Metadata/model_settings.config", model_settings)
+        z.writestr("Metadata/project_settings.config", project_settings)
+        z.writestr("Metadata/slice_info.config", slice_info)
+        if thumb_bytes:
+            z.writestr("Auxiliaries/.thumbnails/thumbnail_3mf.png", thumb_bytes)
+            z.writestr("Metadata/plate_1.png", thumb_bytes)
+    return out_path
+
+
+def enlarge_feet(mesh: trimesh.Trimesh, bottom_frac: float | None = None,
+                 factor: float | None = None) -> trimesh.Trimesh:
+    """Élargit le bas (pieds) en XY pour qu'une figurine tienne debout. Scale gradué :
+    plein au sol, nul à bottom_frac de la hauteur. Préserve la topologie (donc les
+    couleurs par sommet). Réglable via FORGE_FEET_FRAC / FORGE_FEET_FACTOR."""
+    import os
+    if bottom_frac is None:
+        bottom_frac = float(os.getenv("FORGE_FEET_FRAC", "0.12"))
+    if factor is None:
+        factor = float(os.getenv("FORGE_FEET_FACTOR", "0.6"))
+    m = mesh.copy()
+    V = np.asarray(m.vertices, dtype=np.float64).copy()
+    zmin = float(V[:, 2].min())
+    h = float(np.ptp(V[:, 2])) or 1.0
+    cx, cy = float(V[:, 0].mean()), float(V[:, 1].mean())
+    t = np.clip((zmin + bottom_frac * h - V[:, 2]) / (bottom_frac * h), 0.0, 1.0)
+    fac = 1.0 + factor * t
+    V[:, 0] = cx + (V[:, 0] - cx) * fac
+    V[:, 1] = cy + (V[:, 1] - cy) * fac
+    m.vertices = V
+    m.apply_translation([0, 0, -m.bounds[0][2]])   # repose à plat sur le plateau
+    return m
+
+
+def paint_figurine_3mf(
+    colored_mesh: trimesh.Trimesh,
+    out_path: Path,
+    name: str = "figurine",
+    thumbnail_path: "Path | str | None" = None,
+    ring_hex: str = "#1A1A1A",
+    center_hex: str = "#F0F0F0",
+    widen_feet: bool = True,
+) -> tuple[Path | None, list[str]]:
+    """Figurine : élargit les pieds (tient debout) + peint les yeux en 2 tons par
+    paint_color sur UN SEUL objet étanche (ne flotte pas) : contour sombre (filament 2)
+    + centre clair (filament 3), comme un vrai œil. Retourne (chemin|None, palette
+    [corps, contour, centre]). None si aucune zone distincte (→ mono géré ailleurs)."""
+    mesh = enlarge_feet(colored_mesh) if widen_feet else colored_mesh
+    fc = extract_face_colors(mesh)
+    if fc is None:
+        return None, []
+    fc = fc.astype(int)
+    # Yeux = teintes bleutées (B > R) — isole le cyan sans toucher le rouge/les ombres.
+    eye = fc[:, 2] > (fc[:, 0] + 10)
+    if int(eye.sum()) < max(20, int(0.002 * len(fc))):
+        return None, []
+
+    # Œil cartoon : contour sombre + point blanc au CENTRE de chaque œil (géométrique,
+    # car la texture Meshy rend les yeux uniformément sombres — pas de vrai centre clair).
+    eye_idx = np.where(eye)[0]
+    ec = mesh.triangles_center[eye]
+    center = np.zeros(len(fc), dtype=bool)
+    if len(ec):
+        xmed = float(np.median(ec[:, 0]))          # sépare œil gauche / droit
+        for g in (ec[:, 0] < xmed, ec[:, 0] >= xmed):
+            if not g.any():
+                continue
+            pts = ec[g]
+            c = pts.mean(axis=0)
+            r = np.linalg.norm(pts[:, [0, 2]] - c[[0, 2]], axis=1)
+            inner = r < 0.42 * (float(r.max()) or 1.0)
+            center[eye_idx[g][inner]] = True        # centre → blanc
+    ring = eye & ~center                            # contour → sombre
+
+    body = np.median(fc[~eye], axis=0).astype(int) if (~eye).any() else np.array([200, 40, 30])
+    body_hex = "#%02X%02X%02X" % (int(body[0]), int(body[1]), int(body[2]))
+    palette = [body_hex, ring_hex, center_hex]      # filaments 1, 2, 3
+
+    paint_codes = [""] * len(fc)
+    for i in np.where(ring)[0]:
+        paint_codes[i] = PAINT_CODE[2]              # "4" → filament 2 (contour)
+    for i in np.where(center)[0]:
+        paint_codes[i] = PAINT_CODE[3]              # "8" → filament 3 (centre)
+
+    def _rgb(h):
+        h = h.lstrip("#")
+        return np.array([int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)], dtype=float)
+    fcol = np.tile(_rgb(body_hex), (len(fc), 1))
+    fcol[ring] = _rgb(ring_hex)
+    fcol[center] = _rgb(center_hex)
+    thumb = render_thumbnail_png(mesh, face_colors=fcol) or _image_to_png_bytes(thumbnail_path)
+
+    path = write_bambu_paint_3mf(mesh, paint_codes, palette, Path(out_path),
+                                 name=name, thumbnail_bytes=thumb)
+    return path, palette
 
 
 def colorize_to_3mf(
