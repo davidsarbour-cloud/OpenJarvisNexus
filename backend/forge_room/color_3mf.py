@@ -516,9 +516,23 @@ def colorize_to_3mf(
 
     if face_idx is None:
         face_colors = extract_face_colors(colored_mesh)
-        if face_colors is None:
+        if n_colors <= 1:
+            # MONO : 1 seul part watertight. Indispensable pour les figurines/solides
+            # organiques : un split 2-parts y crée 2 coquilles ouvertes que Bambu
+            # traite comme 2 objets séparés → l'un flotte, l'autre devient un "cube".
+            if face_colors is not None:
+                base = face_colors.mean(axis=0).astype(int)
+            else:
+                # Pas de couleur sur le maillage → couleur dominante de l'image source.
+                ip = _image_dominant_palette(image_path, 2) if image_path else None
+                h = ip[0].lstrip("#") if ip else "B4B4B4"
+                base = np.array([int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)])
+            palette_hex = ["#%02X%02X%02X" % (int(base[0]), int(base[1]), int(base[2]))]
+            face_idx = np.zeros(len(colored_mesh.faces), dtype=int)
+        elif face_colors is None:
             return None, []
-        palette_hex, face_idx = quantize_faces(face_colors, n_colors=n_colors)
+        else:
+            palette_hex, face_idx = quantize_faces(face_colors, n_colors=n_colors)
 
     # Couleurs par face d'après la palette (pour une miniature fidèle au résultat).
     _pal_rgb = np.array(

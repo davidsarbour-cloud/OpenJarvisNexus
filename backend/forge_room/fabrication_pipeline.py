@@ -681,7 +681,10 @@ async def run_forge_pipeline(mission_id: str) -> None:
             if _colored or (_flat_exp and _img_src):
                 try:
                     from forge_room.color_3mf import colorize_to_3mf
-                    _n = int(os.getenv("FORGE_AMS_COLORS", "2"))
+                    # 2 couleurs AMS pour les jetons plats (split base/relief propre) ;
+                    # 1 couleur (mono, 1 part watertight) pour les figurines organiques
+                    # → évite l'objet qui flotte + le "cube" dans Bambu.
+                    _n = int(os.getenv("FORGE_AMS_COLORS", "2")) if _flat_exp else 1
                     _cname = ("".join(c if c.isalnum() or c in " -_" else "_"
                                       for c in m["prompt"][:40]).strip().replace(" ", "_")
                               or m["id"])
