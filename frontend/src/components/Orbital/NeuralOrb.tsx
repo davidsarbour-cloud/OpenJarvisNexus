@@ -50,6 +50,9 @@ export function NeuralOrb({
     return { positions, scales };
   }, [count, radius]);
 
+  // `size` is pushed to uSize live in useFrame (below), so it's intentionally
+  // NOT a dep here — otherwise toggling `speaking` (4.5↔5) would rebuild the
+  // whole uniforms object and re-bind the material every time JARVIS speaks.
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
@@ -57,11 +60,15 @@ export function NeuralOrb({
       uColor: { value: new THREE.Color(color) },
       uTurb: { value: turbulence },
     }),
-    [size, color, turbulence]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [color, turbulence]
   );
 
   useFrame((state, delta) => {
-    if (matRef.current) matRef.current.uniforms.uTime.value = state.clock.elapsedTime;
+    if (matRef.current) {
+      matRef.current.uniforms.uTime.value = state.clock.elapsedTime;
+      matRef.current.uniforms.uSize.value = size; // live, no uniforms rebuild
+    }
     if (pointsRef.current) {
       pointsRef.current.rotation.y += delta * 0.08;
       pointsRef.current.rotation.x += delta * 0.02;
@@ -69,7 +76,9 @@ export function NeuralOrb({
   });
 
   return (
-    <points ref={pointsRef}>
+    // keyed by count+radius so a runtime change remounts (re-uploads buffers)
+    // instead of mutating attribute args in place
+    <points key={`${count}-${radius}`} ref={pointsRef}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
         <bufferAttribute attach="attributes-aScale" args={[scales, 1]} />

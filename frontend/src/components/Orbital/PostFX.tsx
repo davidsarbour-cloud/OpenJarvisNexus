@@ -13,12 +13,12 @@ import { Vector2 } from 'three';
  * PostFX -- cinematic holographic post-processing rig.
  *
  * Art direction (EVE / tactical hologram):
- *   - DOF              : focused on the orbital plane (camera dist 18 /
- *                        far 200 -> focusDistance = 18/200 = 0.09).
- *                        Wide DOF (low focalLength) keeps every planet
- *                        crisp; only far stars (depth > 60) get soft.
- *   - Bloom            : restrained, threshold 0.55. Only JARVIS hot
- *                        shells and the brightest noise peaks lift.
+ *   - DOF              : focusDistance 0.09 (focal plane ~depth 18 of far 200);
+ *                        the camera sits ~39 out, so the very wide DOF (low
+ *                        focalLength) keeps every planet crisp and only far
+ *                        stars (depth > 60) go soft.
+ *   - Bloom            : restrained, threshold 0.35 / intensity 0.85. Only
+ *                        JARVIS hot shells and the brightest noise peaks lift.
  *   - ChromaticAberration: micro fringe, ~0.4 px on 1080p.
  *   - Noise            : 3% grain to kill banding.
  *   - Vignette         : 60% darkness, frames the orbital plane.
