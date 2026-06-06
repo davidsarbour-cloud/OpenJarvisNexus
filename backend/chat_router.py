@@ -647,13 +647,8 @@ def chat_completion(req: ChatRequest, request: Request):
         if _mid:
             _LAST_FORGE_MISSION[session_id] = _mid   # pour les questions de statut
             _stl_text = (
-                f"Mission STL image-to-3D lancee : #{_mid}.\n\n"
-                "Meshy genere le modele 3D a partir de ton image (environ 2 a 3 "
-                "minutes), puis reparation, orientation FDM et export STL. "
-                + ("Bambu Studio s'ouvrira automatiquement a la fin. " if _auto_bambu else "")
-                + "Le STL final arrive dans le dossier Jarvis/STL ; suis l'avancement "
-                "reel dans le Pipeline Hub ou le Forge Hub. La generation tourne "
-                "vraiment en arriere-plan (aucune simulation)."
+                f"C'est parti — mission #{_mid} lancee, je m'en occupe."
+                + (" Bambu s'ouvre a la fin." if _auto_bambu else "")
             )
         else:
             _stl_text = ("Echec du lancement de la mission STL : "
