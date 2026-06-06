@@ -12,7 +12,9 @@ from datetime import datetime
 from pathlib import Path
 
 from build_pack import md_to_pdf, render_cover
-from PIL import Image, ImageDraw, ImageFont
+from pack_common import hex_rgb as hx
+from pack_common import load_font as F
+from PIL import Image, ImageDraw
 
 BACKEND = Path(__file__).resolve().parent
 PSRC = BACKEND / "packs_src"
@@ -23,19 +25,7 @@ ACCENT = "#d97757"
 KEY, TITLE, PRICE = "claude_mega_edition", "The Complete Claude OS — Mega Edition", 29.99
 
 # ---------- diagram toolkit (light theme, print-friendly) ----------
-FONTS = r"C:\Windows\Fonts"
-
-
-def F(name, sz):
-    try:
-        return ImageFont.truetype(str(Path(FONTS) / name), sz)
-    except Exception:
-        return ImageFont.load_default()
-
-
-def hx(c):
-    c = c.lstrip("#")
-    return tuple(int(c[i : i + 2], 16) for i in (0, 2, 4))
+# hx (hex->RGB) and F (font loader) come from pack_common.
 
 
 ACC, DARK, GREY, CARD, BORD, BG = (

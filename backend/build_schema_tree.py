@@ -3,22 +3,9 @@
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
-
-FONTS = r"C:\Windows\Fonts"
-
-
-def fnt(n, s):
-    try:
-        return ImageFont.truetype(str(Path(FONTS) / n), s)
-    except Exception:
-        return ImageFont.load_default()
-
-
-def hx(c):
-    c = c.lstrip("#")
-    return tuple(int(c[i : i + 2], 16) for i in (0, 2, 4))
-
+from pack_common import hex_rgb as hx
+from pack_common import load_font as fnt
+from PIL import Image, ImageDraw
 
 PARTS = [
     (

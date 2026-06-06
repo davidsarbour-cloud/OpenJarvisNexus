@@ -29,6 +29,9 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
+from pack_common import hex_rgb as _hex
+from pack_common import load_font
+
 BACKEND_DIR = Path(__file__).resolve().parent
 DEFS_FILE = BACKEND_DIR / "bundle_defs.json"
 BUNDLES_OUT = BACKEND_DIR / "bundles_output"
@@ -85,25 +88,14 @@ def _latest_atoms(line: str, key_patterns: list[str]) -> list[dict]:
 # ── cover art ─────────────────────────────────────────────────────────────────
 
 
-def _hex(c: str) -> tuple[int, int, int]:
-    c = c.lstrip("#")
-    return tuple(int(c[i : i + 2], 16) for i in (0, 2, 4))  # type: ignore
-
-
 def _render_cover(title: str, tier: str, n_packs: int, accent: str, out_dir: Path) -> None:
     """Write cover.png (2000x2000 Etsy) + cover_wide.png (1280x720 Gumroad)."""
     try:
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image, ImageDraw
     except Exception as e:
         print(f"  [cover] PIL unavailable ({e}) — skipping cover")
         return
-    fonts = r"C:\Windows\Fonts"
-
-    def font(name, sz):
-        try:
-            return ImageFont.truetype(str(Path(fonts) / name), sz)
-        except Exception:
-            return ImageFont.load_default()
+    font = load_font  # shared loader (pack_common); WIN_FONTS default
 
     acc = _hex(accent)
     bg = (14, 17, 23)

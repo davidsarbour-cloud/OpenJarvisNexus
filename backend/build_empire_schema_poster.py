@@ -2,7 +2,8 @@
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from pack_common import load_font as F
+from PIL import Image, ImageDraw
 
 W, H = 2000, 3200
 BG = (14, 17, 23)
@@ -18,13 +19,6 @@ C_SKILL = (188, 140, 255)  # purple
 C_VISUAL = (255, 123, 114)  # coral
 C_VAULT = (240, 180, 41)  # gold
 C_ATOM = (255, 255, 255)
-
-FONTS = r"C:\Windows\Fonts"
-
-
-def F(name, size):
-    return ImageFont.truetype(str(Path(FONTS) / name), size)
-
 
 f_title = F("arialbd.ttf", 64)
 f_sub = F("arial.ttf", 30)

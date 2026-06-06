@@ -16,26 +16,16 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
+from pack_common import hex_rgb as _hex
+from pack_common import load_font as fnt
+
 BACKEND_DIR = Path(__file__).resolve().parent
 _JARVIS_STL = Path(os.getenv("JARVIS_STL_DIR", r"C:\Users\bobby\OneDrive\Bureau\Jarvis\STL"))
 JARVIS_AIPACK_DIR = Path(os.getenv("JARVIS_AIPACK_DIR", str(_JARVIS_STL.parent / "AIPacks")))
 
 
-def _hex(c):
-    c = c.lstrip("#")
-    return tuple(int(c[i : i + 2], 16) for i in (0, 2, 4))
-
-
 def render_cover(title, subtitle, badge, accent, out_dir):
-    from PIL import Image, ImageDraw, ImageFont
-
-    fonts = r"C:\Windows\Fonts"
-
-    def fnt(name, sz):
-        try:
-            return ImageFont.truetype(str(Path(fonts) / name), sz)
-        except Exception:
-            return ImageFont.load_default()
+    from PIL import Image, ImageDraw
 
     acc, bg, white, mute = _hex(accent), (13, 17, 23), (235, 240, 245), (139, 148, 158)
 
