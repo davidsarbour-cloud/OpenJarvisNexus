@@ -67,7 +67,7 @@ import { ToolCallCard } from '../components/Chat/ToolCallCard';
 import {
   statusColor, StatusBadge, StatusDot, formatCost, formatRelativeTime,
   formatSchedule, Tooltip, TEMPLATE_INSTRUCTIONS, TOOL_CATEGORY_ORDER,
-  TOOL_CATEGORY_LABELS, type AgentStatus,
+  TOOL_CATEGORY_LABELS,
 } from './agentHelpers';
 
 // ---------------------------------------------------------------------------

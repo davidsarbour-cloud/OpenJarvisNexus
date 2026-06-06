@@ -60,10 +60,10 @@ def _write_skill_brain_note(
             "note":   relative_note,
             "skill":  skill_name,
         }
-        loop = _aio.get_event_loop()
-        if loop.is_running():
+        try:
+            loop = _aio.get_running_loop()   # py3.12: get_event_loop() raises if no loop
             loop.create_task(hub.publish(evt))
-        else:
+        except RuntimeError:
             _aio.run(hub.publish(evt))
     except Exception as e:
         logger.debug(f"Event publish failed for {skill_name}: {e}")
