@@ -1,0 +1,50 @@
+{
+  "_comment": "Definitions des bundles (matriochka). recompose.py lit ce fichier, ramasse les atomes .zip deja produits par l'Auto-Factory dans les dossiers Jarvis, et les empile en gros packs a vendre plus cher. 'includes.lines' = quelles lignes (icons/game2d/uikit/aipack/pod/shopify/stl/premium). 'includes.keys' = motifs glob sur la cle de l'atome (* = tout). Edite/ajoute librement.",
+  "bundles": [
+    {
+      "id": "claude_complete_bundle",
+      "title": "Claude Complete - Master Claude AI & Claude Code",
+      "tier": "mega",
+      "price_usd": 19.99,
+      "accent": "#d97757",
+      "blurb": "Everything to master Claude in one bundle: the Claude Code Zero-to-Pro field guide (30 workflows), the Claude Mastery Guide (models, prompting, MCP, API), and the Claude Skills Pack (8 installable Claude Code skills).",
+      "includes": { "lines": ["aipack"], "keys": ["claude_code_zero_to_pro", "claude_mastery_guide", "claude_skills_pack"] }
+    },
+    {
+      "id": "icon_vault_all",
+      "title": "Ultimate Icon Pack Vault - Every Aesthetic",
+      "tier": "mega",
+      "price_usd": 29.99,
+      "accent": "#bc8cff",
+      "blurb": "Tous les packs d'icones (iOS + Android + Stream Deck) reunis dans un seul vault. Nouveaux styles ajoutes chaque semaine.",
+      "includes": { "lines": ["icons"], "keys": ["*"] }
+    },
+    {
+      "id": "game_dev_starter",
+      "title": "Indie Game Dev Asset Bundle - 2D Icons + UI Kits",
+      "tier": "bundle",
+      "price_usd": 24.99,
+      "accent": "#ff7b72",
+      "blurb": "Packs d'assets 2D ARPG + kits d'interface de jeu. Pret a deposer dans Unity / Godot.",
+      "includes": { "lines": ["game2d", "uikit"], "keys": ["*"] }
+    },
+    {
+      "id": "ai_prompt_empire",
+      "title": "The AI Prompt Empire - Every Business Agent Pack",
+      "tier": "mega",
+      "price_usd": 39.99,
+      "accent": "#58a6ff",
+      "blurb": "Chaque kit de prompts Claude/GPT par metier (immobilier, marketing, e-commerce, coach...) dans un seul mega-pack.",
+      "includes": { "lines": ["aipack"], "keys": ["*"] }
+    },
+    {
+      "id": "pod_tee_collection",
+      "title": "AI Humor T-Shirt Design Collection - Print Ready",
+      "tier": "bundle",
+      "price_usd": 19.99,
+      "accent": "#3fb950",
+      "blurb": "Collection de designs print-on-demand prets a imprimer (fond transparent, centre).",
+      "includes": { "lines": ["pod"], "keys": ["*"] }
+    }
+  ]
+}
