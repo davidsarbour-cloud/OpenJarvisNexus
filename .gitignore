@@ -181,6 +181,8 @@ backend/premium_output/
 backend/bundles_output/
 backend/previews/
 backend/error_logs/
+backend/forge_reports/
+backend/rapport_nexusx9.html
 backend/vault/claude-mem
 session_logs/
 
