@@ -11,7 +11,7 @@ from pathlib import Path
 
 from forge_room.deepseek_coder_bridge import generate_code_async
 
-OPENSCAD_PATH = os.getenv("OPENSCAD_PATH", r"C:\Program Files\OpenSCAD (Nightly)\openscad.exe")
+OPENSCAD_PATH = os.getenv("OPENSCAD_PATH", r"C:\Program Files\OpenSCAD\openscad.exe")
 
 _OPENSCAD_SYSTEM = """You are an OpenSCAD 2025 expert. Output ONLY valid OpenSCAD code. No explanations, no markdown, no comments.
 

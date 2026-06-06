@@ -202,6 +202,32 @@ async def forge_bambu_handoff(mission_id: str):
         raise HTTPException(status_code=500, detail=f"Lancement Bambu echoue: {e}") from e
 
 
+@router.post("/refix/{mission_id}")
+async def refix_forge_mission(mission_id: str):
+    """Re-corrige une mission existante (orientation debout/couché, socle, couleurs AMS)
+    depuis son maillage BRUT sauvegardé, SANS relancer Meshy (zéro crédit). Utile quand
+    le pipeline a été amélioré après coup."""
+    import asyncio
+
+    from forge_room.fabrication_pipeline import reprocess_from_raw
+
+    m = get_mission(mission_id.upper())
+    if not m:
+        raise HTTPException(status_code=404, detail=f"Mission {mission_id} introuvable")
+    if not m.get("files", {}).get("raw_stl"):
+        raise HTTPException(status_code=409, detail="Pas de maillage brut sauvegardé pour cette mission")
+
+    ok = await asyncio.to_thread(reprocess_from_raw, m)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Re-correction échouée (maillage/couleur indisponible)")
+    return {
+        "status": "refixed",
+        "mission_id": m["id"],
+        "files": m.get("files", {}),
+        "palette": m.get("palette"),
+    }
+
+
 @router.get("/report/{mission_id}")
 async def get_forge_report(mission_id: str):
     """Retourne le rapport de fabrication manufacturing_report.json."""

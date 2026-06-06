@@ -173,6 +173,57 @@ def lay_flat(mesh: trimesh.Trimesh, overhang_deg: float = 45.0) -> OrientationRe
     )
 
 
+def _contact_pct(mesh: trimesh.Trimesh) -> float:
+    z = mesh.triangles_center[:, 2]
+    a = mesh.area_faces
+    return float(a[z <= mesh.bounds[0][2] + 0.6].sum() / max(a.sum(), 1e-9) * 100.0)
+
+
+def stand_upright(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
+    """Redresse une figurine à la VERTICALE : aligne son axe le plus long (le corps)
+    sur Z par PCA, quel que soit l'angle d'arrivée de Meshy (souvent couché/penché).
+    Choisit le sens (pieds en bas = côté avec le plus de matière au sol). Les rotations
+    cardinales ne suffisent pas quand le maillage est penché → d'où le 'mal orienté'."""
+    m = mesh.copy()
+    V = np.asarray(m.vertices, dtype=np.float64)
+    Vc = V - V.mean(axis=0)
+    evals, evecs = np.linalg.eigh(Vc.T @ Vc)
+    longax = evecs[:, int(np.argmax(evals))]
+    m.apply_transform(np.asarray(trimesh.geometry.align_vectors(longax, [0.0, 0.0, 1.0])))
+
+    flip = trimesh.transformations.rotation_matrix(np.pi, [1, 0, 0])
+    a = m.copy()
+    a.apply_translation([0, 0, -a.bounds[0][2]])
+    b = m.copy()
+    b.apply_transform(flip)
+    b.apply_translation([0, 0, -b.bounds[0][2]])
+
+    def _bottom_mass(x: trimesh.Trimesh) -> int:
+        zt = x.bounds[0][2] + 0.15 * float(x.extents[2])
+        return int((x.triangles_center[:, 2] < zt).sum())
+
+    chosen = a if _bottom_mass(a) >= _bottom_mass(b) else b
+    chosen.fix_normals()
+    return chosen
+
+
+def add_base_pad(mesh: trimesh.Trimesh, thickness: float = 3.0,
+                 margin: float = 1.2) -> trimesh.Trimesh:
+    """Ajoute un socle cylindrique plat sous une figurine pour qu'elle tienne debout
+    (pieds fins/pointus → instable sinon). Le socle couvre l'empreinte du bas."""
+    zt = mesh.bounds[0][2] + 0.08 * float(mesh.extents[2])
+    bot = mesh.vertices[mesh.vertices[:, 2] < zt]
+    if len(bot) < 3:
+        bot = mesh.vertices
+    cx, cy = float(bot[:, 0].mean()), float(bot[:, 1].mean())
+    r = max(float(np.linalg.norm(bot[:, :2] - [cx, cy], axis=1).max()) * margin, 12.0)
+    disc = trimesh.creation.cylinder(radius=r, height=thickness, sections=96)
+    disc.apply_translation([cx, cy, thickness / 2.0])
+    fig = mesh.copy()
+    fig.apply_translation([0, 0, thickness - mesh.bounds[0][2]])
+    return trimesh.util.concatenate([disc, fig])
+
+
 def apply_orientation(mesh: trimesh.Trimesh, result: OrientationResult) -> trimesh.Trimesh:
     """Applique la rotation optimale et pose le mesh sur la build plate."""
     m = mesh.copy()

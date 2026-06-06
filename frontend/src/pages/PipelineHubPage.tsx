@@ -197,6 +197,24 @@ function ForgeLiveStatus() {
     files?: { jarvis_stl?: string; final_stl?: string };
     report?: { printability_score?: number };
   } | null>(null);
+  const [refixing, setRefixing] = useState(false);
+
+  // Re-corrige la mission (orientation debout/couché, socle, couleurs) depuis son
+  // maillage brut sauvegardé — SANS relancer Meshy — puis l'ouvre dans Bambu.
+  const doRefix = async (id: string) => {
+    if (refixing) return;
+    setRefixing(true);
+    try {
+      const r = await fetch(`/v1/forge/refix/${id}`, { method: 'POST' });
+      if (r.ok) {
+        await fetch(`/v1/forge/bambu/${id}`, { method: 'POST' }).catch(() => {});
+      }
+    } catch {
+      /* ignore — l'utilisateur peut réessayer */
+    } finally {
+      setRefixing(false);
+    }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -248,6 +266,22 @@ function ForgeLiveStatus() {
               ? 'mission échouée'
               : (m.status ?? '')}
       </div>
+      {(done || failed) && (
+        <button
+          onClick={() => doRefix(m.id)}
+          disabled={refixing}
+          title="Re-corriger orientation / socle / couleurs sans relancer Meshy, puis ouvrir dans Bambu"
+          className="nodrag mt-1 w-full flex items-center justify-center gap-1 px-2 py-1 text-[9px] font-bold tracking-[0.16em] rounded-sm"
+          style={{
+            background: refixing ? 'rgba(255,255,255,0.05)' : 'transparent',
+            color: refixing ? 'var(--hud-text-dim)' : MODULE_COLORS.forge.hex,
+            border: `1px solid ${MODULE_COLORS.forge.hex}`,
+            cursor: refixing ? 'wait' : 'pointer',
+          }}
+        >
+          {refixing ? 'RE-CORRECTION…' : '↻ RE-CORRIGER'}
+        </button>
+      )}
     </div>
   );
 }

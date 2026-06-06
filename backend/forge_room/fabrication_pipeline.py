@@ -24,7 +24,15 @@ from forge_room.mesh_validator import validate_mesh
 from forge_room.meshy_bridge import generate_stl_from_image, generate_stl_via_meshy
 from forge_room.meshy_bridge import is_available as meshy_ok
 from forge_room.openscad_generator import generate_stl_via_openscad
-from forge_room.orientation_optimizer import apply_orientation, lay_flat, optimize_orientation
+from forge_room.orientation_optimizer import (
+    OrientationResult,
+    _contact_pct,
+    add_base_pad,
+    apply_orientation,
+    lay_flat,
+    optimize_orientation,
+    stand_upright,
+)
 from forge_room.relief_token import is_token_request
 from forge_room.support_analyzer import analyze_supports
 
@@ -363,6 +371,78 @@ async def _generate_raw_mesh(m: dict, plan: dict):
         return None
 
 
+def reprocess_from_raw(m: dict) -> bool:
+    """Re-corrige une mission depuis son maillage BRUT déjà sauvegardé (raw_stl + GLB),
+    SANS relancer Meshy : repair → couleur → orientation (jeton couché / figurine debout
+    + socle) → export STL + 3MF AMS. Met à jour m['files']. True si 3MF produit.
+    C'est ce qu'utilise l'endpoint /v1/forge/refix/{id}."""
+    import shutil
+
+    from forge_room.color_3mf import colorize_to_3mf, paint_figurine_3mf, transfer_colors
+
+    raw_path = m.get("files", {}).get("raw_stl")
+    if not raw_path or not Path(raw_path).exists():
+        return False
+
+    mesh = trimesh.load(str(raw_path), force="mesh")
+    mesh, _ = auto_repair(mesh)
+
+    colored = False
+    glb = Path(raw_path).with_suffix(".glb")
+    if glb.exists():
+        try:
+            colored = transfer_colors(mesh, trimesh.load(str(glb), force="mesh"))
+        except Exception:
+            colored = False
+
+    ext = sorted(float(e) for e in mesh.extents)
+    is_flat = ext[0] / max(ext[1], 1e-9) < 0.25
+    target = float(m.get("target_size_mm") or 0) or (50.0 if is_flat else 150.0)
+    scaled = scale_to_target(mesh, target)
+
+    if is_flat:
+        oriented = apply_orientation(scaled, lay_flat(scaled))
+    else:
+        oriented = apply_orientation(scaled, optimize_orientation(scaled, prefer_upright=True))
+        if _contact_pct(oriented) < 3.0:
+            oriented = stand_upright(scaled)
+        if _contact_pct(oriented) < 5.0:
+            oriented = add_base_pad(oriented)
+
+    name = ("".join(c if c.isalnum() or c in " -_" else "_"
+                    for c in m.get("prompt", "")[:40]).strip().replace(" ", "_") or m["id"])
+    final_stl = FORGE_OUTPUT / f"{m['id']}_final.stl"
+    oriented.export(str(final_stl))
+    m["files"]["final_stl"] = str(final_stl)
+
+    img = m.get("image_path")
+    out3 = FORGE_OUTPUT / f"{m['id']}_color.3mf"
+    three, pal = None, []
+    if is_flat and img:
+        three, pal = colorize_to_3mf(oriented, out3, name=name, n_colors=2,
+                                     thumbnail_path=img, image_path=img, flat=True)
+    elif colored or img:
+        three, pal = paint_figurine_3mf(oriented, out3, name=name,
+                                        thumbnail_path=img, widen_feet=False)
+        if three is None:
+            three, pal = colorize_to_3mf(oriented, out3, name=name, n_colors=1,
+                                         thumbnail_path=img, image_path=img, flat=False)
+
+    if three:
+        m["files"]["final_3mf"] = str(three)
+        m["palette"] = pal
+        try:
+            JARVIS_STL_DIR = Path(os.getenv(
+                "JARVIS_STL_DIR", r"C:\Users\bobby\OneDrive\Bureau\Jarvis\STL"))
+            JARVIS_STL_DIR.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(three), str(JARVIS_STL_DIR / f"{name}_{m['id']}.3mf"))
+            m["files"]["jarvis_3mf"] = str(JARVIS_STL_DIR / f"{name}_{m['id']}.3mf")
+        except Exception:
+            pass
+    _save_cache(_forge_missions)
+    return three is not None
+
+
 async def run_forge_pipeline(mission_id: str) -> None:
     """Execute les 11 etapes du pipeline The Forge Room."""
     STEP_TIMEOUT = 120
@@ -607,9 +687,28 @@ async def run_forge_pipeline(mission_id: str) -> None:
                 # Objet plat : alignement géométrique (PCA), PAS le scoring cardinal
                 # surplomb/contact qui dresse les reliefs sur la tranche.
                 ort = lay_flat(scaled)
+                oriented = apply_orientation(scaled, ort)
+            elif _upright:
+                # Figurine : rotations cardinales d'abord (bon si la pose Meshy est déjà
+                # droite). Si ça penche (contact faible), redressement VERTICAL par PCA.
+                # Si toujours instable (pieds fins/pointus), socle plat → tient debout.
+                ort = optimize_orientation(scaled, prefer_upright=True)
+                oriented = apply_orientation(scaled, ort)
+                _label = ort.label
+                if _contact_pct(oriented) < 3.0:
+                    oriented = stand_upright(scaled)
+                    _label = "debout (PCA)"
+                    _log(m, "Figurine penchée → redressement vertical PCA", "info")
+                _c = _contact_pct(oriented)
+                if _c < 5.0:
+                    oriented = add_base_pad(oriented)
+                    _c = _contact_pct(oriented)
+                    _label += " + socle"
+                    _log(m, "Figurine instable → socle plat ajouté", "info")
+                ort = OrientationResult(np.eye(3), _label, round(_c, 1), 0.0, round(_c, 1), [])
             else:
                 ort = optimize_orientation(scaled, prefer_upright=_upright)
-            oriented = apply_orientation(scaled, ort)
+                oriented = apply_orientation(scaled, ort)
             _log(m, f"Orientation: {ort.label} (overh: {ort.overhang_pct}%, contact: {ort.contact_pct}%)")
             return oriented, ort
 
@@ -680,17 +779,26 @@ async def run_forge_pipeline(mission_id: str) -> None:
                 _flat_exp = False
             if _colored or (_flat_exp and _img_src):
                 try:
-                    from forge_room.color_3mf import colorize_to_3mf
-                    # 2 couleurs AMS pour les jetons plats (split base/relief propre) ;
-                    # 1 couleur (mono, 1 part watertight) pour les figurines organiques
-                    # → évite l'objet qui flotte + le "cube" dans Bambu.
-                    _n = int(os.getenv("FORGE_AMS_COLORS", "2")) if _flat_exp else 1
+                    from forge_room.color_3mf import colorize_to_3mf, paint_figurine_3mf
                     _cname = ("".join(c if c.isalnum() or c in " -_" else "_"
                                       for c in m["prompt"][:40]).strip().replace(" ", "_")
                               or m["id"])
-                    _3mf, _palette = colorize_to_3mf(
-                        mesh, FORGE_OUTPUT / f"{m['id']}_color.3mf", name=_cname, n_colors=_n,
-                        thumbnail_path=_img_src, image_path=_img_src, flat=_flat_exp)
+                    _out3 = FORGE_OUTPUT / f"{m['id']}_color.3mf"
+                    if _flat_exp:
+                        # Jeton plat : relief 2 couleurs (base/dessin) = 2 slots AMS.
+                        _nf = int(os.getenv("FORGE_AMS_COLORS", "2"))
+                        _3mf, _palette = colorize_to_3mf(
+                            mesh, _out3, name=_cname, n_colors=_nf,
+                            thumbnail_path=_img_src, image_path=_img_src, flat=True)
+                    else:
+                        # Figurine : peint les yeux en 2 tons (paint_color, 1 objet
+                        # étanche — déjà debout+socle). Sinon mono propre.
+                        _3mf, _palette = paint_figurine_3mf(
+                            mesh, _out3, name=_cname, thumbnail_path=_img_src, widen_feet=False)
+                        if _3mf is None:
+                            _3mf, _palette = colorize_to_3mf(
+                                mesh, _out3, name=_cname, n_colors=1,
+                                thumbnail_path=_img_src, image_path=_img_src, flat=False)
                     if _3mf:
                         m["files"]["final_3mf"] = str(_3mf)
                         m["palette"] = _palette
