@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import httpx
+import numpy as np
 import trimesh
 
 from forge_room.blender_bridge import generate_stl_via_blender
@@ -23,7 +24,8 @@ from forge_room.mesh_validator import validate_mesh
 from forge_room.meshy_bridge import generate_stl_from_image, generate_stl_via_meshy
 from forge_room.meshy_bridge import is_available as meshy_ok
 from forge_room.openscad_generator import generate_stl_via_openscad
-from forge_room.orientation_optimizer import apply_orientation, optimize_orientation
+from forge_room.orientation_optimizer import apply_orientation, lay_flat, optimize_orientation
+from forge_room.relief_token import is_token_request
 from forge_room.support_analyzer import analyze_supports
 
 BACKEND_PORT    = int(os.getenv("BACKEND_PORT", 8000))
@@ -79,7 +81,8 @@ STEP_LABELS = [
 ]
 
 
-def new_mission(prompt: str, auto_bambu: bool = False) -> dict:
+def new_mission(prompt: str, auto_bambu: bool = False,
+                target_size_mm: float | None = None) -> dict:
     prompt_stripped = prompt.strip()
     # Anti-duplication : meme prompt running depuis <5min
     for existing in _forge_missions.values():
@@ -112,6 +115,7 @@ def new_mission(prompt: str, auto_bambu: bool = False) -> dict:
         "error": None,
         "auto_bambu": auto_bambu,
         "image_path": None,   # défini par forge_engine si mission image-to-3D
+        "target_size_mm": target_size_mm,  # None = auto (gabarit selon la forme)
     }
     _forge_missions[mid] = m
     _save_cache(_forge_missions)
@@ -375,15 +379,18 @@ async def run_forge_pipeline(mission_id: str) -> None:
     post_val = None
     repair = None
     orient = None
+    _colored = False   # couleurs image transférées → export 3MF AMS à la fin
 
-    async def _run_step(step_name: str, coro, is_blocking: bool = False):
+    async def _run_step(step_name: str, coro, is_blocking: bool = False,
+                        timeout: int | None = None):
         _step(m, step_name, "running")
+        _to = timeout or STEP_TIMEOUT
         try:
-            result = await asyncio.wait_for(coro, timeout=STEP_TIMEOUT)
+            result = await asyncio.wait_for(coro, timeout=_to)
             _step_done(m, step_name)
             return result
         except asyncio.TimeoutError:
-            _step_fail(m, step_name, f"Timeout {STEP_TIMEOUT}s depasse")
+            _step_fail(m, step_name, f"Timeout {_to}s depasse")
             if is_blocking:
                 raise
             return None
@@ -420,6 +427,75 @@ async def run_forge_pipeline(mission_id: str) -> None:
             ),
         }
 
+        # ── VOIE RAPIDE JETON RELIEF ─────────────────────────────────────────
+        # Image + intention « jeton/médaille/badge » → on construit le jeton
+        # DIRECTEMENT depuis l'image (corps cylindre + design extrudé par contours) :
+        # bords nets, 2 couleurs EXACTES de l'image, sans Meshy ni repair/orient.
+        async def _relief_token_fastpath() -> bool:
+            from forge_room.color_3mf import render_thumbnail_png, write_bambu_color_3mf
+            from forge_room.relief_token import _hex_to_rgb, build_relief_token
+
+            _log(m, "Jeton détecté + image → construction relief directe (sans Meshy)", "info")
+            _diam = float(m.get("target_size_mm") or 0) or 50.0
+            mesh, face_idx, palette = await asyncio.to_thread(
+                build_relief_token, m["image_path"], _diam)
+
+            _cname = ("".join(c if c.isalnum() or c in " -_" else "_"
+                              for c in m["prompt"][:40]).strip().replace(" ", "_") or m["id"])
+            final_stl = FORGE_OUTPUT / f"{m['id']}_final.stl"
+            mesh.export(str(final_stl))
+            m["files"]["final_stl"] = str(final_stl)
+
+            pal_rgb = np.array([_hex_to_rgb(h) for h in palette])
+            face_cols = pal_rgb[np.clip(face_idx, 0, len(pal_rgb) - 1)]
+            thumb = render_thumbnail_png(mesh, face_colors=face_cols)
+            three = FORGE_OUTPUT / f"{m['id']}_color.3mf"
+            write_bambu_color_3mf(mesh, face_idx, palette, three, name=_cname, thumbnail_bytes=thumb)
+            m["files"]["final_3mf"] = str(three)
+            m["palette"] = palette
+            _log(m, f"Jeton relief 2 couleurs AMS: {three.name} — palette {palette}", "success")
+
+            import shutil
+            JARVIS_STL_DIR = Path(os.getenv("JARVIS_STL_DIR", r"C:\Users\bobby\OneDrive\Bureau\Jarvis\STL"))
+            try:
+                JARVIS_STL_DIR.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(three), str(JARVIS_STL_DIR / f"{_cname}_{m['id']}.3mf"))
+                shutil.copy2(str(final_stl), str(JARVIS_STL_DIR / f"{_cname}_{m['id']}.stl"))
+                m["files"]["jarvis_3mf"] = str(JARVIS_STL_DIR / f"{_cname}_{m['id']}.3mf")
+            except Exception as e:
+                _log(m, f"Sauvegarde Jarvis échec: {e}", "warning")
+
+            if m.get("auto_bambu"):
+                import subprocess
+                bambu = os.getenv("BAMBU_STUDIO_PATH", r"C:\Program Files\Bambu Studio\bambu-studio.exe")
+                if Path(bambu).exists():
+                    subprocess.Popen([bambu, str(three)], shell=False)
+                    _log(m, f"Bambu Studio lancé: {three.name}", "success")
+
+            ex = [round(float(x), 1) for x in mesh.extents]
+            m["report"] = {
+                "printability_score": 95, "bambu_ready": True,
+                "method": "relief_token", "palette": palette,
+                "bbox_mm": ex, "verdict": "ready",
+            }
+            for _s in STEP_LABELS:
+                m["steps"][_s] = "done"
+            m["current_step"] = STEP_LABELS[-1]
+            return True
+
+        if m.get("image_path") and is_token_request(m["prompt"]):
+            try:
+                if await _relief_token_fastpath():
+                    m["status"] = "completed"
+                    m["completed_at"] = datetime.now().isoformat()
+                    _log(m, "MISSION FORGE COMPLETE (jeton relief)", "success")
+                    _save_cache(_forge_missions)
+                    return
+            except Exception as _re:
+                _log(m, f"Voie jeton relief échouée ({_re}) — bascule pipeline Meshy", "warning")
+                _log(m, traceback.format_exc(), "error")
+        # ─────────────────────────────────────────────────────────────────────
+
         async def _do_code_gen():
             ds_ok = deepseek_ok()
             _log(m, f"DeepSeek Coder dispo: {'Oui' if ds_ok else 'Non - fallback'}")
@@ -433,7 +509,11 @@ async def run_forge_pipeline(mission_id: str) -> None:
             m["files"]["raw_stl"] = str(stl)
             return stl
 
-        raw_stl = await _run_step("mesh_generation", _do_mesh_gen(), is_blocking=True)
+        # Meshy image/text-to-3D AVEC texture (couleurs) prend 2-5 min : timeout
+        # dédié (420s) au lieu des 120s génériques, sinon mesh_generation échoue
+        # alors que Meshy travaille encore. (Bug "fail à l'étape 4".)
+        raw_stl = await _run_step(
+            "mesh_generation", _do_mesh_gen(), is_blocking=True, timeout=420)
 
         async def _do_validation_raw():
             _log(m, "Validation mesh brut...")
@@ -472,16 +552,63 @@ async def run_forge_pipeline(mission_id: str) -> None:
         else:
             mesh, repair = raw_mesh, None
 
+        # ── Couleur image-to-3D : re-projette les couleurs du GLB Meshy texturé sur
+        #    le mesh réparé (même repère). Elles voyagent ensuite à travers
+        #    orientation/scale (par-sommet, topologie préservée) jusqu'à l'export 3MF.
+        #    100% additif : tout échec → on garde le flux STL mono intact. ──
+        if mesh is not None and m.get("image_path") and raw_stl:
+            try:
+                from forge_room.color_3mf import transfer_colors
+                _glb = Path(raw_stl).with_suffix(".glb")
+                if _glb.exists():
+                    _src = trimesh.load(str(_glb), force="mesh")
+                    if transfer_colors(mesh, _src):
+                        _colored = True
+                        _log(m, "Couleurs de l'image transférées → cuisson 3MF AMS prévue", "success")
+                    else:
+                        _log(m, "GLB Meshy sans couleur exploitable — STL mono", "info")
+            except Exception as _ce:
+                _log(m, f"Transfert couleur skip (STL conservé): {_ce}", "warning")
+
         async def _do_orientation():
             if mesh is None:
                 _log(m, "Mesh indispo - orientation skip", "warning")
                 return mesh, None
+
+            # ── Détection objet PLAT (jeton, médaille, badge, relief, plaque) ──
+            # Ratio plus-petite/médiane des 3 dimensions (invariant à l'échelle) :
+            # un disque [40,40,3] → 0.075 ; une figurine debout [60,80,150] → 0.75.
+            # Seuil 0.25 = objet plat. (sorted() rend le ratio indépendant de l'axe.)
+            _ext = sorted(float(e) for e in mesh.extents)
+            _flat_ratio = _ext[0] / max(_ext[1], 1e-9)
+            _is_flat = _flat_ratio < 0.25
+
             # Image-to-3D (figurine/perso) → on garde le modèle DEBOUT (supports OK)
-            # au lieu de le coucher sur le dos pour minimiser les surplombs.
-            _upright = bool(m.get("image_path"))
-            _log(m, f"Optimisation orientation FDM{' (mode debout, image-to-3D)' if _upright else ''}...")
-            scaled  = scale_to_target(mesh, 150.0)
-            ort     = optimize_orientation(scaled, prefer_upright=_upright)
+            # au lieu de le coucher pour minimiser les surplombs. MAIS un objet plat
+            # (jeton/relief) doit rester COUCHÉ même en image-to-3D : sinon l'optimiseur
+            # le dresse sur la tranche (height_ratio max). C'est LE bug du jeton debout.
+            _upright = bool(m.get("image_path")) and not _is_flat
+
+            # ── Gabarit : taille demandée explicitement, sinon auto selon la forme ──
+            # Un objet plat rescalé à 150mm de côté = absurde (jeton de 15 cm).
+            # Défaut plat = 50mm (jeton/médaille), sinon 150mm (figurine).
+            _req_size = m.get("target_size_mm")
+            _target = float(_req_size) if _req_size and _req_size > 0 else (
+                50.0 if _is_flat else 150.0
+            )
+
+            if _is_flat:
+                _log(m, f"Objet PLAT détecté (ratio {_flat_ratio:.3f}) → pose couché, "
+                        f"gabarit {_target:.0f}mm")
+            _mode = "debout, image-to-3D" if _upright else ("à plat PCA" if _is_flat else "couché")
+            _log(m, f"Optimisation orientation FDM ({_mode}, cible {_target:.0f}mm)...")
+            scaled  = scale_to_target(mesh, _target)
+            if _is_flat:
+                # Objet plat : alignement géométrique (PCA), PAS le scoring cardinal
+                # surplomb/contact qui dresse les reliefs sur la tranche.
+                ort = lay_flat(scaled)
+            else:
+                ort = optimize_orientation(scaled, prefer_upright=_upright)
             oriented = apply_orientation(scaled, ort)
             _log(m, f"Orientation: {ort.label} (overh: {ort.overhang_pct}%, contact: {ort.contact_pct}%)")
             return oriented, ort
@@ -540,12 +667,50 @@ async def run_forge_pipeline(mission_id: str) -> None:
             except Exception as e:
                 _log(m, f"Sauvegarde Jarvis echec: {e}", "warning")
 
+            # ── Colorisation AMS : .3mf Bambu prêt à slicer (profil X1C 0.4, 2 slots).
+            #    Jeton (objet plat) + image → couleurs par RELIEF avec les VRAIES
+            #    couleurs de l'image. Sinon, quantization de la texture du mesh.
+            #    Si rien d'exploitable → None, on garde le STL mono. ──
+            _img_src = m.get("image_path")
+            _flat_exp = False
+            try:
+                _e = sorted(float(x) for x in mesh.extents)
+                _flat_exp = _e[0] / max(_e[1], 1e-9) < 0.25
+            except Exception:
+                _flat_exp = False
+            if _colored or (_flat_exp and _img_src):
+                try:
+                    from forge_room.color_3mf import colorize_to_3mf
+                    _n = int(os.getenv("FORGE_AMS_COLORS", "2"))
+                    _cname = ("".join(c if c.isalnum() or c in " -_" else "_"
+                                      for c in m["prompt"][:40]).strip().replace(" ", "_")
+                              or m["id"])
+                    _3mf, _palette = colorize_to_3mf(
+                        mesh, FORGE_OUTPUT / f"{m['id']}_color.3mf", name=_cname, n_colors=_n,
+                        thumbnail_path=_img_src, image_path=_img_src, flat=_flat_exp)
+                    if _3mf:
+                        m["files"]["final_3mf"] = str(_3mf)
+                        m["palette"] = _palette
+                        _log(m, f"3MF couleur AMS exporté: {_3mf.name} — palette {_palette}", "success")
+                        try:
+                            _3dest = JARVIS_STL_DIR / f"{_cname}_{m['id']}.3mf"
+                            shutil.copy2(str(_3mf), str(_3dest))
+                            m["files"]["jarvis_3mf"] = str(_3dest)
+                        except Exception:
+                            pass
+                    else:
+                        _log(m, "Pas de couleur exploitable — STL mono conservé", "info")
+                except Exception as _xe:
+                    _log(m, f"Colorisation 3MF skip (STL conservé): {_xe}", "warning")
+
             if m.get("auto_bambu"):
                 import subprocess
                 bambu = os.getenv("BAMBU_STUDIO_PATH", r"C:\Program Files\Bambu Studio\bambu-studio.exe")
                 if Path(bambu).exists():
-                    subprocess.Popen([bambu, str(final_stl)], shell=False)
-                    _log(m, f"Bambu Studio lance: {final_stl.name}", "success")
+                    # Préfère le 3MF couleur (AMS, prêt à slicer) au STL mono.
+                    _handoff = m["files"].get("final_3mf") or str(final_stl)
+                    subprocess.Popen([bambu, _handoff], shell=False)
+                    _log(m, f"Bambu Studio lance: {Path(_handoff).name}", "success")
                 else:
                     _log(m, f"Bambu Studio introuvable: {bambu}", "warning")
 

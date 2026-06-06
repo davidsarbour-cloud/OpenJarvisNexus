@@ -54,17 +54,21 @@ def _score_orientation(
     total_area  = max(face_areas.sum(), 1e-9)
     face_normals = m.face_normals
 
-    # Surplombs
-    sin_thresh = np.sin(np.radians(overhang_deg))
-    overhang_mask = face_normals[:, 2] < -sin_thresh
-    overhang_area = face_areas[overhang_mask].sum()
-    overhang_pct  = float((overhang_area / total_area) * 100.0)
-
-    # Contact build plate
+    # Contact build plate (calculé d'abord : sert aussi à exclure la base des surplombs)
     z_min = m.bounds[0][2]
     contact_mask = m.triangles_center[:, 2] <= z_min + 0.5
     contact_area = face_areas[contact_mask].sum()
     contact_pct  = float((contact_area / total_area) * 100.0)
+
+    # Surplombs : faces tournées vers le bas, MAIS pas la base posée sur le plateau.
+    # Une face de contact orientée vers le bas n'est PAS un surplomb — sinon un objet
+    # plat (jeton, médaille, relief) est pénalisé pour SA PROPRE base et l'optimiseur
+    # le dresse sur la tranche (le bug du jeton debout). Exclure la base est aussi
+    # physiquement correct pour tout objet (FDM : base à plat = idéal).
+    sin_thresh = np.sin(np.radians(overhang_deg))
+    overhang_mask = (face_normals[:, 2] < -sin_thresh) & ~contact_mask
+    overhang_area = face_areas[overhang_mask].sum()
+    overhang_pct  = float((overhang_area / total_area) * 100.0)
 
     if prefer_upright:
         # Figurines / personnages (image-to-3D) : on PRIVILÉGIE la pose DEBOUT
@@ -128,6 +132,44 @@ def optimize_orientation(
         overhang_pct=round(oh_pct, 1),
         contact_pct=round(ct_pct, 1),
         all_scores=all_scores,
+    )
+
+
+def lay_flat(mesh: trimesh.Trimesh, overhang_deg: float = 45.0) -> OrientationResult:
+    """Pose un objet PLAT (jeton, médaille, relief, plaque) à plat sur le plateau.
+
+    Le scoring surplomb/contact des 8 rotations cardinales échoue sur un relief : la
+    face du dessous est bosselée, donc l'orientation à plat est faussement pénalisée
+    comme « surplombante » et l'optimiseur dresse le jeton sur la tranche. Ici on
+    aligne géométriquement (PCA) l'axe le plus mince du mesh sur Z — ça couche le
+    disque quel que soit son angle d'arrivée — puis on choisit le côté (face avant /
+    arrière vers le bas) qui maximise le contact plateau.
+    """
+    m = mesh.copy()
+    v = m.vertices - m.vertices.mean(axis=0)
+    cov = v.T @ v
+    evals, evecs = np.linalg.eigh(cov)
+    normal = evecs[:, int(np.argmin(evals))]                 # axe le plus mince = normale du disque
+    R4 = trimesh.geometry.align_vectors(normal, [0.0, 0.0, 1.0])
+    R = np.asarray(R4)[:3, :3]
+    flip = trimesh.transformations.rotation_matrix(np.pi, [1, 0, 0])[:3, :3] @ R
+
+    def _contact(rot: np.ndarray) -> float:
+        mm = mesh.copy()
+        mm.vertices = (rot @ mm.vertices.T).T
+        z0 = mm.bounds[0][2]
+        cmask = mm.triangles_center[:, 2] <= z0 + 0.5
+        return float(mm.area_faces[cmask].sum() / max(mm.area_faces.sum(), 1e-9))
+
+    best = R if _contact(R) >= _contact(flip) else flip
+    score, oh_pct, ct_pct = _score_orientation(mesh, best, overhang_deg=overhang_deg)
+    return OrientationResult(
+        rotation_matrix=best,
+        label="à plat (PCA)",
+        score=round(score, 3),
+        overhang_pct=round(oh_pct, 1),
+        contact_pct=round(ct_pct, 1),
+        all_scores=[],
     )
 
 

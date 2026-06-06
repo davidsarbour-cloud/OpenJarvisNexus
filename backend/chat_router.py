@@ -410,7 +410,10 @@ _STL_KW = re.compile(
 # éviter de se déclencher sur un simple "décris ce personnage").
 _STL_IMG_INTENT = re.compile(
     r"\bstl\b|\b3d\b|3d[\s-]?print|imprim|\bprint\b|figurine|maquette|sculpt|"
-    r"\bmeshy\b|\bbambu\b|mod[eè]le\s*3d|statue|miniature|\bforge\b",
+    r"\bmeshy\b|\bbambu\b|mod[eè]le\s*3d|statue|miniature|\bforge\b|"
+    # objets plats 2D-depuis-image → voie jeton relief (relief_token.is_token_request)
+    r"\bjeton(s)?\b|\btoken(s)?\b|\bcoin(s)?\b|\bm[ée]daille(s)?\b|\bmedal(s)?\b|"
+    r"\bbadge(s)?\b|\bpog(s)?\b|\bcoaster(s)?\b|\bmagnet(s)?\b",
     re.I,
 )
 

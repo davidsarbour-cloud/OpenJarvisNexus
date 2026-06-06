@@ -38,8 +38,8 @@ export function PostFX() {
 
       {/* 2. Restrained bloom */}
       <Bloom
-        intensity={0.27}
-        luminanceThreshold={0.55}
+        intensity={0.85}
+        luminanceThreshold={0.35}
         luminanceSmoothing={0.85}
         mipmapBlur
         kernelSize={KernelSize.MEDIUM}

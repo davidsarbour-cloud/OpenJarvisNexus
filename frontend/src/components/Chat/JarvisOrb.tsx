@@ -5,6 +5,8 @@
  * stronger glow, a breathing scale, radiating "sonar" pulses, and a live
  * voice-equalizer that replaces the centre label.
  */
+import { ReactorCanvas } from './ReactorCanvas';
+
 export function JarvisOrb({ speaking = false, size = 280 }: { speaking?: boolean; size?: number }) {
   const c = 'var(--color-jarvis)';
   const d1 = speaking ? '7s' : '26s';
@@ -43,6 +45,9 @@ export function JarvisOrb({ speaking = false, size = 280 }: { speaking?: boolean
           }}
         />
 
+        {/* arc-reactor particle core (behind the SVG rings) */}
+        <ReactorCanvas speaking={speaking} />
+
         <svg
           viewBox="0 0 200 200"
           width={size}
@@ -72,37 +77,18 @@ export function JarvisOrb({ speaking = false, size = 280 }: { speaking?: boolean
             <circle cx="100" cy="100" r="94" fill="none" stroke={c} strokeWidth="1" opacity="0.35" strokeDasharray="2 7" />
           </g>
 
-          {/* bold arc segments — medium CW */}
+          {/* bold arc segments — medium CW (subtle, lets the orb dominate) */}
           <g className="jarvis-ring" style={{ animation: `jarvisCW ${d2} linear infinite` }}>
-            <circle cx="100" cy="100" r="83" fill="none" stroke={c} strokeWidth="3" opacity="0.7" strokeLinecap="round" strokeDasharray="46 90" />
-            <circle cx="100" cy="100" r="83" fill="none" stroke={c} strokeWidth="3" opacity="0.5" strokeLinecap="round" strokeDasharray="14 60" strokeDashoffset="160" />
+            <circle cx="100" cy="100" r="88" fill="none" stroke={c} strokeWidth="2" opacity="0.3" strokeLinecap="round" strokeDasharray="46 90" />
+            <circle cx="100" cy="100" r="88" fill="none" stroke={c} strokeWidth="2" opacity="0.2" strokeLinecap="round" strokeDasharray="14 60" strokeDashoffset="160" />
           </g>
 
-          {/* tick-mark ring — CCW */}
+          {/* tick-mark ring — CCW (thin, photo-2 style) */}
           <g className="jarvis-ring" style={{ animation: `jarvisCCW ${d3} linear infinite` }}>
-            <circle cx="100" cy="100" r="70" fill="none" stroke={c} strokeWidth="6" opacity="0.45" strokeDasharray="1 5" />
+            <circle cx="100" cy="100" r="82" fill="none" stroke={c} strokeWidth="4" opacity="0.3" strokeDasharray="1 5" />
           </g>
 
-          {/* inner segmented ring — CCW faster */}
-          <g className="jarvis-ring" style={{ animation: `jarvisCCW ${d2} linear infinite` }}>
-            <circle cx="100" cy="100" r="56" fill="none" stroke={c} strokeWidth="2.5" opacity="0.75" strokeLinecap="round" strokeDasharray="60 50" />
-          </g>
-
-          {/* pulsing core ring */}
-          <circle
-            cx="100" cy="100" r="44" fill="none" stroke={c} strokeWidth="1.5" opacity="0.85"
-            style={{ animation: 'jarvisPulse 2.4s ease-in-out infinite' }}
-          />
-
-          {/* center label — hidden while the equalizer is live */}
-          {!speaking && (
-            <text
-              x="100" y="105" textAnchor="middle" fontSize="13" letterSpacing="3" fontWeight="700" fill={c}
-              style={{ filter: 'drop-shadow(0 0 6px var(--color-jarvis-glow))' }}
-            >
-              J.A.R.V.I.S
-            </text>
-          )}
+          {/* center label removed */}
         </svg>
 
         {/* live voice equalizer — overlaid centre, only while talking */}

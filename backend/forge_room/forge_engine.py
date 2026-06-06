@@ -31,7 +31,9 @@ router = APIRouter(prefix="/v1/forge", tags=["forge"])
 class ForgeMissionRequest(BaseModel):
     prompt: str = ""
     engine: str = "auto"
-    target_size_mm: float = 150.0
+    # None = auto : gabarit choisi selon la forme (objet plat type jeton ≈ 50mm,
+    # figurine ≈ 150mm). Une valeur explicite est toujours respectée telle quelle.
+    target_size_mm: float | None = None
     auto_repair: bool = True
     auto_orient: bool = True
     auto_bambu: bool = False
@@ -80,7 +82,7 @@ async def create_forge_mission(req: ForgeMissionRequest, background_tasks: Backg
     # Dédup : new_mission renvoie une mission EXISTANTE (running, <5min, même clé)
     # au lieu d'en créer une. Un id réutilisé était déjà présent dans le registre.
     _before_ids = set(_forge_missions.keys())
-    m = new_mission(prompt, auto_bambu=req.auto_bambu)
+    m = new_mission(prompt, auto_bambu=req.auto_bambu, target_size_mm=req.target_size_mm)
     if m["id"] in _before_ids:
         # Mission identique déjà en cours : ne PAS écraser l'image ni relancer un
         # 2e pipeline sur le même mission_id — on renvoie l'état existant.

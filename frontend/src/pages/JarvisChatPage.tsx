@@ -224,7 +224,20 @@ export function JarvisChatPage() {
   }, [handsFree, listenOnce, send, abortVad, speakText, stopTts]);
 
   return (
-    <div className="flex h-full" style={{ background: 'var(--hud-bg)' }}>
+    <div className="flex h-full relative overflow-hidden" style={{ background: 'var(--hud-bg)' }}>
+
+      {/* HUD grid background */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(28,230,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(28,230,255,0.5) 1px, transparent 1px)',
+          backgroundSize: '46px 46px',
+          opacity: 0.1,
+          maskImage: 'radial-gradient(ellipse at center, #000 25%, transparent 72%)',
+          WebkitMaskImage: 'radial-gradient(ellipse at center, #000 25%, transparent 72%)',
+        }}
+      />
 
       {/* ══ Centre stage ═══════════════════════════════════════════════════ */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -324,22 +337,23 @@ export function JarvisChatPage() {
         {/* ── Orb + status ─────────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col items-center justify-center gap-6 min-h-0 px-6 overflow-hidden">
 
-          <JarvisOrb speaking={speaking} size={200} />
-
-          {/* Status line */}
-          <div className="text-center shrink-0">
+          <div className="relative flex items-center justify-center shrink-0">
+            {/* expanded outer halo — bleeds well past the orb's square */}
             <div
-              className="text-[11px] font-bold tracking-[0.35em]"
-              style={{ color: speaking ? 'var(--color-jarvis)' : 'var(--hud-text-hot)' }}
-            >
-              {speaking ? (streamState.phase || 'JARVIS RÉPOND…') : 'JARVIS EN LIGNE'}
-            </div>
-            <div className="text-[9px] tracking-[0.22em] mt-1" style={{ color: 'var(--hud-text-dim)' }}>
-              {speaking
-                ? `${(streamState.elapsedMs / 1000).toFixed(1)}s · ~${estTokens} tokens`
-                : 'EN ÉCOUTE · ' + (messages.length > 0 ? `${messages.length} messages` : 'aucun message')}
-            </div>
+              className="absolute pointer-events-none"
+              style={{
+                width: 1200,
+                height: 1200,
+                borderRadius: '50%',
+                background:
+                  'radial-gradient(circle, rgba(28,230,255,0.035) 0%, rgba(28,230,255,0.012) 38%, transparent 62%)',
+                filter: 'blur(44px)',
+              }}
+            />
+            <JarvisOrb speaking={speaking} size={600} />
           </div>
+
+          {/* status line removed */}
 
           {/* ── Hands-free live status (toggle lives in the chat bar) ───── */}
           {handsFree && (
