@@ -177,12 +177,28 @@ Be precise. deepseek_instructions must guide a code generator to produce the geo
 
 async def _ultron_plan(prompt: str) -> dict:
     try:
+        # Feed-forward learning: enrichit le plan ULTRON avec les precedents
+        # similaires (scores/orientation). Vide + sans risque s'il n'y a pas
+        # d'historique — get_similar_forge renvoie [] et ne leve jamais.
+        learned = ""
+        try:
+            from vault.forge_learning import get_similar_forge
+            past = await get_similar_forge(prompt)
+            lines = [p.get("text", "") for p in (past or [])[:3] if p.get("text")]
+            if lines:
+                learned = (
+                    "\n\nPast similar fabrications (learn from their scores/orientation; "
+                    "prefer choices that scored high, avoid those that scored low):\n"
+                    + "\n---\n".join(lines)
+                )
+        except Exception:
+            learned = ""
         async with httpx.AsyncClient() as c:
             r = await c.post(
                 f"http://localhost:{BACKEND_PORT}/v1/chat/completions",
                 json={
                     "system": _ULTRON_FORGE_SYSTEM,
-                    "message": f"Fabrication request: {prompt}\n\nGenerate a precise plan.",
+                    "message": f"Fabrication request: {prompt}{learned}\n\nGenerate a precise plan.",
                     "stream": False,
                     "model": CLAUDE_MODEL_GROS,
                     "skip_pipeline": True,  # appel interne — pas de routing pipeline

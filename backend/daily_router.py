@@ -100,30 +100,8 @@ def daily_research_status():
 @router.post("/v1/daily/run-task")
 async def daily_run_task(body: dict):
     """Exécute une daily task par nom. Body: {"task": "vault_cleanup"}"""
-    from daily_tasks import (
-        task_commerce_analytics,
-        task_daily_smoke_tests,
-        task_error_logs_cleanup,
-        task_forge_analytics,
-        task_jarvis_workspace_index,
-        task_orchestration_diagnostics,
-        task_stl_directory_sync,
-        task_system_health_log,
-        task_vault_cleanup,
-        task_vault_maintenance,
-    )
-    _task_map = {
-        "vault_cleanup":             task_vault_cleanup,
-        "forge_analytics":           task_forge_analytics,
-        "stl_sync":                  task_stl_directory_sync,
-        "health_log":                task_system_health_log,
-        "error_log_cleanup":         task_error_logs_cleanup,
-        "vault_maintenance":         task_vault_maintenance,
-        "commerce_analytics":        task_commerce_analytics,
-        "jarvis_workspace_index":    task_jarvis_workspace_index,
-        "daily_smoke_tests":         task_daily_smoke_tests,
-        "orchestration_diagnostics": task_orchestration_diagnostics,
-    }
+    # Source unique partagée avec pipeline_runner (Cheat Code) — voir daily_tasks.
+    from daily_tasks import DAILY_TASK_MAP as _task_map
     name = body.get("task", "")
     fn   = _task_map.get(name)
     if not fn:

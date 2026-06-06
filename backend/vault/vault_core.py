@@ -40,9 +40,6 @@ COLLECTIONS = {
     "orchestration":    "orch",
     "agent_memory":     "agent",
     "workflows":        "workflow",
-    "architecture":     "arch",
-    "skills_superpowers": "skill_sp",
-    "skills_obsidian":    "skill_obs",
     "brain":              "brain",
 }
 def get_collection(name: str):

@@ -14,11 +14,12 @@ from .store import (
     mark_failed,
     mark_winner,
     record_trend,
+    record_winner,
     summary_stats,
 )
 
 __all__ = [
-    "record_trend", "mark_winner", "mark_failed", "add_seasonal_flag",
+    "record_trend", "record_winner", "mark_winner", "mark_failed", "add_seasonal_flag",
     "get_niche", "get_winners", "get_failed_niches", "get_seasonal_keywords",
     "all_niches", "summary_stats",
 ]

@@ -194,6 +194,32 @@ def _trend_keywords() -> list[str]:
         return []
 
 
+def _trend_memory_signals() -> tuple[set[str], set[str]]:
+    """(winner_terms, failed_terms) depuis trend_memory, en minuscules. Vide +
+    sans risque si le fichier memoire n'existe pas encore — la rotation pure
+    est alors strictement inchangee."""
+    try:
+        from trend_memory import get_failed_niches, get_winners
+        winners = {str(w.get("keyword", "")).lower().strip()
+                   for w in get_winners() if w.get("keyword")}
+        failed = {str(k).lower().strip() for k in get_failed_niches() if k}
+        return winners, failed
+    except Exception as e:
+        print(f"[auto_factory] trend_memory unavailable, pure rotation: {e}")
+        return set(), set()
+
+
+def _matches(item: dict, terms: set[str]) -> bool:
+    """True si un terme trend recoupe le sujet/label de la niche (fuzzy, deux
+    sens — les cles de niche sont en snake_case, les mots-cles trend en texte
+    libre)."""
+    if not terms:
+        return False
+    hay = f"{item.get('stl_prompt','')} {item.get('label','')} " \
+          f"{item.get('key','').replace('_',' ')}".lower()
+    return any(t and (t in hay or any(t in w or w in t for w in hay.split())) for t in terms)
+
+
 async def _hype_subject(default_subject: str, threshold: float) -> tuple[str, float, bool]:
     """Score curated trend keywords; if the hottest clears `threshold`, ride it.
 
@@ -238,8 +264,10 @@ def _rotate(catalog: list[dict], sub: dict) -> tuple[dict, str, list[dict]]:
 
 
 async def _select(catalog: list[dict], sub: dict, cfg: dict,
-                  allow_buzz: bool) -> tuple[dict, str]:
-    """Pick the next item from `catalog`. allow_buzz enables the spike override."""
+                  allow_buzz: bool, *, use_trend_memory: bool = True) -> tuple[dict, str]:
+    """Pick the next item from `catalog`. allow_buzz enables the spike override.
+    Trend memory (si presente) booste les niches WINNER confirmees et evite les
+    FAILED — NO-OP quand la memoire est vide (=> identique a la rotation pure)."""
     mode = cfg.get("selection_mode", "tier_rotation")
     base, reason, remaining = _rotate(catalog, sub)
 
@@ -252,6 +280,21 @@ async def _select(catalog: list[dict], sub: dict, cfg: dict,
                 return best, f"buzz spike {bs:.0f}/100"
         except Exception as e:
             print(f"[auto_factory] buzz scoring failed, using rotation: {e}")
+
+    # ── Boost trend-memory soft (additif ; memoire vide => inchange) ──────
+    if use_trend_memory:
+        winners, failed = _trend_memory_signals()
+        if winners or failed:
+            # 1) Ecarte les niches FAILED confirmees — sans jamais vider la file.
+            kept = [n for n in remaining if not _matches(n, failed)] or remaining
+            # 2) Si une WINNER est dans le set retenu, on la prend (tier le plus
+            #    haut d'abord ; `kept` garde l'ordre tier de _rotate).
+            for n in kept:
+                if _matches(n, winners):
+                    return n, "trend winner (memory)"
+            # 3) Pas de winner : on garde la rotation mais on honore le filtre FAILED.
+            if kept is not remaining and kept and kept[0]["key"] != base["key"]:
+                return kept[0], f"{reason} (skip failed)"
 
     if mode == "weighted_random":
         weights = [_TIER_WEIGHT.get(n["tier"], 1) for n in remaining]

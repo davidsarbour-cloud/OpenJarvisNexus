@@ -204,8 +204,19 @@ def _stream_text(text: str, model_used: str, req_id: str, memory: dict | None = 
     yield "data: [DONE]\n\n"
 
 
+def _prompt_caching_on() -> bool:
+    """Lit config.json jarvis.prompt_caching (défaut OFF tant que non validé live).
+    Quand true ET le SDK expose claude.beta.prompt_caching, le system du chat est
+    envoyé en blocs avec le préfixe stable marqué cache_control ephemeral."""
+    try:
+        return bool(load_config().get("jarvis", {}).get("prompt_caching", False))
+    except Exception:
+        return False
+
+
 def _claude_stream_gen(model_used, system, anthropic_messages, all_tools,
-                       max_tokens, temperature, session_id, req_id, memory_meta):
+                       max_tokens, temperature, session_id, req_id, memory_meta,
+                       system_param=None):
     """Real-time SSE generator for the Claude path.
 
     Streams tokens live via ``claude.messages.stream()`` and runs the tool loop
@@ -223,6 +234,10 @@ def _claude_stream_gen(model_used, system, anthropic_messages, all_tools,
     _tool_msgs = list(anthropic_messages)
     _parts: list[str] = []
     _total_in, _total_out = 0, 0
+    if system_param is None:
+        system_param = system
+    # Caching path uses the beta resource only when system_param is block-form.
+    _api = claude.beta.prompt_caching.messages if isinstance(system_param, list) else claude.messages
 
     # initial role chunk
     yield _sse({
@@ -234,11 +249,11 @@ def _claude_stream_gen(model_used, system, anthropic_messages, all_tools,
     try:
         while True:
             _kw = dict(model=model_used, max_tokens=max_tokens,
-                       temperature=temperature, system=system, messages=_tool_msgs)
+                       temperature=temperature, system=system_param, messages=_tool_msgs)
             if all_tools:
                 _kw["tools"] = all_tools
 
-            with claude.messages.stream(**_kw) as _st:
+            with _api.stream(**_kw) as _st:
                 for _delta in _st.text_stream:
                     _delta = _strip_decorations(_delta)
                     if not _delta:
@@ -765,33 +780,21 @@ def chat_completion(req: ChatRequest, request: Request):
         use_claude = True
 
     facts      = load_facts()
-    system     = build_system_prompt(req.system or _build_base_system(), facts)  # relit config.json à chaque requête (TTL 30s)
-
-    # ── Session continuity — inject résumé si nouvelle session ──
-    _sc_cfg = load_config().get("session_continuity", {})
-    if _was_new_session and _sc_cfg.get("inject_on_new_session", True):
-        _prev_summary = get_last_session_summary(session_id)
-        if _prev_summary:
-            system = (
-                "━━━ REPRISE DE SESSION ━━━\n"
-                + _prev_summary
-                + "\n━━━ FIN DU RÉSUMÉ — continue naturellement ━━━\n\n"
-            ) + system
+    # STABLE prefix (cacheable) : persona + règles + facts + langue + skills.
+    system_stable = build_system_prompt(req.system or _build_base_system(), facts)  # relit config.json à chaque requête (TTL 30s)
 
     # ── Memory compression — déclenche si seuil atteint ─────────
     # Off the request's critical path: a long session would otherwise block the
     # reply for up to 10s on a synchronous qwen3:14b summarization. The summary
     # only matters for the NEXT message, so run it fire-and-forget in a thread.
-    # (The current request already captured anthropic_messages, so the in-place
-    # session rewrite can't race it.)
     threading.Thread(
         target=compress_session_sync, args=(session_id,), daemon=True
     ).start()
 
-    # Rappel langue injecté à la fin du system prompt — modèles suivent mieux la dernière instruction
+    # Rappel langue injecté dans le préfixe stable — modèles suivent mieux la dernière instruction
     # Lu depuis config.json (cache TTL 30s) — jamais hardcodé
     _chat_lang = load_config().get("jarvis", {}).get("language", "Français")
-    system += (
+    system_stable += (
         f"\n\n[LANGUE] Par défaut réponds en {_chat_lang}. MAIS si l'utilisateur écrit dans "
         f"une autre langue OU demande explicitement une langue (ex: « réponds en anglais », "
         f"« in English »), réponds ENTIÈREMENT dans CETTE langue — cette consigne prime sur "
@@ -799,27 +802,41 @@ def chat_completion(req: ChatRequest, request: Request):
         f"Texte brut — pas de markdown, pas de listes, pas de titres. ZERO emoji — jamais."
     )
 
-    # ── Skills catalog — injection compacte dans le system prompt ───────────
+    # ── Skills catalog — injection compacte (stable) ────────────────────────
     try:
         _skill_cat = _skill_catalog_text()
         if _skill_cat:
-            system += f"\n\n{_skill_cat}"
+            system_stable += f"\n\n{_skill_cat}"
     except Exception:
         pass
 
-    # ── Brain/Vault contextuel (option 2 — triggers: long / complexe / debug) ──
+    # ── Volatile #1 : reprise de session (placée EN TÊTE du prompt combiné) ──
+    _resume_str = ""
+    _sc_cfg = load_config().get("session_continuity", {})
+    if _was_new_session and _sc_cfg.get("inject_on_new_session", True):
+        _prev_summary = get_last_session_summary(session_id)
+        if _prev_summary:
+            _resume_str = (
+                "━━━ REPRISE DE SESSION ━━━\n"
+                + _prev_summary
+                + "\n━━━ FIN DU RÉSUMÉ — continue naturellement ━━━\n\n"
+            )
+
+    # ── Volatile #2 : Brain/Vault contextuel (intent-aware ; gate inchangé) ──
     memory_meta = {"retrieved": False, "fragments": 0, "ms": 0, "confidence": 0}
+    _memory_str = ""
     if _needs_memory(last_user_msg):
         import asyncio as _aio_mem
         import time as _t_mem
         _m0 = _t_mem.perf_counter()
         try:
-            from vault.memory_manager import vault_query
-            _hits = _aio_mem.run(vault_query(last_user_msg))[:5]
+            from orchestrator import classify_intent, query_vault_for_context
+            _intent = classify_intent(last_user_msg, track=False).get("intent", "memory")
+            _hits = _aio_mem.run(query_vault_for_context(last_user_msg, _intent))
         except Exception:
             _hits = []
         if _hits:
-            system += "\n\n[Memory Retrieved — brain & vault]\n" + "\n".join(
+            _memory_str = "\n\n[Memory Retrieved — brain & vault]\n" + "\n".join(
                 f"- [{h.get('collection','?')}] {h['text'][:160]}" for h in _hits
             )
             _top = max((h.get("score", 0) for h in _hits), default=0)
@@ -829,6 +846,25 @@ def chat_completion(req: ChatRequest, request: Request):
                 "ms":         round((_t_mem.perf_counter() - _m0) * 1000),
                 "confidence": round(max(0.0, min(1.0, _top)) * 100),
             }
+
+    # ── Prompt combiné — ordre byte-identique à l'historique : resume + stable + mémoire
+    system = _resume_str + system_stable + _memory_str
+
+    # ── Prompt caching (gated config.json jarvis.prompt_caching, défaut OFF) ─
+    # ON + SDK beta dispo : system en blocs, préfixe STABLE marqué cache_control
+    # ephemeral ; volatile (resume + mémoire) non-caché → stable EN PREMIER pour
+    # un vrai cache hit. OFF / pas de beta : string simple = comportement actuel.
+    system_param = system
+    try:
+        if _prompt_caching_on() and hasattr(getattr(claude, "beta", None), "prompt_caching"):
+            _cache_blocks = [{"type": "text", "text": system_stable,
+                              "cache_control": {"type": "ephemeral"}}]
+            _vol = _resume_str + _memory_str
+            if _vol:
+                _cache_blocks.append({"type": "text", "text": _vol})
+            system_param = _cache_blocks
+    except Exception:
+        system_param = system
 
     req_id     = f"chatcmpl-{int(time.time())}"
     text       = ""
@@ -991,7 +1027,7 @@ def chat_completion(req: ChatRequest, request: Request):
                         _claude_stream_gen(
                             model_used, system, anthropic_messages, _all_tools,
                             req.max_tokens, req.temperature, session_id, req_id,
-                            memory_meta,
+                            memory_meta, system_param=system_param,
                         ),
                         media_type="text/event-stream",
                         headers={
@@ -1009,13 +1045,14 @@ def chat_completion(req: ChatRequest, request: Request):
                         model=model_used,
                         max_tokens=req.max_tokens,
                         temperature=req.temperature,
-                        system=system,
+                        system=system_param,
                         messages=_tool_msgs,
                     )
                     if _all_tools:
                         _create_kw["tools"] = _all_tools
 
-                    resp = claude.messages.create(**_create_kw)
+                    _api2 = claude.beta.prompt_caching.messages if isinstance(system_param, list) else claude.messages
+                    resp = _api2.create(**_create_kw)
                     _total_in  += resp.usage.input_tokens
                     _total_out += resp.usage.output_tokens
 

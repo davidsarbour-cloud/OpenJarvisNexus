@@ -98,8 +98,12 @@ AGENT_MAP = {
 }
 
 
-def classify_intent(text: str) -> dict:
-    """Classifie l'intention de l'utilisateur. Retourne intent + confiance."""
+def classify_intent(text: str, track: bool = True) -> dict:
+    """Classifie l'intention de l'utilisateur. Retourne intent + confiance.
+
+    track=False : ne touche PAS au compteur _routing_state (MODEL ROUTING card).
+    A utiliser quand on classifie pour un usage interne (ex: RAG du chat) afin
+    de ne pas double-compter les requêtes chat dans les stats de routing."""
     text_lower = text.lower()
     scores: dict[str, int] = {}
     for intent, patterns in INTENT_PATTERNS.items():
@@ -115,6 +119,8 @@ def classify_intent(text: str) -> dict:
         result = {"intent": best, "confidence": round(scores[best] / max(total, 1), 2), "signals": signals}
 
     # Track for /v1/world/cards/snapshot (MODEL ROUTING card)
+    if not track:
+        return result
     try:
         from datetime import datetime as _dt
 
@@ -144,7 +150,7 @@ async def query_vault_for_context(text: str, intent: str) -> list[dict]:
             "coding":      ["agent_memory", "workflows"],
             "execution":   ["orchestration", "workflows"],
             "memory":      None,  # all
-            "reasoning":   ["architecture", "workflows"],
+            "reasoning":   ["workflows"],
             "conversation": ["conversations"],
         }.get(intent)
         memories = await vault_query(text, collections=collections)

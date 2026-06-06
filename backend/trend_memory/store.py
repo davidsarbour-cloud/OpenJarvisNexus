@@ -133,6 +133,37 @@ def mark_winner(keyword: str, notes: str = "", path: Path | None = None) -> None
         _save(data, path)
 
 
+def record_winner(keyword: str, notes: str = "", peak_score: float = 100.0,
+                  path: Path | None = None) -> None:
+    """Upsert d'une niche confirmée WINNER (ex: depuis une VENTE réelle).
+    Contrairement à mark_winner (qui ne flippe que les entrées existantes),
+    crée l'entrée si absente — c'est ce qui permet à la boucle ventes->mémoire
+    d'alimenter directement la sélection Auto-Factory."""
+    path = path or _DEFAULT_PATH
+    kw = keyword.lower().strip()
+    if not kw:
+        return
+    with _LOCK:
+        data = _load(path)
+        niches = data.setdefault("niches", {})
+        existing = niches.get(kw, {})
+        niches[kw] = {
+            "keyword":        keyword,
+            "status":         "WINNER",
+            "first_seen":     existing.get("first_seen", _now_iso()),
+            "last_updated":   _now_iso(),
+            "peak_score":     max(existing.get("peak_score", 0), peak_score),
+            "scores_history": existing.get("scores_history", []),
+            "alert_level":    existing.get("alert_level", "SALES"),
+            "stage":          existing.get("stage", "confirmed"),
+            "competition":    existing.get("competition", ""),
+            "platforms":      existing.get("platforms", ["etsy"]),
+            "notes":          notes or existing.get("notes", ""),
+            "seasonal_flags": existing.get("seasonal_flags", []),
+        }
+        _save(data, path)
+
+
 def mark_failed(keyword: str, reason: str = "", path: Path | None = None) -> None:
     """
     Mark a keyword as FAILED and add to failed_niches blacklist.

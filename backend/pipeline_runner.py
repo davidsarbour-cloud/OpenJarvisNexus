@@ -50,7 +50,7 @@ _last_report: dict = {}
 _research_state: dict = {
     "status":      "idle",   # idle | running | done | error
     "current":     0,
-    "total":       len([]),  # rempli au démarrage
+    "total":       0,        # rempli au démarrage (= len(RESEARCH_TASKS))
     "current_task": "",
     "results":     [],
     "started_at":  None,
@@ -63,7 +63,7 @@ def get_research_state() -> dict:
 
 def _reset_research_state():
     _research_state.update({
-        "status": "running", "current": 0, "total": 8,
+        "status": "running", "current": 0, "total": len(RESEARCH_TASKS),
         "current_task": "", "results": [],
         "started_at": str(datetime.now()), "finished_at": None, "folder": None,
     })
@@ -210,7 +210,6 @@ async def _run_research_task(task: dict, date_folder: Path) -> dict:
 
     import httpx as _httpx
 
-    OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
     model_key   = task.get("model", "qwen")
     model_name  = os.getenv("OLLAMA_MODEL", "qwen3:14b") if model_key == "qwen" \
                   else os.getenv("DEEPSEEK_MODEL", "deepseek-r1:7b")
@@ -269,10 +268,7 @@ async def run_daily_research(voice: bool = True) -> dict:
     Met à jour _research_state à chaque tâche pour le polling frontend.
     Sauvegarde dans RESEARCH REPORT/YYYY-MM-DD/ avec un fichier par tâche + summary.
     """
-    import os
-
     import httpx as _httpx
-    OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 
     _reset_research_state()
 
@@ -783,18 +779,17 @@ async def sync_agents() -> list[dict]:
 
 
 async def _run_one_task(name: str, label: str) -> dict:
-    """Exécute une daily task via POST /v1/daily/run-task."""
+    """Exécute une daily task EN DIRECT via DAILY_TASK_MAP — plus de self-HTTP.
+    Même source de vérité que /v1/daily/run-task (daily_router)."""
     try:
-        async with httpx.AsyncClient(timeout=30) as c:
-            r = await c.post(f"{BACKEND_HOST}/v1/daily/run-task", json={"task": name})
-            if r.status_code == 200:
-                data = r.json()
-                ok  = data.get("ok", True)
-                msg = data.get("message", "OK")
-                print(f"  {'✅' if ok else '⚠️ '} {label}")
-                return {"task": name, "label": label, "ok": ok, "message": msg}
-            print(f"  ⚠️  {label} — HTTP {r.status_code}")
-            return {"task": name, "label": label, "ok": False, "message": f"HTTP {r.status_code}"}
+        from daily_tasks import DAILY_TASK_MAP
+        fn = DAILY_TASK_MAP.get(name)
+        if fn is None:
+            print(f"  ⚠️  {label} — tâche inconnue: {name}")
+            return {"task": name, "label": label, "ok": False, "message": f"Tâche inconnue: {name}"}
+        await fn()
+        print(f"  ✅ {label}")
+        return {"task": name, "label": label, "ok": True, "message": "OK"}
     except Exception as e:
         print(f"  ❌ {label} — {e}")
         return {"task": name, "label": label, "ok": False, "message": str(e)}

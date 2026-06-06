@@ -92,15 +92,56 @@ async def pending_approvals():
     return {"pending": pending, "count": len(pending)}
 
 
+async def _maybe_create_etsy_draft(pipeline_id: str) -> None:
+    """Etsy autolist DRAFT-ONLY, gated OFF par défaut (env ETSY_AUTOLIST=1).
+    Ne publie JAMAIS en live (jamais publish_listing) — crée seulement un
+    brouillon que David active à la main dans Etsy. Inerte si flag absent ou
+    non authentifié ; best-effort (n'échoue jamais l'approbation)."""
+    import os
+    if os.getenv("ETSY_AUTOLIST") != "1":
+        return
+    try:
+        from commerce import etsy_client
+        from commerce.pipeline import _log, _save_pipelines, get_pipeline
+        if not etsy_client.is_authenticated():
+            return
+        p = get_pipeline(pipeline_id)
+        if not p:
+            return
+        draft = await etsy_client.create_draft_listing(
+            p.title or (p.idea or "")[:60],
+            p.description or p.idea or "",
+            p.price_usd or 0.0,
+            p.tags or [],
+        )
+        lid = draft.get("listing_id")
+        if lid:
+            p.etsy_listing_id = str(lid)
+            p.status = "draft_created"   # NOUVEL état terminal — JAMAIS 'published'
+            if p.stl_path:
+                try:
+                    await etsy_client.upload_listing_file(lid, p.stl_path)
+                except Exception:
+                    pass
+            _log(p, f"Etsy DRAFT créé (non publié): {lid}", "success")
+        else:
+            _log(p, f"Etsy draft skip: {draft.get('error', '?')}", "warning")
+        _save_pipelines()
+    except Exception as e:
+        print(f"[commerce] Etsy autolist non-fatal: {e}")
+
+
 @router.post("/approval/{pipeline_id}/approve", summary="Approuver un produit")
 async def approve(pipeline_id: str, body: ApproveRequest):
     """
     Approuve un produit pour publication.
     Le statut passe de 'approval' → 'publishing'.
+    (Si ETSY_AUTOLIST=1 : crée aussi un brouillon Etsy — jamais publié en live.)
     """
     result = approve_product(pipeline_id.upper(), approved_by=body.approved_by)
     if not result["ok"]:
         raise HTTPException(status_code=400, detail=result["error"])
+    await _maybe_create_etsy_draft(pipeline_id.upper())  # gated + best-effort
     return result
 
 

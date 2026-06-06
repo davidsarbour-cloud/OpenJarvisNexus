@@ -1,7 +1,9 @@
 {
+  "timezone": "America/Toronto",
   "jarvis": {
     "name": "Jarvis",
     "language": "English",
+    "prompt_caching": false,
     "tts_engine": "kokoro",
     "tts_voice_edge": "fr-CA-SylvieNeural",
     "tts_voice_kokoro": "bm_george",

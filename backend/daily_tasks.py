@@ -103,12 +103,10 @@ async def task_stl_directory_sync():
         logger.error(f"STL sync failed: {e}")
 
 async def task_system_health_log():
-    """Log l'état de santé du système."""
+    """Log l'état de santé du système (appel direct à health_deep — plus de self-HTTP)."""
     try:
-        import httpx
-        async with httpx.AsyncClient() as c:
-            r = await c.get("http://localhost:8000/v1/health/deep", timeout=10)
-            health = r.json() if r.status_code == 200 else {"error": r.status_code}
+        from health_router import health_deep
+        health = await health_deep()
         health["timestamp"] = datetime.now().isoformat()
         log_path = BACKEND_DIR / "error_logs" / f"health_{datetime.now():%Y%m%d}.json"
         log_path.parent.mkdir(exist_ok=True)
@@ -416,6 +414,53 @@ async def task_commerce_analytics():
         logger.error(f"Commerce analytics failed: {e}")
 
 
+async def task_sales_feedback():
+    """Boucle ventes -> mémoire (ferme le flywheel) — quotidien 23:00.
+
+    Lit les ventes Etsy réelles et marque WINNER dans trend_memory les niches
+    qui se vendent vraiment, pour que la sélection Auto-Factory en produise plus.
+    INERTE sans auth Etsy (ETSY_ACCESS_TOKEN absent) — ne fait rien, ne casse rien.
+    """
+    try:
+        from commerce import etsy_client
+        if not etsy_client.is_authenticated():
+            logger.info("Sales feedback: Etsy non authentifié — skip (no-op)")
+            return
+        sales = await etsy_client.get_recent_sales(limit=100)
+        if not sales:
+            logger.info("Sales feedback: aucune vente récente")
+            return
+
+        from factory_niches import NICHES
+        from trend_memory import record_winner
+
+        marked: list[str] = []
+        for sale in sales:
+            title = (sale.get("title") or "").lower()
+            if not title:
+                continue
+            for n in NICHES:
+                hay = (f"{n.get('label','')} {n.get('stl_prompt','')} "
+                       f"{n.get('key','').replace('_',' ')}").lower()
+                # match si un mot significatif (>4 lettres) de la niche est dans le titre vendu
+                if any(w in title for w in hay.split() if len(w) > 4):
+                    record_winner(n["label"], notes=f"vente Etsy: {title[:60]}")
+                    marked.append(n["key"])
+                    break
+        uniq = sorted(set(marked))
+        logger.info(f"Sales feedback: {len(sales)} ventes -> {len(uniq)} niches WINNER: {uniq}")
+
+        body = (
+            "# Sales -> Memory feedback\n\n"
+            f"{len(sales)} ventes Etsy analysées, **{len(uniq)} niches marquées WINNER** "
+            "(boostées dans la sélection Auto-Factory).\n\n"
+            + ("\n".join(f"- {k}" for k in uniq) if uniq else "_(aucune correspondance niche)_")
+        )
+        _write_skill_brain_note("sales-feedback", "report", body, "daily")
+    except Exception as e:
+        logger.error(f"Sales feedback failed: {e}")
+
+
 # ─────────────────────────────────────────────────────────────────────────
 # Skill-driven scheduled jobs (daily + weekly)
 #
@@ -544,12 +589,37 @@ async def task_skill_ideation():
     _write_skill_brain_note("ideation", "Hermes", body, "weekly")
 
 
+# Source unique des daily tasks on-demand (nom -> coroutine). Utilisée par
+# daily_router (/v1/daily/run-task) ET pipeline_runner.run_daily_tasks (Cheat
+# Code) — les deux appellent les MÊMES fonctions en direct, plus de self-HTTP.
+DAILY_TASK_MAP = {
+    "vault_cleanup":             task_vault_cleanup,
+    "forge_analytics":           task_forge_analytics,
+    "stl_sync":                  task_stl_directory_sync,
+    "health_log":                task_system_health_log,
+    "error_log_cleanup":         task_error_logs_cleanup,
+    "vault_maintenance":         task_vault_maintenance,
+    "commerce_analytics":        task_commerce_analytics,
+    "jarvis_workspace_index":    task_jarvis_workspace_index,
+    "daily_smoke_tests":         task_daily_smoke_tests,
+    "orchestration_diagnostics": task_orchestration_diagnostics,
+}
+
+
 def create_scheduler():
     """Crée et configure l'APScheduler avec toutes les tâches quotidiennes."""
+    import json as _json
+
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from apscheduler.triggers.cron import CronTrigger
 
-    scheduler = AsyncIOScheduler(timezone="America/Toronto")
+    _cfg_file = BACKEND_DIR / "config.json"
+    try:
+        _cfg = _json.loads(_cfg_file.read_text(encoding="utf-8")) if _cfg_file.exists() else {}
+    except Exception:
+        _cfg = {}
+
+    scheduler = AsyncIOScheduler(timezone=_cfg.get("timezone", "America/Toronto"))
 
     # ── Daily 03:00-04:10 maintenance jobs DISABLED ─────────────────────────
     # The 10 maintenance tasks (vault_cleanup, forge_analytics, stl_sync,
@@ -568,13 +638,7 @@ def create_scheduler():
     # Code flow that absorbed these tasks.
     logger.info("Daily 03:00-04:10 maintenance jobs are now triggered via Cheat Code, not the scheduler.")
 
-    # ── Tâches dynamiques — heure lue depuis config.json au démarrage ──────────
-    import json as _json
-    _cfg_file = BACKEND_DIR / "config.json"
-    try:
-        _cfg = _json.loads(_cfg_file.read_text(encoding="utf-8")) if _cfg_file.exists() else {}
-    except Exception:
-        _cfg = {}
+    # ── Tâches dynamiques — heure lue depuis config.json (_cfg chargé en tête) ──
 
     # Trend Hunter — heure depuis config.trend_hunter
     _th_cfg = _cfg.get("trend_hunter", {})
@@ -763,15 +827,12 @@ def create_scheduler():
     skill_jobs = [
         # (task,                         id,                          name,                                                  cron kwargs,                        grace)
         (task_skill_docker_health,       "skill_docker_health",       "Daily: skill-docker-health (03:00)",                  {"hour":  3, "minute":  0},        3600),
-        (task_skill_blogwatcher,         "skill_blogwatcher",         "Daily: skill-blogwatcher (06:00)",                    {"hour":  6, "minute":  0},        3600),
-        (task_skill_polymarket,          "skill_polymarket",          "Daily: skill-polymarket (21:00)",                     {"hour": 21, "minute":  0},        3600),
         (task_skill_codebase_inspection, "skill_codebase_inspection", "Weekly: skill-codebase-inspection (Sun 02:00)",       {"day_of_week": "sun", "hour":  2}, 7200),
-        (task_skill_ideation,            "skill_ideation",            "Weekly: skill-ideation (Fri 14:00)",                  {"day_of_week": "fri", "hour": 14}, 7200),
-        (task_skill_polymarket_digest,   "skill_polymarket_digest",   "Weekly: skill-polymarket-digest (Sun 18:00)",         {"day_of_week": "sun", "hour": 18}, 7200),
         (task_weekly_vault_growth,       "weekly_vault_growth",       "Weekly: vault-growth-report (Sun 20:00)",             {"day_of_week": "sun", "hour": 20}, 7200),
         (task_daily_brain_stubs_check,   "daily_brain_stubs_check",   "Daily: brain-stubs-check (22:00)",                    {"hour": 22, "minute": 0},          3600),
         (task_monthly_repo_audit,        "monthly_repo_audit",        "Monthly: repo-audit (1st 03:00)",                     {"day": 1, "hour":  3, "minute": 0}, 7200),
         (task_monthly_brain_snapshot,    "monthly_brain_snapshot",    "Monthly: brain-snapshot (1st 04:00)",                 {"day": 1, "hour":  4, "minute": 0}, 7200),
+        (task_sales_feedback,            "sales_feedback",            "Daily: sales-feedback (23:00)",                       {"hour": 23, "minute": 0},          3600),
     ]
     for fn, job_id, job_name, cron_kwargs, grace in skill_jobs:
         scheduler.add_job(

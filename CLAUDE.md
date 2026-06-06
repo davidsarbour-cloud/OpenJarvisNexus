@@ -85,7 +85,7 @@ agents, chat). Shared services: `ollama_client`, `memory`, `budget_tracker`, `to
 
 ### Verify before committing backend changes
 `python -m py_compile`, `ruff check --select F821` (no undefined names),
-import-smoke (`import main` → 134 routes), pre-commit lint hook stays green.
+import-smoke (`import main` → 153 routes), pre-commit lint hook stays green.
 
 ---
 

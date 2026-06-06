@@ -226,3 +226,29 @@ async def get_shop_listings(limit: int = 25) -> list:
         data = resp.json()
         return data.get("results", data)
     return [{"error": resp.text, "status_code": resp.status_code}]
+
+
+async def get_recent_sales(limit: int = 50) -> list[dict]:
+    """Ventes récentes (READ-ONLY) extraites des receipts Etsy v3.
+    Retourne [{title, listing_id, quantity}] ; [] si non authentifié ou erreur.
+    Alimente la boucle ventes -> trend_memory (record_winner). Défensif : toute
+    forme de réponse inattendue donne simplement [] (aucun winner marqué)."""
+    if not is_authenticated():
+        return []
+    url = f"{ETSY_BASE}/application/shops/{ETSY_SHOP_ID}/receipts"
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(url, headers=_headers(), params={"limit": limit})
+        if not resp.is_success:
+            return []
+        out: list[dict] = []
+        for r in resp.json().get("results", []):
+            for t in (r.get("transactions") or []):
+                out.append({
+                    "title":      t.get("title", ""),
+                    "listing_id": t.get("listing_id"),
+                    "quantity":   t.get("quantity", 1),
+                })
+        return out
+    except Exception:
+        return []

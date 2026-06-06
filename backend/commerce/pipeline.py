@@ -21,7 +21,7 @@ BACKEND_PORT = int(os.getenv("BACKEND_PORT", 8000))
 class ProductPipeline:
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8].upper())
     idea: str = ""
-    status: str = "pending"   # pending|concept|fabrication|validation|metadata|approval|publishing|published|rejected
+    status: str = "pending"   # pending|concept|fabrication|validation|metadata|approval|draft_created|publishing|published|rejected
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
     # Concept (ULTRON)
