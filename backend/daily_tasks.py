@@ -617,6 +617,7 @@ def create_scheduler():
     if _af_cfg.get("enabled", False):
         from auto_factory import (
             task_auto_factory_aipack,
+            task_auto_factory_bundles,
             task_auto_factory_game2d,
             task_auto_factory_icons,
             task_auto_factory_pod,
@@ -645,6 +646,10 @@ def create_scheduler():
         _sh_h = (_af_h + (_af_m + 6 * _stag) // 60) % 24
         _pr_m = (_af_m + 7 * _stag) % 60
         _pr_h = (_af_h + (_af_m + 7 * _stag) // 60) % 24
+        # Bundling layer runs LAST (slot 8) — after every atom line has dropped
+        # its fresh .zip, so recompose can stack the day's atoms into bundles.
+        _bn_m = (_af_m + 8 * _stag) % 60
+        _bn_h = (_af_h + (_af_m + 8 * _stag) // 60) % 24
         if "stl" in _af_products:
             scheduler.add_job(
                 task_auto_factory_stl,
@@ -725,6 +730,16 @@ def create_scheduler():
                 misfire_grace_time=3600,
             )
             logger.info(f"Scheduled: auto_factory_premium at {_pr_h:02d}:{_pr_m:02d}")
+        if _af_cfg.get("bundle", True):
+            scheduler.add_job(
+                task_auto_factory_bundles,
+                trigger=CronTrigger(hour=_bn_h, minute=_bn_m),
+                id="auto_factory_bundles",
+                name=f"Daily: Bundle Recompose ({_bn_h:02d}:{_bn_m:02d})",
+                replace_existing=True,
+                misfire_grace_time=3600,
+            )
+            logger.info(f"Scheduled: auto_factory_bundles at {_bn_h:02d}:{_bn_m:02d}")
     else:
         logger.info("Auto-Factory: désactivé (config.json)")
 

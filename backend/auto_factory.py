@@ -1044,6 +1044,33 @@ async def task_auto_factory():
         ["stl", "icons", "pod", "game2d", "uikit", "aipack", "shopify", "premium"], "all")
 
 
+async def task_auto_factory_bundles():
+    """APScheduler entry — stack the day's atoms into sellable bundles (recompose.py).
+
+    Runs in the LAST staggered slot, after every atom line, so each line's fresh
+    .zip is already on disk. Disk-driven: recompose picks the newest atom per key.
+    Best-effort — a bundle with no atoms yet is reported 'empty', never an error.
+    """
+    try:
+        from recompose import recompose_all
+        results = await asyncio.to_thread(recompose_all, False, None)
+    except Exception as e:
+        print(f"[auto_factory] bundle run failed: {e}")
+        send_telegram(f"📦 Auto-Factory (Bundles): crash — {e}")
+        return {"error": str(e)}
+    built = [r for r in results if r.get("status") == "built"]
+    empty = [r for r in results if r.get("status") == "empty"]
+    lines = ["📦 Auto-Factory — Bundles", f"{len(built)}/{len(results)} bundles bâtis."]
+    for r in built:
+        lines.append(f"• {r['id']} — {r['atom_count']} packs (${r['price_usd']})")
+        if r.get("zip"):
+            lines.append(f"   {r['zip']}")
+    if empty:
+        lines.append(f"({len(empty)} vides — pas encore d'atomes)")
+    send_telegram("\n".join(lines))
+    return {"bundles_built": len(built), "results": results}
+
+
 router = APIRouter(prefix="/v1/factory", tags=["auto_factory"])
 
 
@@ -1077,6 +1104,17 @@ def list_catalog() -> dict:
 async def run_now(dry: bool = False, force: bool = False) -> dict:
     """Manual trigger. ?dry=true = select+alert only; ?force=true = run even if disabled."""
     return await run_auto_factory(dry=dry, force=force)
+
+
+@router.post("/bundles")
+async def bundles_now(dry: bool = False, only: str | None = None) -> dict:
+    """Manual trigger for the bundling layer (recompose.py).
+
+    ?dry=true = show what would build, write nothing; ?only=<bundle_id> = one bundle.
+    """
+    from recompose import recompose_all
+    results = await asyncio.to_thread(recompose_all, dry, only)
+    return {"dry": dry, "results": results}
 
 
 # Chaque ligne dépose ses produits finis dans un dossier Jarvis dédié — c'est le
