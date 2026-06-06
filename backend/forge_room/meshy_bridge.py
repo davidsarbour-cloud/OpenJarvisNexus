@@ -149,8 +149,11 @@ async def generate_stl_via_meshy(
             return False
 
 
-def _mesh_to_stl(glb_path: Path, output_path: Path) -> bool:
-    """Load a downloaded GLB/OBJ mesh, decimate if huge, export a print-ready STL."""
+def _mesh_to_stl(glb_path: Path, output_path: Path, keep_source: bool = False) -> bool:
+    """Load a downloaded GLB/OBJ mesh, decimate if huge, export a print-ready STL.
+
+    keep_source=True conserve le GLB téléchargé (texture/couleurs) à côté du STL :
+    le pipeline s'en sert pour cuire les couleurs en 3MF AMS (image-to-3D coloré)."""
     try:
         import trimesh
         scene = trimesh.load(str(glb_path))
@@ -176,11 +179,13 @@ def _mesh_to_stl(glb_path: Path, output_path: Path) -> bool:
         mesh.export(str(output_path))
         kb = output_path.stat().st_size // 1024
         print(f"[meshy] STL: {output_path.name} ({kb}KB, {len(mesh.faces)} faces)")
-        glb_path.unlink(missing_ok=True)
+        if not keep_source:
+            glb_path.unlink(missing_ok=True)
         return kb > 1
     except Exception as e:
         print(f"[meshy] GLB->STL error: {e}")
-        glb_path.unlink(missing_ok=True)
+        if not keep_source:
+            glb_path.unlink(missing_ok=True)
         return False
 
 
@@ -209,7 +214,9 @@ async def generate_stl_from_image(
         async with httpx.AsyncClient(timeout=90) as c:
             r = await c.post(base, headers=headers, json={
                 "image_url": data_uri, "ai_model": ai_model, "topology": "triangle",
-                "target_polycount": 50000, "should_remesh": True, "should_texture": False,
+                # should_texture=True : Meshy applique les couleurs de l'image sur le
+                # modèle (GLB texturé). On les cuit ensuite en 3MF AMS (color_3mf.py).
+                "target_polycount": 50000, "should_remesh": True, "should_texture": True,
             })
         if r.status_code not in (200, 201, 202):
             print(f"[meshy] image-to-3d submit {r.status_code}: {r.text[:200]}")
@@ -260,4 +267,5 @@ async def generate_stl_from_image(
         print(f"[meshy] download error: {e}")
         return False
 
-    return _mesh_to_stl(glb_path, output_path)
+    # keep_source=True : on garde le GLB texturé pour la colorisation 3MF AMS.
+    return _mesh_to_stl(glb_path, output_path, keep_source=True)

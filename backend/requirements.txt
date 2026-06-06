@@ -29,3 +29,4 @@ psutil>=5.9.0
 playwright>=1.40.0
 pygount>=1.8.0
 rembg
+mapbox_earcut>=2.0.0  # triangulation pour relief_token (image->jeton)

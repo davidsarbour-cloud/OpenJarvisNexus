@@ -480,6 +480,74 @@ export default function PipelineHubPage() {
     [inputs, images, stopTicker],
   );
 
+  // Suit la mission forge la plus récente (lancée d'OÙ QUE CE SOIT — surtout le
+  // chat JARVIS image→STL) et la reflète dans la carte STL + le compteur RUNNING.
+  // Sans ça, une mission lancée hors du Hub laisse la carte éteinte et "0 RUNNING"
+  // alors que le bandeau live la montre — c'est le décalage que David voyait.
+  const followedForgeRef = useRef<{ id: string; sawRunning: boolean }>({ id: '', sawRunning: false });
+  useEffect(() => {
+    let alive = true;
+    const FORGE_STEPS = [
+      'routing', 'planning', 'code_generation', 'mesh_generation', 'validation_raw',
+      'repair', 'orientation', 'support_analysis', 'validation_final', 'export', 'report',
+    ];
+    const tick = async () => {
+      try {
+        const r = await fetch('/v1/forge/missions');
+        if (!r.ok) return;
+        const d = await r.json();
+        const ms: Array<{ id: string; created_at?: string }> = d.missions ?? [];
+        if (!ms.length) return;
+        const latest = [...ms].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''))[0];
+        const dr = await fetch(`/v1/forge/mission/${latest.id}`);
+        if (!dr.ok) return;
+        const st: {
+          id: string; status?: string; current_step?: string; error?: string;
+          files?: { jarvis_stl?: string; final_stl?: string };
+          report?: { printability_score?: number };
+        } = await dr.json();
+        if (!alive) return;
+
+        const foll = followedForgeRef.current;
+        if (st.status === 'running') {
+          followedForgeRef.current = { id: st.id, sawRunning: true };
+          const idx = Math.max(0, FORGE_STEPS.indexOf(st.current_step ?? ''));
+          setRunStates((prev) => {
+            const cur = prev.stl;
+            if (cur?.status === 'running' && cur.currentStep === idx) return prev;
+            return { ...prev, stl: { status: 'running', currentStep: idx, startedAt: cur?.startedAt ?? Date.now() } };
+          });
+        } else if (
+          (st.status === 'completed' || st.status === 'failed' || st.status === 'error') &&
+          foll.id === st.id && foll.sawRunning
+        ) {
+          // Reflète l'état terminal UNE fois (seulement si on a vu cette mission tourner —
+          // évite d'écraser la carte avec une vieille mission terminée au chargement).
+          followedForgeRef.current = { id: st.id, sawRunning: false };
+          const f = st.files?.jarvis_stl ?? st.files?.final_stl ?? '';
+          const fname = f ? f.split(/[\\/]/).pop() : '';
+          const score = st.report?.printability_score;
+          const ok = st.status === 'completed';
+          setRunStates((prev) => ({
+            ...prev,
+            stl: ok
+              ? {
+                  status: 'done', currentStep: FORGE_STEPS.length, finishedAt: Date.now(),
+                  message: fname ? `STL prêt: ${fname}${score != null ? ` · ${score}/100` : ''}` : 'Terminé',
+                }
+              : {
+                  status: 'error', currentStep: prev.stl?.currentStep ?? 0, finishedAt: Date.now(),
+                  message: st.error ?? 'mission échouée',
+                },
+          }));
+        }
+      } catch { /* transient — retry next tick */ }
+    };
+    tick();
+    const iv = setInterval(tick, 4000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+
   const activeCount = Object.values(runStates).filter((s) => s.status === 'running').length;
 
   return (

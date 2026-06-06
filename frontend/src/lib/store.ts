@@ -58,8 +58,56 @@ function loadConversations(): ConversationStore {
   }
 }
 
+/** Copie du store sans les images base64 (souvent plusieurs Mo) — pour la
+ *  persistance localStorage uniquement. Les images restent en mémoire pour la
+ *  session courante (zustand), elles ne sont juste pas écrites sur disque. */
+function stripImages(store: ConversationStore): ConversationStore {
+  return {
+    ...store,
+    conversations: Object.fromEntries(
+      Object.entries(store.conversations).map(([id, conv]) => [
+        id,
+        {
+          ...conv,
+          messages: conv.messages.map((m) =>
+            m.images && m.images.length ? { ...m, images: undefined } : m,
+          ),
+        },
+      ]),
+    ),
+  };
+}
+
+/** Persistance localStorage INFAILLIBLE. Les images base64 attachées peuvent
+ *  dépasser le quota (~5-10 Mo) et faire planter setItem → ça cassait l'ajout du
+ *  message et le chat. On dégrade proprement : complet → sans images → élagage des
+ *  conversations anciennes → abandon silencieux. Ne JAMAIS throw (le chat prime sur
+ *  la persistance). */
 function saveConversations(store: ConversationStore): void {
-  localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(store));
+  try {
+    localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(store));
+    return;
+  } catch {
+    /* quota dépassé — on tente sans les images */
+  }
+  try {
+    localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(stripImages(store)));
+    return;
+  } catch {
+    /* toujours trop gros — on élague les conversations les plus anciennes */
+  }
+  try {
+    const recent = Object.entries(store.conversations)
+      .sort((a, b) => b[1].updatedAt - a[1].updatedAt)
+      .slice(0, 10);
+    const pruned: ConversationStore = {
+      ...store,
+      conversations: Object.fromEntries(recent),
+    };
+    localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(stripImages(pruned)));
+  } catch {
+    /* abandon silencieux : ne pas casser le chat pour un souci de stockage */
+  }
 }
 
 export type ThemeMode = 'light' | 'dark' | 'system';
