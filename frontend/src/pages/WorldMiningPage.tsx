@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Power } from 'lucide-react';
 import { NamedSatellite } from '../components/CommandCenter/FunctionalSatellites';
+import { AlpacaLinkCard } from '../components/CommandCenter/AlpacaLinkCard';
 import { MiningControlCard } from '../components/CommandCenter/MiningControlCard';
 import { WorldShell, type CardDef, type PlacedCard } from '../components/WorldShell/WorldShell';
 
@@ -25,7 +26,6 @@ const OpenPositions = () => <NamedSatellite title="OPEN POSITIONS" colorKey="min
 const DailyPnl      = () => <NamedSatellite title="DAILY P&L"      colorKey="mining" />;
 const TrailingStop  = () => <NamedSatellite title="TRAILING STOP"  colorKey="mining" />;
 const Backtest      = () => <NamedSatellite title="BACKTEST"       colorKey="mining" />;
-const AlpacaLink    = () => <NamedSatellite title="ALPACA LINK"    colorKey="mining" />;
 const RiskGuard     = () => <NamedSatellite title="RISK GUARD"     colorKey="mining" />;
 const Watchlist     = () => <NamedSatellite title="WATCHLIST"      colorKey="mining" />;
 const WalkForward   = () => <NamedSatellite title="WALK-FORWARD"   colorKey="mining" />;
@@ -42,7 +42,7 @@ const CARD_REGISTRY: Record<CardType, CardDef> = {
   pnl:          { label: 'DAILY P&L',     sub: 'Realized + unrealized',      icon: LineChart,        Card: DailyPnl      },
   trailingstop: { label: 'TRAILING STOP', sub: 'Validated stop params',      icon: TrendingDown,     Card: TrailingStop  },
   backtest:     { label: 'BACKTEST',      sub: 'Historical performance',     icon: CandlestickChart, Card: Backtest      },
-  alpaca:       { label: 'ALPACA LINK',   sub: 'Broker connection',          icon: Activity,         Card: AlpacaLink    },
+  alpaca:       { label: 'ALPACA LINK',   sub: 'Broker connection',          icon: Activity,         Card: AlpacaLinkCard },
   risk:         { label: 'RISK GUARD',    sub: 'Position sizing',            icon: ShieldAlert,      Card: RiskGuard     },
   watchlist:    { label: 'WATCHLIST',     sub: 'Tracked instruments',        icon: Coins,            Card: Watchlist     },
   walkforward:  { label: 'WALK-FORWARD',  sub: 'OOS robustness',             icon: Gauge,            Card: WalkForward   },
@@ -56,6 +56,7 @@ const DEFAULT_SEEDS: PlacedCard<CardType>[] = [
   { id: 'seed-backtest',  type: 'backtest',     side: 'left',  height: 240 },
   { id: 'seed-trail',     type: 'trailingstop', side: 'left',  height: 240 },
   { id: 'seed-watchlist', type: 'watchlist',    side: 'left',  height: 200 },
+  { id: 'seed-alpaca',    type: 'alpaca',       side: 'right', height: 220 },
   { id: 'seed-bots',      type: 'bots',         side: 'right', height: 240 },
   { id: 'seed-positions', type: 'positions',    side: 'right', height: 200 },
   { id: 'seed-pnl',       type: 'pnl',          side: 'right', height: 200 },

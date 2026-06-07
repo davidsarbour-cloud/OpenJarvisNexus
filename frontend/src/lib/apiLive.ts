@@ -104,6 +104,27 @@ export const fetchMiningPositions = () =>
 export const haltMining = (on: boolean) =>
   postJSON<MiningEnvelope>(`/v1/mining/halt?on=${on}`);
 
+// ─── Alpaca trading (/v1/trading) — paper by default ──────────
+// The Alpaca broker link for the Mining world. `connected:false` means the
+// API key pair isn't in backend/.env yet (card shows "link required").
+export interface TradingSummary {
+  connected: boolean;
+  paper: boolean;
+  currency: string;
+  equity: number;
+  last_equity: number;
+  cash: number;
+  buying_power: number;
+  pnl_today: number;
+  pnl_today_pct: number;
+  status: string;
+  error?: string;
+}
+export const fetchTradingSummary = () =>
+  getJSON<TradingSummary>('/v1/trading/summary', 6000);
+export const fetchTradingPositions = () =>
+  getJSON<unknown[]>('/v1/trading/positions', 6000);
+
 // ─── Agents ────────────────────────────────────────────
 export type AgentStatus = 'online' | 'idle' | 'offline' | string;
 

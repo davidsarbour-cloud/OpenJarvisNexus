@@ -235,6 +235,7 @@ from speech_router import router as speech_router
 from stl_agent import router as stl_router
 from stl_researcher import generate_daily_report
 from stl_researcher import router as research_router
+from trading.trading_router import router as trading_router
 from trend_hunter import router as trends_router
 from valkyrie_router import router as valkyrie_router
 from vault.vault_router import router as vault_router
@@ -248,6 +249,7 @@ app.include_router(vault_router)
 app.include_router(files_router)
 app.include_router(commerce_router)
 app.include_router(etsy_oauth_router)
+app.include_router(trading_router)
 app.include_router(monitoring_router)
 app.include_router(mining_router)
 app.include_router(iconforge_router)
