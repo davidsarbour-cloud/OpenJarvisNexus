@@ -4,6 +4,7 @@ import { UptimeCard } from '../components/CommandCenter/UptimeCard';
 import { HealthShortcutCard, BenchmarkShortcutCard } from '../components/CommandCenter/HealthBenchCards';
 import { DailyReportCard } from '../components/CommandCenter/DailyReportCard';
 import { RevenueCard } from '../components/CommandCenter/RevenueCard';
+import { GumroadRevenueCard } from '../components/CommandCenter/GumroadRevenueCard';
 
 /**
  * CommandCenterPage — route `/`.
@@ -43,6 +44,7 @@ export function CommandCenterPage() {
         <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <DailyReportCard />
           <RevenueCard />
+          <GumroadRevenueCard />
         </div>
       </div>
 

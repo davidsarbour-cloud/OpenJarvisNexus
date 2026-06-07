@@ -379,6 +379,26 @@ export interface EtsyRevenue {
 export const fetchEtsyRevenue = (days = 30) =>
   getJSON<EtsyRevenue>(`/v1/commerce/revenue?days=${days}`, 6000);
 
+// ─── Gumroad revenue (/v1/commerce/gumroad/revenue) — Gumroad sales ────
+export interface GumroadOrder {
+  name: string;
+  amount: number;
+  ts: number;
+}
+export interface GumroadRevenue {
+  connected: boolean;
+  days: number;
+  currency: string;
+  total: number;
+  orders: number;
+  today: number;
+  last_order?: GumroadOrder | null;
+  recent?: GumroadOrder[];
+  error?: string;
+}
+export const fetchGumroadRevenue = (days = 30) =>
+  getJSON<GumroadRevenue>(`/v1/commerce/gumroad/revenue?days=${days}`, 6000);
+
 // ─── Report generation (/v1/reports/generate) — opens Notepad on the host ──
 export interface ReportResult {
   filename: string;

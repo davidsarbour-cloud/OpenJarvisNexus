@@ -159,3 +159,13 @@ async def etsy_revenue(days: int = 30):
     """
     from commerce.etsy_client import get_shop_revenue
     return await get_shop_revenue(days=days)
+
+
+@router.get("/gumroad/revenue", summary="Chiffre d'affaires Gumroad")
+async def gumroad_revenue(days: int = 30):
+    """
+    Revenus Gumroad agrégés sur N jours (ventes) — carte $$$ du Command Center.
+    Nécessite GUMROAD_ACCESS_TOKEN dans .env (Settings → Advanced → Applications).
+    """
+    from commerce.gumroad_client import get_sales_revenue
+    return await get_sales_revenue(days=days)
