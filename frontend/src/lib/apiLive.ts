@@ -51,6 +51,23 @@ async function postJSON<T>(path: string, timeoutMs = 5000): Promise<T> {
   }
 }
 
+async function postJSONBody<T>(path: string, payload: unknown, timeoutMs = 8000): Promise<T> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url(path), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status} on ${path}`);
+    return (await r.json()) as T;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ─── Health ────────────────────────────────────────────
 export type ServiceStatus = string; // "ok" | "offline" | "timeout" | "not_configured" | "error: ..."
 
@@ -319,3 +336,33 @@ export interface FactoryDryRunResponse {
 }
 export const postFactoryDryRun = () =>
   postJSON<FactoryDryRunResponse>('/v1/factory/run?dry=true', 20000);
+
+// ─── Etsy revenue (/v1/commerce/revenue) — D3Dprintix sales ────
+export interface EtsyOrder {
+  name: string;
+  amount: number;
+  ts: number;
+  is_shipped: boolean;
+}
+export interface EtsyRevenue {
+  connected: boolean;
+  days: number;
+  currency: string;
+  total: number;
+  orders: number;
+  today: number;
+  last_order?: EtsyOrder | null;
+  recent?: EtsyOrder[];
+  error?: string;
+}
+export const fetchEtsyRevenue = (days = 30) =>
+  getJSON<EtsyRevenue>(`/v1/commerce/revenue?days=${days}`, 6000);
+
+// ─── Report generation (/v1/reports/generate) — opens Notepad on the host ──
+export interface ReportResult {
+  filename: string;
+  filepath: string;
+  title: string;
+}
+export const generateDailyReport = () =>
+  postJSONBody<ReportResult>('/v1/reports/generate', { type: 'daily', title: 'Daily Report' });

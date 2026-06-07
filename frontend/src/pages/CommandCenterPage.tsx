@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { ScheduledTasksCard } from '../components/CommandCenter/ScheduledTasksCard';
 import { UptimeCard } from '../components/CommandCenter/UptimeCard';
 import { HealthShortcutCard, BenchmarkShortcutCard } from '../components/CommandCenter/HealthBenchCards';
+import { DailyReportCard } from '../components/CommandCenter/DailyReportCard';
+import { RevenueCard } from '../components/CommandCenter/RevenueCard';
 
 /**
  * CommandCenterPage — route `/`.
@@ -38,6 +40,10 @@ export function CommandCenterPage() {
         }}
       >
         <ScheduledTasksCard buckets={['daily']} title="Daily Schedule" />
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <DailyReportCard />
+          <RevenueCard />
+        </div>
       </div>
 
       {/* CENTER — NEXUS9 bridge image, edge-to-edge */}

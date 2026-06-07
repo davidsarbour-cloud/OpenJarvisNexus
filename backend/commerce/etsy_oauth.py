@@ -114,6 +114,14 @@ async def etsy_exchange_token(body: TokenExchangeRequest):
         data = resp.json()
         token   = data.get("access_token", "")
         refresh = data.get("refresh_token", "")
+        # Persiste + active immédiatement — pas de copier-coller manuel dans .env.
+        try:
+            import commerce.etsy_client as _ec
+            _ec.ETSY_ACCESS_TOKEN  = token
+            _ec.ETSY_REFRESH_TOKEN = refresh
+            _ec._persist_tokens_to_env(token, refresh)
+        except Exception:
+            pass
         env_line         = f"ETSY_ACCESS_TOKEN={token}"
         env_line_refresh = f"ETSY_REFRESH_TOKEN={refresh}"
         return {
@@ -127,6 +135,18 @@ async def etsy_exchange_token(body: TokenExchangeRequest):
         }
 
     return JSONResponse(status_code=resp.status_code, content={"ok": False, "error": resp.text})
+
+
+# ── /refresh ─────────────────────────────────────────────────────────────────
+
+@router.post("/refresh", summary="Rafraîchit l'access token Etsy via le refresh token")
+async def etsy_refresh():
+    """
+    Échange ETSY_REFRESH_TOKEN contre un nouvel access_token et le persiste
+    dans backend/.env. Appelé aussi automatiquement sur 401 par le client.
+    """
+    from commerce.etsy_client import refresh_access_token
+    return await refresh_access_token()
 
 
 # ── /status ──────────────────────────────────────────────────────────────────

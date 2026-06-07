@@ -149,3 +149,13 @@ async def analytics():
         "avg_printability_score": round(total_score / scored_count, 1) if scored_count else 0,
         "avg_price_usd": round(total_price / priced_count, 2) if priced_count else 0,
     }
+
+
+@router.get("/revenue", summary="Chiffre d'affaires Etsy (D3Dprintix)")
+async def etsy_revenue(days: int = 30):
+    """
+    Revenus Etsy agrégés sur N jours (commandes payées) — carte $$$ du Command
+    Center. Nécessite ETSY_ACCESS_TOKEN + ETSY_SHOP_ID dans .env.
+    """
+    from commerce.etsy_client import get_shop_revenue
+    return await get_shop_revenue(days=days)
