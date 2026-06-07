@@ -81,6 +81,19 @@
     ],
     "greeting_template": "Bonjour David. Voici ton brief du {date}."
   },
+  "cheat_code": {
+    "enabled": true,
+    "schedule_hour": 5,
+    "schedule_minute": 0
+  },
+  "comfyui_schedule": {
+    "enabled": true,
+    "container": "iconforge-comfyui",
+    "start_hour": 7,
+    "start_minute": 50,
+    "stop_hour": 11,
+    "stop_minute": 0
+  },
   "trend_hunter": {
     "enabled": true,
     "schedule_hour": 6,
@@ -115,7 +128,14 @@
       "Passive income",
       "Cyberpunk UI",
       "Sci-fi dashboard",
-      "Warhammer 40K"
+      "Warhammer 40K",
+      "Mac Mini case",
+      "Mac Mini stand",
+      "Mac Mini stackable rack",
+      "Mac Mini display stand",
+      "Mac Mini M4 mount",
+      "mini PC rack",
+      "homelab rack"
     ],
     "reddit_subreddits": [
       "LocalLLaMA",
@@ -129,7 +149,11 @@
       "docker",
       "SideProject",
       "EtsySellers",
-      "3Dprinting"
+      "3Dprinting",
+      "macmini",
+      "homelab",
+      "minilab",
+      "functionalprint"
     ],
     "snapshot_dir": "trend_snapshots"
   },

@@ -21,7 +21,7 @@ REPORT_DIR          = BRAIN_REPORTS_DIR          # rapports pipelines -> brain (
 RESEARCH_REPORT_DIR = BRAIN_RESEARCH_DIR         # daily research -> brain
 CHEAT_REPORT_DIR    = BRAIN_DIR / "08_Command-Center" / "cheat_code"
 TTS_VOICE           = "fr-FR-HenriNeural"
-BACKEND_HOST        = os.getenv("BACKEND_HOST",  "http://localhost:8000")
+BACKEND_HOST        = os.getenv("BACKEND_HOST",  "http://127.0.0.1:8000")
 BRUCE_HOST          = os.getenv("OPENHANDS_URL", "http://localhost:3000")
 OLLAMA_HOST         = os.getenv("OLLAMA_HOST",   "http://127.0.0.1:11434")
 
@@ -429,7 +429,7 @@ async def run_stl(prompt: str, voice: bool = True) -> dict:
     import httpx as _httpx
     if not prompt.strip():
         return {"ok": False, "error": "Prompt STL manquant — décris l'objet à imprimer."}
-    backend = os.getenv("BACKEND_HOST", "http://localhost:8000")
+    backend = os.getenv("BACKEND_HOST", "http://127.0.0.1:8000")
     try:
         async with _httpx.AsyncClient(timeout=20) as c:
             r = await c.post(

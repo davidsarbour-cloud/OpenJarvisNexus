@@ -52,7 +52,7 @@ async def _section_health() -> dict[str, Any]:
     """État du système Nexus9."""
     try:
         async with httpx.AsyncClient(timeout=5) as c:
-            r = await c.get("http://localhost:8000/v1/ecosystem/health/quick")
+            r = await c.get("http://127.0.0.1:8000/v1/ecosystem/health/quick")
         if r.status_code == 200:
             d = r.json()
             score  = d.get("score", "?")

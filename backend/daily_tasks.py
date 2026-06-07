@@ -107,7 +107,7 @@ async def task_system_health_log():
     try:
         import httpx
         async with httpx.AsyncClient() as c:
-            r = await c.get("http://localhost:8000/v1/health/deep", timeout=10)
+            r = await c.get("http://127.0.0.1:8000/v1/health/deep", timeout=10)
             health = r.json() if r.status_code == 200 else {"error": r.status_code}
         health["timestamp"] = datetime.now().isoformat()
         log_path = BACKEND_DIR / "error_logs" / f"health_{datetime.now():%Y%m%d}.json"
@@ -135,35 +135,61 @@ async def task_error_logs_cleanup():
 
 
 async def task_jarvis_workspace_index():
-    """Indexe les nouveaux fichiers du workspace Jarvis dans le Vault."""
+    """Indexe les nouveaux fichiers du workspace Jarvis dans le Vault.
+
+    Dédup via un manifest local {rel: mtime} plutôt qu'une recherche ChromaDB
+    par fichier : le workspace fait ~800+ fichiers, donc l'ancienne version
+    lançait ~800 requêtes vault (≈80s) et dépassait le timeout 30s du runner
+    Cheat Code (échec muet = httpx.ReadTimeout). Plafonné par run pour rester
+    sous le timeout ; le reste est rattrapé au run suivant.
+    """
+    import json as _json
     try:
         from jarvis_files import JARVIS_READ_DIR, TEXT_EXTENSIONS, _read_text
-        from vault.memory_manager import add_memory, search_memory
+        from vault.memory_manager import add_memory
 
+        manifest_path = BACKEND_DIR / "jarvis_index_manifest.json"
+        try:
+            manifest = _json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
+        except Exception:
+            manifest = {}
+
+        MAX_PER_RUN = 100          # borne le coût d'embedding sous le timeout 30s du runner
         indexed = 0
+        scanned = 0
         for path in JARVIS_READ_DIR.rglob("*"):
             if not path.is_file() or path.suffix.lower() not in TEXT_EXTENSIONS:
                 continue
-            if path.stat().st_size > 500_000:  # skip files > 500KB
+            try:
+                st = path.stat()
+            except OSError:
+                continue
+            if st.st_size > 500_000:  # skip files > 500KB
+                continue
+            scanned += 1
+            rel = str(path.relative_to(JARVIS_READ_DIR))
+            if rel in manifest:       # déjà indexé (dédup O(1), zéro requête vault)
+                continue
+            if indexed >= MAX_PER_RUN:  # garde le reste pour le prochain run
                 continue
             try:
                 content = _read_text(path, max_chars=2000)
-                rel = str(path.relative_to(JARVIS_READ_DIR))
-                # Vérifie si déjà indexé (recherche par nom de fichier)
-                existing = await search_memory("agent_memory", rel, n_results=1)
-                already = any(rel in (r.get("metadata", {}).get("file_path","")) for r in existing)
-                if not already:
-                    await add_memory("agent_memory",
-                        f"[File: {rel}]\n{content}",
-                        metadata={"source": "jarvis_workspace", "file_path": rel, "file_name": path.name}
-                    )
-                    indexed += 1
+                await add_memory("agent_memory",
+                    f"[File: {rel}]\n{content}",
+                    metadata={"source": "jarvis_workspace", "file_path": rel, "file_name": path.name}
+                )
+                manifest[rel] = int(st.st_mtime)
+                indexed += 1
             except Exception:
                 pass
-        if indexed:
-            logger.info(f"Jarvis workspace: {indexed} nouveaux fichiers indexés dans Vault")
-        else:
-            logger.info("Jarvis workspace: aucun nouveau fichier à indexer")
+
+        try:
+            manifest_path.write_text(_json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
+
+        logger.info(f"Jarvis workspace: {indexed} fichiers indexés ce run "
+                    f"(scan {scanned}, manifest total {len(manifest)})")
     except Exception as e:
         logger.error(f"Jarvis workspace index failed: {e}")
 
@@ -609,6 +635,77 @@ def create_scheduler():
         logger.info(f"Scheduled: morning_briefing at {_bf_h:02d}:{_bf_m:02d}")
     else:
         logger.info("Morning briefing: désactivé (config.json)")
+
+    # Cheat Code — full orchestration run (sync agents → daily tasks → vault
+    # stats → vault persistence → JSON+MD report). This is the entry point that
+    # absorbed the old 03:00-04:10 maintenance jobs; scheduling it here makes the
+    # daily run automatic instead of manual (POST /v1/cheat-code).
+    _cc_cfg = _cfg.get("cheat_code", {})
+    if _cc_cfg.get("enabled", True):
+        _cc_h = int(_cc_cfg.get("schedule_hour",   5))
+        _cc_m = int(_cc_cfg.get("schedule_minute", 0))
+
+        async def _run_cheat_code_job():
+            # Imported lazily to avoid a circular import at module load.
+            from pipeline_runner import run_cheat_code
+            await run_cheat_code(voice=False)
+
+        scheduler.add_job(
+            _run_cheat_code_job,
+            trigger=CronTrigger(hour=_cc_h, minute=_cc_m),
+            id="cheat_code",
+            name=f"Daily: cheat_code ({_cc_h:02d}:{_cc_m:02d})",
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+        logger.info(f"Scheduled: cheat_code at {_cc_h:02d}:{_cc_m:02d}")
+    else:
+        logger.info("Cheat Code: scheduling désactivé (config.json) — reste manuel via POST /v1/cheat-code")
+
+    # ComfyUI on/off window — le container garde ~18 GB (FLUX Schnell FP8 en
+    # RAM). On ne l'allume que pour la fenêtre Auto-Factory (lignes image :
+    # Icons 08:20 → Premium 10:20) puis on l'éteint pour rendre la RAM à Windows.
+    _cf_cfg = _cfg.get("comfyui_schedule", {})
+    if _cf_cfg.get("enabled", False):
+        _cf_name = _cf_cfg.get("container", "iconforge-comfyui")
+        _cf_sh = int(_cf_cfg.get("start_hour",  7))
+        _cf_sm = int(_cf_cfg.get("start_minute", 50))
+        _cf_eh = int(_cf_cfg.get("stop_hour",  11))
+        _cf_em = int(_cf_cfg.get("stop_minute",  0))
+
+        async def _comfyui_start_job():
+            import asyncio as _aio
+
+            from tools.docker_tools import docker_container_action
+            res = await _aio.to_thread(docker_container_action, _cf_name, "start")
+            logger.info(f"ComfyUI start ({_cf_name}): {res}")
+
+        async def _comfyui_stop_job():
+            import asyncio as _aio
+
+            from tools.docker_tools import docker_container_action
+            res = await _aio.to_thread(docker_container_action, _cf_name, "stop")
+            logger.info(f"ComfyUI stop ({_cf_name}): {res}")
+
+        scheduler.add_job(
+            _comfyui_start_job,
+            trigger=CronTrigger(hour=_cf_sh, minute=_cf_sm),
+            id="comfyui_start",
+            name=f"Daily: ComfyUI start ({_cf_sh:02d}:{_cf_sm:02d})",
+            replace_existing=True,
+            misfire_grace_time=1800,
+        )
+        scheduler.add_job(
+            _comfyui_stop_job,
+            trigger=CronTrigger(hour=_cf_eh, minute=_cf_em),
+            id="comfyui_stop",
+            name=f"Daily: ComfyUI stop ({_cf_eh:02d}:{_cf_em:02d})",
+            replace_existing=True,
+            misfire_grace_time=1800,
+        )
+        logger.info(f"Scheduled: ComfyUI window {_cf_sh:02d}:{_cf_sm:02d}–{_cf_eh:02d}:{_cf_em:02d}")
+    else:
+        logger.info("ComfyUI schedule: désactivé (config.json)")
 
     # Auto-Factory — two independent daily lines (config.auto_factory).
     # STL line and Icon line are SEPARATE Command Center tasks; staggered 15 min
