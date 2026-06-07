@@ -5,6 +5,7 @@ import { HealthShortcutCard, BenchmarkShortcutCard } from '../components/Command
 import { DailyReportCard } from '../components/CommandCenter/DailyReportCard';
 import { RevenueCard } from '../components/CommandCenter/RevenueCard';
 import { GumroadRevenueCard } from '../components/CommandCenter/GumroadRevenueCard';
+import { YouTubeStatsCard } from '../components/CommandCenter/YouTubeStatsCard';
 
 /**
  * CommandCenterPage — route `/`.
@@ -45,6 +46,7 @@ export function CommandCenterPage() {
           <DailyReportCard />
           <RevenueCard />
           <GumroadRevenueCard />
+          <YouTubeStatsCard />
         </div>
       </div>
 

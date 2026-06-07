@@ -399,6 +399,21 @@ export interface GumroadRevenue {
 export const fetchGumroadRevenue = (days = 30) =>
   getJSON<GumroadRevenue>(`/v1/commerce/gumroad/revenue?days=${days}`, 6000);
 
+// ─── YouTube channel stats (/v1/social/youtube/stats) — audience ───────
+export interface YouTubeStats {
+  connected: boolean;
+  channel_id?: string;
+  title?: string;
+  subscribers?: number;
+  subs_hidden?: boolean;
+  views?: number;
+  videos?: number;
+  thumbnail?: string | null;
+  error?: string;
+}
+export const fetchYouTubeStats = () =>
+  getJSON<YouTubeStats>(`/v1/social/youtube/stats`, 6000);
+
 // ─── Report generation (/v1/reports/generate) — opens Notepad on the host ──
 export interface ReportResult {
   filename: string;

@@ -231,6 +231,7 @@ from mining_router import router as mining_router
 from monitoring_router import router as monitoring_router
 from orchestrate_router import router as orchestrate_router
 from reports_router import router as reports_router
+from social.social_router import router as social_router
 from speech_router import router as speech_router
 from stl_agent import router as stl_router
 from stl_researcher import generate_daily_report
@@ -250,6 +251,7 @@ app.include_router(files_router)
 app.include_router(commerce_router)
 app.include_router(etsy_oauth_router)
 app.include_router(trading_router)
+app.include_router(social_router)
 app.include_router(monitoring_router)
 app.include_router(mining_router)
 app.include_router(iconforge_router)
