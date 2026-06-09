@@ -450,6 +450,42 @@ async def run_stl(prompt: str, voice: bool = True) -> dict:
     return result
 
 
+async def run_hueforge(prompt: str, voice: bool = True) -> dict:
+    """Lance une mission HueForge via /v1/hueforge/mission (texte).
+
+    Détecte les tiers depuis le langage : 'variante' -> tier2, 'filament/impression/
+    print/couche' -> tier3. Les dimensions ('119x47') sont extraites côté serveur.
+    auto_open=True -> le PNG final s'ouvre (HueForge si trouvé, sinon Explorateur).
+    """
+    import os
+    import re as _re
+
+    import httpx as _httpx
+    if not prompt.strip():
+        return {"ok": False, "error": "Prompt HueForge manquant — décris l'image."}
+    low = prompt.lower()
+    tier2 = bool(_re.search(r"\bvariantes?\b|\bvariants?\b", low))
+    # Bornes de mots : "couches?" ne matche pas "coucher (de soleil)", etc.
+    tier3 = bool(_re.search(r"\bfilament|\bimpression\b|\bprint\b|\bcouches?\b|\bparam", low))
+    backend = os.getenv("BACKEND_HOST", "http://127.0.0.1:8000")
+    payload = {"prompt": prompt.strip(), "auto_open": True, "tier2": tier2, "tier3": tier3}
+    try:
+        async with _httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"{backend}/v1/hueforge/mission", json=payload)
+            data = r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
+            mid = data.get("mission_id", "?")
+            result = {"ok": r.status_code == 200, "mission_id": mid, "prompt": prompt,
+                      "tier2": tier2, "tier3": tier3, **data}
+    except Exception as e:
+        result = {"ok": False, "error": str(e), "prompt": prompt}
+    if voice:
+        mid = result.get("mission_id", "?")
+        msg = f"Mission HueForge {mid} démarrée, le fichier s'ouvrira à la fin." if result["ok"] \
+              else "Erreur HueForge. Vérifie que le backend et ComfyUI tournent."
+        await _tts(msg)
+    return result
+
+
 # ── Détection de commande dans le texte ───────────────────────────────
 
 _PATTERNS = {
@@ -474,6 +510,12 @@ _PATTERNS = {
         r"(génère|generate|lance|run|crée)\s+(un\s+)?rapport|rapport\s+nexus|jarvis[:\s]+rapport",
         re.I
     ),
+    # HueForge AVANT stl : "hueforge" contient "forge" mais ne doit jamais tomber
+    # sur la fabrication STL. Déclencheurs : hueforge / hue forge / lithophane.
+    "hueforge": re.compile(
+        r"\bhueforge\b|hue\s*forge|litho(phane)?",
+        re.I
+    ),
     "stl": re.compile(
         # NB: bare "\bstl\b" removed — it fired the real fabrication pipeline on
         # ANY mention of STL (e.g. "should I use a queue for the STL batch jobs?").
@@ -491,6 +533,11 @@ _PATTERNS = {
 
 _STL_EXTRACT = re.compile(
     r"(?:stl|forge|imprime|génère|crée|3d\s*print|meshy|print)[:\s]+(.{3,})",
+    re.I
+)
+
+_HUEFORGE_EXTRACT = re.compile(
+    r"(?:hueforge|hue\s*forge|lithophane)\s*(?:de\s+|d'|of\s+)?(.{2,})",
     re.I
 )
 
@@ -674,6 +721,9 @@ def detect_pipeline(text: str) -> tuple[str, str] | None:
             if pid == "stl":
                 m = _STL_EXTRACT.search(text)
                 arg = m.group(1).strip() if m else text.strip()
+            elif pid == "hueforge":
+                m = _HUEFORGE_EXTRACT.search(text)
+                arg = m.group(1).strip() if m else text.strip()
             return (pid, arg)
     return None
 
@@ -690,6 +740,8 @@ async def execute_pipeline(pipeline_id: str, arg: str = "", voice: bool = True) 
         return await run_rapport(voice)
     if pipeline_id == "stl":
         return await run_stl(arg, voice)
+    if pipeline_id == "hueforge":
+        return await run_hueforge(arg, voice)
     return {"ok": False, "error": f"Pipeline inconnu : {pipeline_id}"}
 
 
@@ -748,6 +800,23 @@ def format_response(pipeline_id: str, result: dict) -> str:
             )
         else:
             return f"⬡ **STL PIPELINE ❌**\n\n{result.get('error', 'Erreur inconnue')}"
+    if pipeline_id == "hueforge":
+        mid = result.get("mission_id", "—")
+        prompt = result.get("prompt", "")
+        tiers = []
+        if result.get("tier2"):
+            tiers.append("variantes")
+        if result.get("tier3"):
+            tiers.append("filaments+params")
+        extra = f" · {' + '.join(tiers)}" if tiers else ""
+        if ok:
+            return (
+                f"🎨 **HUEFORGE ✅ — Mission `{mid}`**{extra}\n\n"
+                f"Prompt : *{prompt[:80]}*\n\n"
+                "ComfyUI → resize · contraste · fond → dossier **Pret_pour_HueForge** → ouverture auto.\n"
+                "*Suivi live dans le **Command Center** (carte HueForge).*"
+            )
+        return f"🎨 **HUEFORGE ❌**\n\n{result.get('error', 'Erreur inconnue')}"
     return f"Pipeline `{pipeline_id}` : {'✅' if ok else '❌'}"
 
 

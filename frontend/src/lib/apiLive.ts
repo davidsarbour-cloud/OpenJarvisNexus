@@ -422,3 +422,16 @@ export interface ReportResult {
 }
 export const generateDailyReport = () =>
   postJSONBody<ReportResult>('/v1/reports/generate', { type: 'daily', title: 'Daily Report' });
+
+// ─── HueForge (préparation d'images pour impression couleur) ──
+// GET /v1/hueforge/jobs → compteurs live pour la carte Command Center.
+export interface HueForgeJobs {
+  total: number;
+  running: number;
+  done: number;
+  failed: number;
+  variants: number;
+  print: number;
+  jobs: { id: string; status: string; prompt: string; tier2?: boolean; tier3?: boolean }[];
+}
+export const fetchHueForgeJobs = () => getJSON<HueForgeJobs>('/v1/hueforge/jobs', 5000);

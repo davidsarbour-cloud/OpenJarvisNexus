@@ -224,6 +224,7 @@ from daily_tasks import create_scheduler
 from docker_router import router as docker_router
 from forge_room.forge_engine import router as forge_router
 from health_router import router as health_router
+from hueforge.hueforge_router import router as hueforge_router
 from iconforge.router import router as iconforge_router
 from jarvis_files import router as files_router
 from memory_router import router as memory_router
@@ -255,6 +256,7 @@ app.include_router(social_router)
 app.include_router(monitoring_router)
 app.include_router(mining_router)
 app.include_router(iconforge_router)
+app.include_router(hueforge_router)
 app.include_router(factory_router)
 app.include_router(ws_router)
 app.include_router(briefing_router)

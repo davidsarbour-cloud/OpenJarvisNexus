@@ -10,7 +10,7 @@
  * yet expose a uniform progress endpoint.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Boxes, ShoppingBag, Zap, Search, Container } from 'lucide-react';
+import { Boxes, ShoppingBag, Zap, Search, Container, Palette, Layers, Printer } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import {
@@ -34,6 +34,8 @@ interface PipelineSpec {
   inputLabel?: string;
   obsidianPath?: string;
   allowImage?: boolean;
+  /** Champs additionnels fusionnés dans le body POST (ex: flags de tier HueForge). */
+  extraBody?: Record<string, unknown>;
 }
 
 const OBSIDIAN_VAULT = 'BRAIN';
@@ -65,6 +67,90 @@ const PIPELINES: PipelineSpec[] = [
       'Final validation (printability score)',
       'Export (STL file generation)',
       'Report (metrics + Vault persistence)',
+    ],
+  },
+  {
+    id: 'hueforge',
+    label: 'HueForge Prep',
+    category: 'fabrication',
+    description: 'Image (FLUX ou upload) → resize → contraste → fond → « Prêt pour HueForge »',
+    icon: Palette,
+    colorKey: 'valkyrie',
+    totalSteps: 7,
+    estimatedSecondsPerStep: 10,
+    endpoint: '/v1/hueforge/mission',
+    bodyKey: 'prompt',
+    inputLabel: 'ex: poisson koi stylisé, aplats de couleur... (ou ajoute une image)',
+    allowImage: true,
+    obsidianPath: '07_Schemas/system/hueforge-pipeline.md',
+    steps: [
+      'Routing (validation + source ComfyUI/image)',
+      'Génération (FLUX texte→image) ou ingestion image',
+      'Resize (côté long → size px, ratio préservé)',
+      'Contraste (ImageEnhance)',
+      'Fond (rembg + aplatissement optionnel)',
+      'Export (dossier « Prêt pour HueForge »)',
+      'Report (palette dominante + filaments estimés)',
+    ],
+  },
+  {
+    id: 'hueforge-variants',
+    label: 'HueForge Variants',
+    category: 'fabrication',
+    description: 'N variantes → score HueForge → meilleure auto → aperçu Etsy',
+    icon: Layers,
+    colorKey: 'valkyrie',
+    totalSteps: 10,
+    estimatedSecondsPerStep: 9,
+    endpoint: '/v1/hueforge/mission',
+    bodyKey: 'prompt',
+    inputLabel: 'ex: poisson koi stylisé... (ou ajoute une image)',
+    allowImage: true,
+    extraBody: { tier2: true, variants_count: 3, variant_strategy: 'contrast_range' },
+    obsidianPath: '07_Schemas/system/hueforge-pipeline.md',
+    steps: [
+      'Routing (validation + source)',
+      'Génération (FLUX) ou ingestion image',
+      'Génération de variantes (balayage)',
+      'Sélection auto (score HueForge-suitability)',
+      'Resize (via variante gagnante)',
+      'Contraste (via variante gagnante)',
+      'Fond (via variante gagnante)',
+      'Export (dossier « Prêt pour HueForge »)',
+      'Aperçus Etsy (2000×2000 par variante)',
+      'Report (palette + variantes + gagnante)',
+    ],
+  },
+  {
+    id: 'hueforge-print',
+    label: 'HueForge Print Prep',
+    category: 'fabrication',
+    description: 'Variantes + filaments possédés → couches → simulation → params impression',
+    icon: Printer,
+    colorKey: 'valkyrie',
+    totalSteps: 14,
+    estimatedSecondsPerStep: 8,
+    endpoint: '/v1/hueforge/mission',
+    bodyKey: 'prompt',
+    inputLabel: 'ex: paysage montagne aplats 119x47... (dimensions mm optionnelles · ou image)',
+    allowImage: true,
+    extraBody: { tier2: true, tier3: true, variants_count: 3, variant_strategy: 'contrast_range' },
+    obsidianPath: '07_Schemas/system/hueforge-pipeline.md',
+    steps: [
+      'Routing (validation + source)',
+      'Génération (FLUX) ou ingestion image',
+      'Génération de variantes (balayage)',
+      'Sélection auto (score HueForge)',
+      'Resize (variante gagnante)',
+      'Contraste (variante gagnante)',
+      'Fond (variante gagnante)',
+      'Export (« Prêt pour HueForge »)',
+      'Aperçus Etsy (par variante)',
+      'Report (palette + variantes)',
+      'Analyse filaments (AMS, delta-E Lab)',
+      'Estimation changements de couches',
+      'Simulation rendu HueForge (approx TD)',
+      'Paramètres impression (swaps, slots AMS)',
     ],
   },
   {
@@ -368,6 +454,9 @@ export default function PipelineHubPage() {
         const body: Record<string, unknown> = {};
         if (spec.bodyKey) {
           body[spec.bodyKey] = input;
+        }
+        if (spec.extraBody) {
+          Object.assign(body, spec.extraBody);
         }
         if (image) {
           body.image = image.dataUri;

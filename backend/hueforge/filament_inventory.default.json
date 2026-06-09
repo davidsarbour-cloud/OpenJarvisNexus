@@ -1,0 +1,12 @@
+{
+  "_comment": "Inventaire filaments PAR DEFAUT (Bambu A1 + AMS 4 slots). Copie vers filament_inventory.json (live, editable, gitignore) au premier chargement. David: edite hex/name/ams_slot/count_m/td_mm pour coller a tes vraies bobines. td_mm (transmission distance) = epaisseur de filament pour atteindre l'opacite; valeurs ESTIMEES (un vrai HueForge demande des mesures par filament).",
+  "slots": 4,
+  "updated_at": null,
+  "filaments": [
+    { "hex": "#000000", "name": "Black",      "brand": "Bambu Basic", "material": "PLA", "ams_slot": 1,    "count_m": 240, "density": 1.24, "nozzle_temp": 220, "bed_temp": 55, "td_mm": 0.8 },
+    { "hex": "#FFFFFF", "name": "Jade White", "brand": "Bambu Basic", "material": "PLA", "ams_slot": 2,    "count_m": 240, "density": 1.24, "nozzle_temp": 220, "bed_temp": 55, "td_mm": 2.0 },
+    { "hex": "#8E9089", "name": "Bambu Gray",  "brand": "Bambu Basic", "material": "PLA", "ams_slot": 3,    "count_m": 240, "density": 1.24, "nozzle_temp": 220, "bed_temp": 55, "td_mm": 1.2 },
+    { "hex": "#00AE42", "name": "Bambu Green", "brand": "Bambu Basic", "material": "PLA", "ams_slot": 4,    "count_m": 240, "density": 1.24, "nozzle_temp": 220, "bed_temp": 55, "td_mm": 1.0 },
+    { "hex": "#C12E1F", "name": "Red",         "brand": "Bambu Basic", "material": "PLA", "ams_slot": null, "count_m": 240, "density": 1.24, "nozzle_temp": 220, "bed_temp": 55, "td_mm": 0.9 }
+  ]
+}

@@ -94,6 +94,27 @@
     "stop_hour": 11,
     "stop_minute": 0
   },
+  "hueforge": {
+    "enabled": false,
+    "schedule_hour": 10,
+    "schedule_minute": 30,
+    "size": 1024,
+    "contrast": 1.35,
+    "remove_bg": true,
+    "flatten_bg": null,
+    "palette_colors": 6,
+    "tier2": false,
+    "variants_count": 3,
+    "variant_strategy": "contrast_range",
+    "tier3": false,
+    "layer_height": 0.08,
+    "model_height_mm": 3.0,
+    "prompts": [
+      "minimalist geometric mountain range, high contrast, flat colors, vector style",
+      "cyberpunk city skyline silhouette, neon gradient, high contrast poster",
+      "stylized koi fish, bold flat color blocks, high contrast, hueforge ready"
+    ]
+  },
   "trend_hunter": {
     "enabled": true,
     "schedule_hour": 6,

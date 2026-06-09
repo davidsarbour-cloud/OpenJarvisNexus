@@ -131,6 +131,7 @@ overnight_results/
 # STL outputs - trop gros pour GitHub
 backend/stl_output/
 backend/forge_output/
+backend/hueforge_output/
 # dumps mesh transitoires (Bambu/Shopify)
 **/automation/incoming/
 backend/vault_data/chromadb/  # ChromaDB est local, pas de backup
@@ -173,6 +174,8 @@ frontend/e2e/*.png
 # Runtime state (écrit par l'app à chaque run — pas du code source)
 backend/budget_logs.json
 backend/forge_missions_cache.json
+backend/hueforge_missions_cache.json
+backend/hueforge/filament_inventory.json
 backend/auto_factory_state.json
 backend/pod_output/
 backend/game2d_output/

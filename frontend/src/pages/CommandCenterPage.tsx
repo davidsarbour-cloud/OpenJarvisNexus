@@ -6,6 +6,7 @@ import { DailyReportCard } from '../components/CommandCenter/DailyReportCard';
 import { RevenueCard } from '../components/CommandCenter/RevenueCard';
 import { GumroadRevenueCard } from '../components/CommandCenter/GumroadRevenueCard';
 import { YouTubeStatsCard } from '../components/CommandCenter/YouTubeStatsCard';
+import { HueForgeCard } from '../components/CommandCenter/HueForgeCard';
 
 /**
  * CommandCenterPage — route `/`.
@@ -47,6 +48,7 @@ export function CommandCenterPage() {
           <RevenueCard />
           <GumroadRevenueCard />
           <YouTubeStatsCard />
+          <HueForgeCard />
         </div>
       </div>
 

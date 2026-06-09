@@ -89,7 +89,7 @@ async def task_stl_directory_sync():
     """Synchronise les STL vers le dossier Jarvis (si non déjà copié)."""
     try:
         forge_output = BACKEND_DIR / "forge_output"
-        jarvis_dir = Path(os.getenv("JARVIS_STL_DIR", r"C:\Users\bobby\OneDrive\Bureau\Jarvis\STL"))
+        jarvis_dir = Path(os.getenv("JARVIS_STL_DIR", r"C:\Users\bobby\OneDrive\Bureau\Jarvis\01_PRODUCTS\STL"))
         jarvis_dir.mkdir(parents=True, exist_ok=True)
         copied = 0
         for stl in forge_output.glob("*_final.stl"):
@@ -675,10 +675,44 @@ def create_scheduler():
 
         async def _comfyui_start_job():
             import asyncio as _aio
+            import os as _os
+            import subprocess as _sp
 
             from tools.docker_tools import docker_container_action
+
+            def _docker_ready():
+                # sonde named-pipe = instantanée, ne bloque jamais (≠ `docker ps`)
+                return _os.path.exists(r"\\.\pipe\docker_engine")
+
+            # 1. S'assurer que le daemon Docker est prêt — le lancer sinon (la
+            #    cause du 2026-06-08 : Docker pas démarré au boot => ComfyUI down).
+            if not _docker_ready():
+                logger.info("ComfyUI start: daemon Docker absent — lancement de Docker Desktop")
+                try:
+                    _sp.Popen([r"C:\Program Files\Docker\Docker\Docker Desktop.exe"])
+                except Exception as e:
+                    logger.error(f"ComfyUI start: échec lancement Docker Desktop: {e}")
+                for _ in range(48):                     # jusqu'à 240s pour le daemon
+                    await _aio.sleep(5)
+                    if _docker_ready():
+                        break
+            if not _docker_ready():
+                logger.error("ComfyUI start: daemon Docker toujours absent — abandon")
+                return
+
+            # 2. Démarrer le conteneur ComfyUI, puis attendre que :8188 réponde.
             res = await _aio.to_thread(docker_container_action, _cf_name, "start")
             logger.info(f"ComfyUI start ({_cf_name}): {res}")
+            import httpx as _httpx
+            for _ in range(36):                         # jusqu'à 180s (chargement FLUX)
+                await _aio.sleep(5)
+                try:
+                    async with _httpx.AsyncClient(timeout=3) as _c:
+                        if (await _c.get("http://127.0.0.1:8188/")).status_code == 200:
+                            logger.info("ComfyUI start: :8188 pret")
+                            break
+                except Exception:
+                    pass
 
         async def _comfyui_stop_job():
             import asyncio as _aio
@@ -706,6 +740,48 @@ def create_scheduler():
         logger.info(f"Scheduled: ComfyUI window {_cf_sh:02d}:{_cf_sm:02d}–{_cf_eh:02d}:{_cf_em:02d}")
     else:
         logger.info("ComfyUI schedule: désactivé (config.json)")
+
+    # HueForge — batch quotidien de préparation d'images (génère via ComfyUI →
+    # resize → contraste → fond → dossier « Prêt pour HueForge »). Désactivé par
+    # défaut : à planifier DANS la fenêtre ComfyUI (07:50–11:00) pour avoir le GPU.
+    _hf_cfg = _cfg.get("hueforge", {})
+    if _hf_cfg.get("enabled", False):
+        _hf_h = int(_hf_cfg.get("schedule_hour", 10))
+        _hf_m = int(_hf_cfg.get("schedule_minute", 30))
+        _hf_prompts = _hf_cfg.get("prompts", [])
+        _hf_params = {
+            "size": int(_hf_cfg.get("size", 1024)),
+            "contrast": float(_hf_cfg.get("contrast", 1.35)),
+            "remove_bg": bool(_hf_cfg.get("remove_bg", True)),
+            "flatten_bg": _hf_cfg.get("flatten_bg"),
+            "palette_colors": int(_hf_cfg.get("palette_colors", 6)),
+            "tier2": bool(_hf_cfg.get("tier2", False)),
+            "variants_count": int(_hf_cfg.get("variants_count", 3)),
+            "variant_strategy": _hf_cfg.get("variant_strategy", "contrast_range"),
+            "tier3": bool(_hf_cfg.get("tier3", False)),
+            "layer_height": float(_hf_cfg.get("layer_height", 0.08)),
+            "model_height_mm": float(_hf_cfg.get("model_height_mm", 3.0)),
+        }
+
+        async def _run_hueforge_batch_job():
+            # Import paresseux : évite un import circulaire au chargement du module.
+            from hueforge.hueforge_pipeline import run_hueforge_batch
+            if not _hf_prompts:
+                logger.info("HueForge batch: aucun prompt dans config.hueforge.prompts — skip")
+                return
+            await run_hueforge_batch(_hf_prompts, _hf_params)
+
+        scheduler.add_job(
+            _run_hueforge_batch_job,
+            trigger=CronTrigger(hour=_hf_h, minute=_hf_m),
+            id="hueforge_batch",
+            name=f"Daily: hueforge_batch ({_hf_h:02d}:{_hf_m:02d})",
+            replace_existing=True,
+            misfire_grace_time=1800,
+        )
+        logger.info(f"Scheduled: hueforge_batch at {_hf_h:02d}:{_hf_m:02d} ({len(_hf_prompts)} prompts)")
+    else:
+        logger.info("HueForge batch: désactivé (config.json) — reste manuel via POST /v1/hueforge/batch")
 
     # Auto-Factory — two independent daily lines (config.auto_factory).
     # STL line and Icon line are SEPARATE Command Center tasks; staggered 15 min
